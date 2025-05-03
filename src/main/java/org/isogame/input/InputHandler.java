@@ -1,4 +1,4 @@
-package org.isogame.inputhandler;
+package org.isogame.input;
 
 import static org.lwjgl.glfw.GLFW.*;
 

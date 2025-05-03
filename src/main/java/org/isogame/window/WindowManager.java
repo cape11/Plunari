@@ -1,4 +1,4 @@
-package org.isogame;
+package org.isogame.window;
 
 public class WindowManager {
 }

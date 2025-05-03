@@ -1,4 +1,4 @@
-package org.isogame;
+package org.isogame.constants;
 
 public class Constants {
     public static final int TILE_WIDTH = 64;
