@@ -1,72 +1,38 @@
 package org.isogame.render;
 
-import org.lwjgl.glfw.*;
 import org.lwjgl.opengl.*;
-import org.lwjgl.system.*;
 import static org.isogame.constants.Constants.*;
 import org.isogame.input.InputHandler;
-
-import java.nio.*;
-
-import static org.lwjgl.glfw.Callbacks.*;
-import static org.lwjgl.glfw.GLFW.*;
-import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.system.MemoryStack.*;
-import static org.lwjgl.system.MemoryUtil.*;
+import org.isogame.camera.CameraManager;
 import org.isogame.game.Game;
+
+import static org.lwjgl.opengl.GL11.*;
 
 public class Renderer {
     private final Game game;
     private final InputHandler inputHandler;
+    private final CameraManager camera;
 
-    public Renderer(Game game, InputHandler inputHandler) {
+    public Renderer(Game game, InputHandler inputHandler, CameraManager camera) {
         this.game = game;
-        this.inputHandler = inputHandler; // Now inputHandler is defined and usable
+        this.inputHandler = inputHandler;
+        this.camera = camera;
     }
-
 
     public void render() {
         int[][] alturas = game.alturas;
-        int currentRow = inputHandler.currentRow; // Get player row from InputHandler
-        int currentCol = inputHandler.currentCol; // Get player col from InputHandler
-        System.out.println("Rendering map centered at row " + currentRow + ", col " + currentCol);
+        int currentRow = inputHandler.currentRow;
+        int currentCol = inputHandler.currentCol;
 
-        for (int row = 0; row < alturas.length; row++) {
-            for (int col = 0; col < alturas[0].length; col++) {
-                int altura = alturas[row][col];
-                // Use altura for rendering logic
-            }
-        }
+        // Sort tiles for correct rendering order (back-to-front)
+        // This simple approach works for isometric view
+        for (int sum = 0; sum <= MAP_WIDTH + MAP_HEIGHT - 2; sum++) {
+            for (int row = 0; row <= sum; row++) {
+                int col = sum - row;
 
-        // We'll use immediate mode for simplicity in migration
-        // In a real project, you should use modern OpenGL with VBOs/VAOs
-
-        int mapPixelWidth = (MAP_WIDTH + MAP_HEIGHT) * TILE_WIDTH / 2;
-        int mapPixelHeight = (MAP_WIDTH + MAP_HEIGHT) * TILE_HEIGHT / 2;
-        int offsetX = (WIDTH - mapPixelWidth) / 2;
-        int offsetY = (HEIGHT - mapPixelHeight) / 2 + (ALTURA_MAXIMA * tileThickness / 2);
-
-        for (int row = 0; row < MAP_HEIGHT; row++) {
-            for (int col = 0; col < MAP_WIDTH; col++) {
-                int elevation = alturas[row][col];
-                int tileX = (col - row) * TILE_WIDTH / 2 + offsetX + (MAP_WIDTH * TILE_WIDTH / 2);
-                int tileY = (col + row) * TILE_HEIGHT / 2 + offsetY;
-
-                // Simple culling
-                if (tileX > WIDTH || tileX + TILE_WIDTH < 0 || tileY > HEIGHT || tileY + TILE_HEIGHT + baseThickness < 0) {
-                    continue;
+                if (row < MAP_HEIGHT && col < MAP_WIDTH) {
+                    renderTile(row, col, alturas[row][col]);
                 }
-
-                int visualY = tileY;
-                if (inputHandler.levitating) {
-                    visualY += (int) (Math.sin(inputHandler.levitateTimer + (row + col) * 0.3) * 5);
-                }
-
-                // Check if this is the current selected tile
-                boolean isSelected = (row == inputHandler.currentRow && col == inputHandler.currentCol);
-
-                // Draw the tile
-                drawTile(tileX, visualY, row, col, elevation, isSelected);
             }
         }
 
@@ -74,14 +40,41 @@ public class Renderer {
         drawText(10, 20, "Pos: (" + inputHandler.currentRow + ", " + inputHandler.currentCol + ")");
         drawText(10, 35, "Altura: " + alturas[inputHandler.currentRow][inputHandler.currentCol]);
         drawText(10, 50, "G: Regenerar Mapa | S: Levitar | A/Z: Altura | Flechas: Mover");
+        drawText(10, 65, "Scroll: Zoom | Middle Mouse: Pan Camera");
+    }
+
+    private void renderTile(int row, int col, int elevation) {
+        // Check if this is the current selected tile
+        boolean isSelected = (row == inputHandler.currentRow && col == inputHandler.currentCol);
+
+        // Get screen coordinates for tile
+        int[] baseCoords = camera.mapToScreenCoords(col, row, 0);
+        int tileX = baseCoords[0];
+        int tileY = baseCoords[1];
+
+        // Simple culling - don't render tiles outside viewport
+        int effectiveTileWidth = camera.getEffectiveTileWidth();
+        int effectiveTileHeight = camera.getEffectiveTileHeight();
+
+        if (tileX > camera.getScreenWidth() ||
+                tileX + effectiveTileWidth < 0 ||
+                tileY > camera.getScreenHeight() ||
+                tileY + effectiveTileHeight + camera.getEffectiveTileThickness() < 0) {
+            return;
+        }
+
+        int visualY = tileY;
+        if (inputHandler.levitating) {
+            visualY += (int) (Math.sin(inputHandler.levitateTimer + (row + col) * 0.3) * 5);
+        }
+
+        // Draw the tile using the coordinates
+        drawTile(tileX, visualY, row, col, elevation, isSelected);
     }
 
     private void drawText(int x, int y, String text) {
         // In OpenGL immediate mode, drawing text is non-trivial
-        // For simplicity in this migration, we'll draw a placeholder
-        // In a real application, you would use a text rendering library like FTGL
-
-        // Draw a small rectangle as a placeholder
+        // For simplicity, we'll draw a placeholder
         glColor3f(1.0f, 1.0f, 1.0f);
         glBegin(GL_QUADS);
         glVertex2f(x, y);
@@ -90,8 +83,7 @@ public class Renderer {
         glVertex2f(x, y + 15);
         glEnd();
 
-        // Note: For proper text rendering, you would use a library like FTGL or implement
-        // texture-based font rendering. This is just a placeholder.
+        // Note: For proper text rendering, you would use a library like FTGL
     }
 
     private void drawTile(int x, int y, int row, int col, int elevation, boolean isSelected) {
@@ -110,7 +102,7 @@ public class Renderer {
             baseSide1Color = new float[]{0.4f, 0.0f, 0.0f, 0.7f};
             baseSide2Color = new float[]{0.3f, 0.0f, 0.0f, 0.7f};
         } else if (isWater) {
-            // Water colors
+            // Water colors with animation
             double timeSpeed1 = 0.08, timeSpeed2 = 0.05, spatialScale1 = 0.5, spatialScale2 = 0.8;
             double brightnessBase = 0.2, brightnessAmplitude = 0.12;
             double greenShiftBase = 0.1, greenShiftAmplitude = 0.05;
@@ -145,19 +137,24 @@ public class Renderer {
             baseSide2Color = new float[]{0.24f, 0.16f, 0.12f, 1.0f};
         }
 
+        // Get dimension values scaled by zoom level
+        int effectiveTileWidth = camera.getEffectiveTileWidth();
+        int effectiveTileHeight = camera.getEffectiveTileHeight();
+        int effectiveBaseThickness = (int)(baseThickness * camera.getZoom());
+
         // Base points for the footprint
-        int[] base_Top = {x + TILE_WIDTH / 2, y};
-        int[] base_Left = {x, y + TILE_HEIGHT / 2};
-        int[] base_Right = {x + TILE_WIDTH, y + TILE_HEIGHT / 2};
-        int[] base_Bottom = {x + TILE_WIDTH / 2, y + TILE_HEIGHT};
+        int[] base_Top = {x + effectiveTileWidth / 2, y};
+        int[] base_Left = {x, y + effectiveTileHeight / 2};
+        int[] base_Right = {x + effectiveTileWidth, y + effectiveTileHeight / 2};
+        int[] base_Bottom = {x + effectiveTileWidth / 2, y + effectiveTileHeight};
 
         // Draw the base (footprint)
         // Left face
         glColor4f(baseSide1Color[0], baseSide1Color[1], baseSide1Color[2], baseSide1Color[3]);
         glBegin(GL_QUADS);
         glVertex2f(base_Left[0], base_Left[1]);
-        glVertex2f(base_Left[0], base_Left[1] + baseThickness);
-        glVertex2f(base_Bottom[0], base_Bottom[1] + baseThickness);
+        glVertex2f(base_Left[0], base_Left[1] + effectiveBaseThickness);
+        glVertex2f(base_Bottom[0], base_Bottom[1] + effectiveBaseThickness);
         glVertex2f(base_Bottom[0], base_Bottom[1]);
         glEnd();
 
@@ -165,8 +162,8 @@ public class Renderer {
         glColor4f(baseSide2Color[0], baseSide2Color[1], baseSide2Color[2], baseSide2Color[3]);
         glBegin(GL_QUADS);
         glVertex2f(base_Right[0], base_Right[1]);
-        glVertex2f(base_Right[0], base_Right[1] + baseThickness);
-        glVertex2f(base_Bottom[0], base_Bottom[1] + baseThickness);
+        glVertex2f(base_Right[0], base_Right[1] + effectiveBaseThickness);
+        glVertex2f(base_Bottom[0], base_Bottom[1] + effectiveBaseThickness);
         glVertex2f(base_Bottom[0], base_Bottom[1]);
         glEnd();
 
@@ -182,17 +179,18 @@ public class Renderer {
         // Draw the tower/elevation if not water
         int alturaVisible = Math.max(0, elevation - (NIVEL_MAR - 1));
         if (alturaVisible > 0 && !isWater) {
-            int elevationHeight = alturaVisible * tileThickness;
-            int groundLevelY = y - Math.max(0, (NIVEL_MAR - 1) * tileThickness);
+            int effectiveTileThickness = camera.getEffectiveTileThickness();
+            int elevationHeight = alturaVisible * effectiveTileThickness;
+            int groundLevelY = y - Math.max(0, (NIVEL_MAR - 1) * effectiveTileThickness);
             int finalTopY = groundLevelY - elevationHeight;
 
-            int[] final_Top = {x + TILE_WIDTH / 2, finalTopY};
-            int[] final_Left = {x, finalTopY + TILE_HEIGHT / 2};
-            int[] final_Right = {x + TILE_WIDTH, finalTopY + TILE_HEIGHT / 2};
-            int[] final_Bottom = {x + TILE_WIDTH / 2, finalTopY + TILE_HEIGHT};
-            int[] towerBase_Left = {x, groundLevelY + TILE_HEIGHT / 2};
-            int[] towerBase_Right = {x + TILE_WIDTH, groundLevelY + TILE_HEIGHT / 2};
-            int[] towerBase_Bottom = {x + TILE_WIDTH / 2, groundLevelY + TILE_HEIGHT};
+            int[] final_Top = {x + effectiveTileWidth / 2, finalTopY};
+            int[] final_Left = {x, finalTopY + effectiveTileHeight / 2};
+            int[] final_Right = {x + effectiveTileWidth, finalTopY + effectiveTileHeight / 2};
+            int[] final_Bottom = {x + effectiveTileWidth / 2, finalTopY + effectiveTileHeight};
+            int[] towerBase_Left = {x, groundLevelY + effectiveTileHeight / 2};
+            int[] towerBase_Right = {x + effectiveTileWidth, groundLevelY + effectiveTileHeight / 2};
+            int[] towerBase_Bottom = {x + effectiveTileWidth / 2, groundLevelY + effectiveTileHeight};
 
             // Left wall
             glColor4f(side1Color[0], side1Color[1], side1Color[2], side1Color[3]);
@@ -231,11 +229,12 @@ public class Renderer {
             glEnd();
         } else if (!isWater) {
             // Draw flat surface for ground level terrain
-            int groundLevelY = y - Math.max(0, (NIVEL_MAR - 1) * tileThickness);
-            int[] surface_Top = {x + TILE_WIDTH / 2, groundLevelY};
-            int[] surface_Left = {x, groundLevelY + TILE_HEIGHT / 2};
-            int[] surface_Right = {x + TILE_WIDTH, groundLevelY + TILE_HEIGHT / 2};
-            int[] surface_Bottom = {x + TILE_WIDTH / 2, groundLevelY + TILE_HEIGHT};
+            int effectiveTileThickness = camera.getEffectiveTileThickness();
+            int groundLevelY = y - Math.max(0, (NIVEL_MAR - 1) * effectiveTileThickness);
+            int[] surface_Top = {x + effectiveTileWidth / 2, groundLevelY};
+            int[] surface_Left = {x, groundLevelY + effectiveTileHeight / 2};
+            int[] surface_Right = {x + effectiveTileWidth, groundLevelY + effectiveTileHeight / 2};
+            int[] surface_Bottom = {x + effectiveTileWidth / 2, groundLevelY + effectiveTileHeight};
 
             glColor4f(topColor[0], topColor[1], topColor[2], topColor[3]);
             glBegin(GL_QUADS);
@@ -256,4 +255,3 @@ public class Renderer {
         }
     }
 }
-

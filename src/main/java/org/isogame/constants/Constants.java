@@ -3,8 +3,8 @@ package org.isogame.constants;
 public class Constants {
     public static final int TILE_WIDTH = 64;
     public static final int TILE_HEIGHT = 32;
-    public static final int MAP_WIDTH = 20;
-    public static final int MAP_HEIGHT = 20;
+    public static final int MAP_WIDTH = 50;
+    public static final int MAP_HEIGHT = 50;
     public static final double NOISE_SCALE = 0.2;
     public static final int ALTURA_MAXIMA = 30;
     public static final int NIVEL_MAR = 5;
