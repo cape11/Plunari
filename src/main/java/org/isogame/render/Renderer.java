@@ -5,6 +5,7 @@ import static org.isogame.constants.Constants.*;
 import org.isogame.input.InputHandler;
 import org.isogame.camera.CameraManager;
 import org.isogame.game.Game;
+import org.isogame.entity.PlayerModel;
 
 import static org.lwjgl.opengl.GL11.*;
 
@@ -12,17 +13,23 @@ public class Renderer {
     private final Game game;
     private final InputHandler inputHandler;
     private final CameraManager camera;
+    private final PlayerModel playerModel;
 
     public Renderer(Game game, InputHandler inputHandler, CameraManager camera) {
         this.game = game;
         this.inputHandler = inputHandler;
         this.camera = camera;
+        this.playerModel = new PlayerModel();
     }
 
     public void render() {
         int[][] alturas = game.alturas;
         int currentRow = inputHandler.currentRow;
         int currentCol = inputHandler.currentCol;
+
+        // Character position is now the red tile
+        int characterRow = inputHandler.characterRow;
+        int characterCol = inputHandler.characterCol;
 
         // Sort tiles for correct rendering order (back-to-front)
         // This simple approach works for isometric view
@@ -31,7 +38,14 @@ public class Renderer {
                 int col = sum - row;
 
                 if (row < MAP_HEIGHT && col < MAP_WIDTH) {
-                    renderTile(row, col, alturas[row][col]);
+                    // Check if this is the character position
+                    boolean isCharacter = (row == characterRow && col == characterCol);
+                    renderTile(row, col, alturas[row][col], isCharacter);
+
+                    // Render the player model at its position
+                    if (isCharacter) {
+                        renderPlayerAtPosition(row, col, alturas[row][col]);
+                    }
                 }
             }
         }
@@ -39,11 +53,30 @@ public class Renderer {
         // Draw UI text
         drawText(10, 20, "Pos: (" + inputHandler.currentRow + ", " + inputHandler.currentCol + ")");
         drawText(10, 35, "Altura: " + alturas[inputHandler.currentRow][inputHandler.currentCol]);
-        drawText(10, 50, "G: Regenerar Mapa | S: Levitar | A/Z: Altura | Flechas: Mover");
-        drawText(10, 65, "Scroll: Zoom | Middle Mouse: Pan Camera");
+        drawText(10, 50, "G: Regenerar Mapa | F: Levitar | Q/E: Altura | Flechas: Mover");
+        drawText(10, 65, "Scroll: Zoom | Middle Mouse: Pan Camera | C: Center Camera");
+        drawText(10, 80, String.format("Camera: (%.1f, %.1f) Zoom: %.1f",
+                camera.getCameraX(), camera.getCameraY(), camera.getZoom()));
     }
 
-    private void renderTile(int row, int col, int elevation) {
+    private void renderPlayerAtPosition(int row, int col, int elevation) {
+        // Get screen coordinates for the player's position
+        int[] posCoords = camera.mapToScreenCoords(col, row, elevation);
+        int screenX = posCoords[0];
+        int screenY = posCoords[1];
+
+        // Apply floating effect if levitating
+        if (inputHandler.levitating) {
+            screenY += (int) (Math.sin(inputHandler.levitateTimer) * 5);
+        }
+
+        // Render the player model at the calculated position
+        // We pass the effective tile size to scale the model appropriately
+        int effectiveTileSize = camera.getEffectiveTileHeight();
+        playerModel.render(screenX, screenY, effectiveTileSize, game.getFrameCount());
+    }
+
+    private void renderTile(int row, int col, int elevation, boolean isCharacter) {
         // Check if this is the current selected tile
         boolean isSelected = (row == inputHandler.currentRow && col == inputHandler.currentCol);
 
@@ -52,14 +85,19 @@ public class Renderer {
         int tileX = baseCoords[0];
         int tileY = baseCoords[1];
 
-        // Simple culling - don't render tiles outside viewport
+
+        // Fixed culling - more generous boundaries to prevent missing tiles
         int effectiveTileWidth = camera.getEffectiveTileWidth();
         int effectiveTileHeight = camera.getEffectiveTileHeight();
+        int maxElevationPixels = camera.getEffectiveTileThickness() * ALTURA_MAXIMA;
 
-        if (tileX > camera.getScreenWidth() ||
-                tileX + effectiveTileWidth < 0 ||
-                tileY > camera.getScreenHeight() ||
-                tileY + effectiveTileHeight + camera.getEffectiveTileThickness() < 0) {
+        // More generous culling margins
+        int margin = Math.max(effectiveTileWidth, effectiveTileHeight) * 2;
+
+        if (tileX > camera.getScreenWidth() + margin ||
+                tileX + effectiveTileWidth < -margin ||
+                tileY > camera.getScreenHeight() + margin ||
+                tileY + effectiveTileHeight - maxElevationPixels < -margin) {
             return;
         }
 
@@ -69,7 +107,7 @@ public class Renderer {
         }
 
         // Draw the tile using the coordinates
-        drawTile(tileX, visualY, row, col, elevation, isSelected);
+        drawTile(tileX, visualY, row, col, elevation, isCharacter);
     }
 
     private void drawText(int x, int y, String text) {
@@ -86,15 +124,15 @@ public class Renderer {
         // Note: For proper text rendering, you would use a library like FTGL
     }
 
-    private void drawTile(int x, int y, int row, int col, int elevation, boolean isSelected) {
+    private void drawTile(int x, int y, int row, int col, int elevation, boolean isCharacter) {
         // Determine the type of terrain and colors
         boolean isWater = elevation < NIVEL_MAR;
         boolean isSand = !isWater && elevation < NIVEL_ARENA;
 
         float[] topColor, side1Color, side2Color, baseTopColor, baseSide1Color, baseSide2Color;
 
-        if (isSelected) {
-            // Red highlight for selected tile
+        if (isCharacter) {
+            // Red highlight for character's tile
             topColor = new float[]{1.0f, 0.0f, 0.0f, 0.7f};
             side1Color = new float[]{0.8f, 0.0f, 0.0f, 0.7f};
             side2Color = new float[]{0.6f, 0.0f, 0.0f, 0.7f};
