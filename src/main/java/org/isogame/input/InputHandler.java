@@ -1,113 +1,155 @@
 package org.isogame.input;
 
 import org.isogame.camera.CameraManager;
+import org.isogame.entity.PlayerModel;
+import org.isogame.map.Map;
+import org.isogame.tile.Tile;
+
 import static org.lwjgl.glfw.GLFW.*;
+import static org.isogame.constants.Constants.*;
+
+import java.util.HashSet;
+import java.util.Set;
 
 public class InputHandler {
 
     private final long window;
-    private final int[][] alturas;
-    private final int ALTURA_MAXIMA;
-    private final int MAP_WIDTH, MAP_HEIGHT;
-    private final CameraManager cameraManager; // Added camera reference
+    private final CameraManager cameraManager;
+    private final Map map;
+    private final PlayerModel player;
 
-    // Character position variables
-    public int characterRow = 0, characterCol = 0;
+    // Tile selection state
+    public int selectedRow = 0;
+    public int selectedCol = 0;
 
-    // We'll keep these for compatibility with existing code
-    public int currentRow = 0, currentCol = 0;
+    // Keep track of held keys for smooth movement/actions
+    private final Set<Integer> keysDown = new HashSet<>();
 
-    public boolean levitating = false;
-    public float levitateTimer = 0;
-
-    // Updated constructor to include camera manager
-    public InputHandler(long window, int[][] alturas, int alturaMaxima, int mapWidth, int mapHeight, CameraManager cameraManager) {
+    public InputHandler(long window, CameraManager cameraManager, Map map, PlayerModel player) {
         this.window = window;
-        this.alturas = alturas;
-        this.ALTURA_MAXIMA = alturaMaxima;
-        this.MAP_WIDTH = mapWidth;
-        this.MAP_HEIGHT = mapHeight;
         this.cameraManager = cameraManager;
+        this.map = map;
+        this.player = player;
 
-        // Initialize character position to center of map
-        this.characterRow = mapHeight / 2;
-        this.characterCol = mapWidth / 2;
-
-        // Set current position to character position
-        this.currentRow = this.characterRow;
-        this.currentCol = this.characterCol;
+        // Initialize selection to player start position
+        this.selectedRow = player.getTileRow();
+        this.selectedCol = player.getTileCol();
     }
 
     public void registerCallbacks(Runnable onGenerateMap) {
         glfwSetKeyCallback(window, (win, key, scancode, action, mods) -> {
-            if (key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE)
+            if (key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE) {
                 glfwSetWindowShouldClose(window, true);
+                return;
+            }
 
-            if (action == GLFW_PRESS || action == GLFW_REPEAT) {
-                switch (key) {
-                    // Arrow keys now move the character instead of selecting tiles
-                    case GLFW_KEY_UP:
-                        characterRow = Math.max(0, characterRow - 1);
-                        // Update current position to follow character
-                        currentRow = characterRow;
-                        currentCol = characterCol;
-                        break;
-                    case GLFW_KEY_DOWN:
-                        characterRow = Math.min(MAP_HEIGHT - 1, characterRow + 1);
-                        // Update current position to follow character
-                        currentRow = characterRow;
-                        currentCol = characterCol;
-                        break;
-                    case GLFW_KEY_LEFT:
-                        characterCol = Math.max(0, characterCol - 1);
-                        // Update current position to follow character
-                        currentRow = characterRow;
-                        currentCol = characterCol;
-                        break;
-                    case GLFW_KEY_RIGHT:
-                        characterCol = Math.min(MAP_WIDTH - 1, characterCol + 1);
-                        // Update current position to follow character
-                        currentRow = characterRow;
-                        currentCol = characterCol;
-                        break;
-                    // Camera controls with WASD keys
-                    case GLFW_KEY_W:
-                        cameraManager.moveCamera(0, -0.5f);
-                        break;
-                    case GLFW_KEY_S:
-                        cameraManager.moveCamera(0, 0.5f);
-                        break;
-                    case GLFW_KEY_A:
-                        cameraManager.moveCamera(-0.5f, 0);
-                        break;
-                    case GLFW_KEY_D:
-                        cameraManager.moveCamera(0.5f, 0);
-                        break;
-                    // Height adjustment keys changed to Q and E to avoid conflict with WASD
-                    case GLFW_KEY_Q:
-                        alturas[currentRow][currentCol] = Math.min(ALTURA_MAXIMA, alturas[currentRow][currentCol] + 1);
-                        break;
-                    case GLFW_KEY_E:
-                        alturas[currentRow][currentCol] = Math.max(0, alturas[currentRow][currentCol] - 1);
-                        break;
-                    case GLFW_KEY_G:
-                        if (onGenerateMap != null) onGenerateMap.run();
-                        break;
-                    case GLFW_KEY_F:
-                        levitating = !levitating;
-                        levitateTimer = 0;
-                        break;
-                    // Center camera on character with C key
-                    case GLFW_KEY_C:
-                        cameraManager.setTargetPosition(characterCol, characterRow);
-                        break;
-                }
+            if (action == GLFW_PRESS) {
+                keysDown.add(key);
+                handleKeyPress(key, onGenerateMap);
+            } else if (action == GLFW_RELEASE) {
+                keysDown.remove(key);
             }
         });
+
+        // We might not need a repeat callback if we handle continuous input separately
+        // glfwSetKeyCallback handles PRESS and RELEASE which is usually sufficient with the keysDown set
     }
 
-    // Method to update game state based on input
-    public void update() {
-        // You could add more continuous input handling here if needed
+    // Handle instant actions on key press
+    private void handleKeyPress(int key, Runnable onGenerateMap) {
+        switch (key) {
+            case GLFW_KEY_G: // Regenerate Map
+                if (onGenerateMap != null) {
+                    onGenerateMap.run();
+                    // Reset player/camera to new spawn point after regeneration
+                    player.setPosition(map.getCharacterSpawnRow(), map.getCharacterSpawnCol());
+                    selectedRow = player.getTileRow();
+                    selectedCol = player.getTileCol();
+                    cameraManager.setTargetPositionInstantly(player.getMapCol(), player.getMapRow());
+                }
+                break;
+            case GLFW_KEY_F: // Toggle Levitate
+                player.toggleLevitate();
+                break;
+            case GLFW_KEY_C: // Center Camera on Player
+                cameraManager.setTargetPosition(player.getMapCol(), player.getMapRow());
+                break;
+            case GLFW_KEY_Q: // Modify selected tile height (Example action)
+                modifySelectedTileElevation(-1);
+                break;
+            case GLFW_KEY_E: // Modify selected tile height (Example action)
+                modifySelectedTileElevation(1);
+                break;
+            // Arrow keys can select tile (optional) - maybe better for mouse?
+            case GLFW_KEY_UP: selectedRow = Math.max(0, selectedRow - 1); break;
+            case GLFW_KEY_DOWN: selectedRow = Math.min(map.getHeight() - 1, selectedRow + 1); break;
+            case GLFW_KEY_LEFT: selectedCol = Math.max(0, selectedCol - 1); break;
+            case GLFW_KEY_RIGHT: selectedCol = Math.min(map.getWidth() - 1, selectedCol + 1); break;
+
+        }
+    }
+
+    // Handle continuous actions for keys held down (called from game loop)
+    public void handleContinuousInput(double deltaTime) {
+        // --- Player Movement ---
+        float moveAmount = (float) (PLAYER_MOVE_SPEED * deltaTime);
+        float dRow = 0, dCol = 0;
+        boolean moved = false;
+
+        if (keysDown.contains(GLFW_KEY_W)) { dRow -= moveAmount; moved = true; }
+        if (keysDown.contains(GLFW_KEY_S)) { dRow += moveAmount; moved = true; }
+        if (keysDown.contains(GLFW_KEY_A)) { dCol -= moveAmount; moved = true; }
+        if (keysDown.contains(GLFW_KEY_D)) { dCol += moveAmount; moved = true; }
+
+        if (moved) {
+            // Basic collision detection/boundary check before moving
+            float nextRow = player.getMapRow() + dRow;
+            float nextCol = player.getMapCol() + dCol;
+
+            // Check bounds roughly
+            if (nextRow >= 0 && nextRow < map.getHeight() && nextCol >= 0 && nextCol < map.getWidth()) {
+                // Very simple: allow movement only on non-water tiles (more complex checks needed for height differences)
+                Tile targetTile = map.getTile(Math.round(nextRow), Math.round(nextCol));
+                if (targetTile != null && targetTile.getType() != Tile.TileType.WATER) {
+                    player.move(dRow, dCol);
+                    cameraManager.setTargetPosition(player.getMapCol(), player.getMapRow()); // Make camera follow player
+                }
+            }
+        }
+
+        // --- Camera Panning (Example - can be removed if camera always follows player) ---
+//        float camPanAmount = (float) (CAMERA_PAN_SPEED * deltaTime / cameraManager.getZoom()); // Adjust pan speed by zoom
+//        if (keysDown.contains(GLFW_KEY_UP)) cameraManager.moveTargetPosition(0, -camPanAmount);
+//        if (keysDown.contains(GLFW_KEY_DOWN)) cameraManager.moveTargetPosition(0, camPanAmount);
+//        if (keysDown.contains(GLFW_KEY_LEFT)) cameraManager.moveTargetPosition(-camPanAmount, 0);
+//        if (keysDown.contains(GLFW_KEY_RIGHT)) cameraManager.moveTargetPosition(camPanAmount, 0);
+    }
+
+
+    private void modifySelectedTileElevation(int amount) {
+        Tile tile = map.getTile(selectedRow, selectedCol);
+        if (tile != null) {
+            int currentElevation = tile.getElevation();
+            int newElevation = Math.max(0, Math.min(ALTURA_MAXIMA, currentElevation + amount));
+            if (newElevation != currentElevation) {
+                map.setTileElevation(selectedRow, selectedCol, newElevation);
+            }
+        }
+    }
+
+    // Called by MouseHandler to update the selected tile
+    public void setSelectedTile(int row, int col) {
+        if (map.isValid(row, col)) {
+            this.selectedRow = row;
+            this.selectedCol = col;
+        }
+    }
+
+    public int getSelectedRow() {
+        return selectedRow;
+    }
+
+    public int getSelectedCol() {
+        return selectedCol;
     }
 }

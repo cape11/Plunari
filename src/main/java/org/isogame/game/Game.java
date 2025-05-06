@@ -3,242 +3,140 @@ package org.isogame.game;
 import org.isogame.input.InputHandler;
 import org.isogame.input.MouseHandler;
 import org.isogame.camera.CameraManager;
+import org.isogame.map.Map;
+import org.isogame.render.Renderer;
+import org.isogame.entity.PlayerModel;
 import org.lwjgl.opengl.GL;
-import org.isogame.render.*;
-import static org.isogame.constants.Constants.*;
-import org.isogame.map.SimplexNoise;
-import java.util.Random;
 
-// Importaciones de LWJGL
+import static org.isogame.constants.Constants.*;
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
-import org.lwjgl.system.MemoryStack;
-
-import java.nio.DoubleBuffer;
 
 public class Game {
-    // --- Atributos ---
-    private InputHandler inputHandler;
-    private MouseHandler mouseHandler;
-    private CameraManager cameraManager;
-    private int frameCount;
-    public final int[][] alturas = new int[MAP_HEIGHT][MAP_WIDTH];
-    private double levitateTimer = 0;
-    private long window; // Identificador de la ventana GLFW
-    private org.isogame.render.Renderer renderer;
-    private SimplexNoise noiseGenerator;
-    private Random random = new Random();
+
+    private final long window;
+    private final InputHandler inputHandler;
+    private final MouseHandler mouseHandler;
+    private final CameraManager cameraManager;
+    private final Renderer renderer;
+    private final Map map;
+    private final PlayerModel player;
+
+    // Timing
+    private double lastFrameTime;
+    private double accumulator = 0.0;
 
 
-    // --- Constructor ---
     public Game(long window) {
         this.window = window;
-        this.frameCount = 0;
-        this.noiseGenerator = new SimplexNoise(random.nextInt(1000));
 
-        // Initialize camera manager with window dimensions
-        cameraManager = new CameraManager(WIDTH, HEIGHT);
+        // Core components
+        map = new Map(MAP_WIDTH, MAP_HEIGHT);
+        player = new PlayerModel(map.getCharacterSpawnRow(), map.getCharacterSpawnCol());
+        cameraManager = new CameraManager(WIDTH, HEIGHT, map.getWidth(), map.getHeight());
+        cameraManager.setTargetPositionInstantly(player.getMapCol(), player.getMapRow()); // Center on player start
 
-        // Initialize input handler and pass the window reference
-        inputHandler = new InputHandler(window, alturas, ALTURA_MAXIMA, MAP_WIDTH, MAP_HEIGHT, cameraManager);
-        inputHandler.registerCallbacks(this::generarMapa);
+        // Input handlers
+        inputHandler = new InputHandler(window, cameraManager, map, player); // Pass necessary references
+        mouseHandler = new MouseHandler(window, cameraManager, map, inputHandler); // Pass necessary references
 
+        // Renderer
+        renderer = new Renderer(cameraManager, map, player, inputHandler); // Pass necessary references
 
-        // Initialize mouse handler
-        mouseHandler = new MouseHandler(window, cameraManager, inputHandler);
+        // Initial setup
+        inputHandler.registerCallbacks(map::generateMap); // Allow 'G' to regenerate map
 
-        // Create renderer with the game reference
-        renderer = new Renderer(this, inputHandler, cameraManager);
-
-        // Set up window resize callback
+        // Set up window resize callback AFTER CameraManager is created
         glfwSetFramebufferSizeCallback(window, (win, width, height) -> {
             glViewport(0, 0, width, height);
             cameraManager.updateScreenSize(width, height);
+            renderer.onResize(width, height); // Notify renderer of resize
         });
 
-        System.out.println("Game initialized with window ID: " + window);
+        System.out.println("Game initialized.");
     }
 
-    public int getFrameCount() {
-        return frameCount;
-    }
-
-    public double calculateNoise(double x, double y) {
-        return noiseGenerator.generateTerrain(x * NOISE_SCALE, y * NOISE_SCALE);
-    }
-
-    public void generarMapa() {
-        System.out.println("Generando mapa...");
-
-        // Create a new noise generator with a new seed
-        noiseGenerator = new SimplexNoise(random.nextInt(1000));
-
-        // Different terrain types
-        for (int row = 0; row < MAP_HEIGHT; row++) {
-            for (int col = 0; col < MAP_WIDTH; col++) {
-                // Get noise value from our generator
-                double noiseValue = calculateNoise(row, col);
-
-                // Convert to height
-                int altura = (int) (((noiseValue + 1.0) / 2.0) * ALTURA_MAXIMA);
-
-                // Create some flat areas for better gameplay
-                if (altura > NIVEL_MAR && altura < NIVEL_MAR + 3) {
-                    // Small chance of flat areas
-                    if (random.nextFloat() < 0.2) {
-                        altura = NIVEL_MAR + 1;
-                    }
-                }
-
-                // Create some scattered mountain peaks
-                if (altura > ALTURA_MAXIMA * 0.7) {
-                    // Small chance of increasing height further
-                    if (random.nextFloat() < 0.1) {
-                        altura = Math.min(ALTURA_MAXIMA, altura + random.nextInt(5));
-                    }
-                }
-
-                alturas[row][col] = altura;
-            }
-        }
-
-        // Smooth terrain to avoid sharp edges
-        smoothTerrain(3);
-
-        System.out.println("Mapa generado con éxito");
-
-    }
-
-    // Find a non-water tile to place the character
-    private void findSuitableCharacterPosition() {
-        int centerRow = MAP_HEIGHT / 2;
-        int centerCol = MAP_WIDTH / 2;
-
-        // Start from the center and spiral outward looking for non-water
-        for (int radius = 0; radius < Math.max(MAP_WIDTH, MAP_HEIGHT) / 2; radius++) {
-            for (int i = -radius; i <= radius; i++) {
-                for (int j = -radius; j <= radius; j++) {
-                    // Only check the perimeter of the current square
-                    if (Math.abs(i) == radius || Math.abs(j) == radius) {
-                        int row = centerRow + i;
-                        int col = centerCol + j;
-
-                        // Check if valid position
-                        if (row >= 0 && row < MAP_HEIGHT && col >= 0 && col < MAP_WIDTH) {
-                            // Check if non-water
-                            if (alturas[row][col] >= NIVEL_MAR) {
-                                // Found a good spot
-                                inputHandler.characterRow = row;
-                                inputHandler.characterCol = col;
-                                inputHandler.currentRow = row;
-                                inputHandler.currentCol = col;
-                                cameraManager.setTargetPosition(col, row);
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Fallback if somehow no land was found
-        inputHandler.characterRow = centerRow;
-        inputHandler.characterCol = centerCol;
-        inputHandler.currentRow = centerRow;
-        inputHandler.currentCol = centerCol;
-        cameraManager.setTargetPosition(centerCol, centerRow);
-    }
-    private void smoothTerrain(int passes) {
-        int[][] tempAlturas = new int[MAP_HEIGHT][MAP_WIDTH];
-
-        for (int pass = 0; pass < passes; pass++) {
-            // Copy current heights
-            for (int row = 0; row < MAP_HEIGHT; row++) {
-                for (int col = 0; col < MAP_WIDTH; col++) {
-                    tempAlturas[row][col] = alturas[row][col];
-                }
-            }
-
-            // Smooth each non-edge tile
-            for (int row = 1; row < MAP_HEIGHT - 1; row++) {
-                for (int col = 1; col < MAP_WIDTH - 1; col++) {
-                    // Skip water tiles
-                    if (alturas[row][col] < NIVEL_MAR) continue;
-
-                    // Calculate average of surrounding tiles
-                    int sum = alturas[row][col] +
-                            alturas[row - 1][col] +
-                            alturas[row + 1][col] +
-                            alturas[row][col - 1] +
-                            alturas[row][col + 1];
-
-                    tempAlturas[row][col] = sum / 5;
-                }
-            }
-
-            // Update to smoothed heights
-            for (int row = 1; row < MAP_HEIGHT - 1; row++) {
-                for (int col = 1; col < MAP_WIDTH - 1; col++) {
-                    alturas[row][col] = tempAlturas[row][col];
-                }
-            }
-        }
-    }
-    public void loop() {
+    private void initOpenGL() {
         // This line is critical for LWJGL's interoperation with GLFW's
         // OpenGL context, or any context that is managed externally.
+        // It detects the available OpenGL capabilities.
         GL.createCapabilities();
 
-        // Set the clear color to a dark blue/gray
-        glClearColor(0.15f, 0.15f, 0.2f, 0.0f);
+        System.out.println("OpenGL version: " + glGetString(GL_VERSION));
 
-        // Enable alpha blending
+        // Set the clear color (background)
+        glClearColor(0.1f, 0.2f, 0.3f, 1.0f); // A slightly nicer blue
+
+        // Enable depth testing if needed (though less critical for strict isometric)
+        // glEnable(GL_DEPTH_TEST);
+
+        // Enable alpha blending for transparency
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-        System.out.println("Entering game loop");
+        // Initial projection setup
+        renderer.onResize(WIDTH, HEIGHT);
+    }
 
-        // Run the rendering loop until the user has attempted to close
-        // the window or has pressed the ESCAPE key.
+
+    public void gameLoop() {
+        initOpenGL();
+        lastFrameTime = glfwGetTime();
+
+        System.out.println("Entering game loop...");
+
         while (!glfwWindowShouldClose(window)) {
-            frameCount++;
-            if (inputHandler.levitating) {
-                levitateTimer += 0.1;
-                inputHandler.levitateTimer = (float)levitateTimer;
-            }
+            double currentTime = glfwGetTime();
+            double deltaTime = currentTime - lastFrameTime;
+            lastFrameTime = currentTime;
 
-            // Update mouse handler (for continuous operations)
-            mouseHandler.update();
+            // --- Input ---
+            glfwPollEvents(); // Process all pending events
 
-            // Update camera position (smooth transitions)
-            cameraManager.update();
+            // --- Update ---
+            // Add accumulated time. Helps smooth updates if frame rate fluctuates.
+            accumulator += deltaTime;
 
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the framebuffer
+            // Fixed timestep updates (optional but good for physics/game logic stability)
+            // while (accumulator >= TARGET_TIME_PER_FRAME) {
+            //     updateGameLogic(TARGET_TIME_PER_FRAME); // Update with fixed step
+            //     accumulator -= TARGET_TIME_PER_FRAME;
+            // }
+            // For now, just use variable delta time for simplicity
+            updateGameLogic(deltaTime);
 
-            // Setup orthographic projection
-            glMatrixMode(GL_PROJECTION);
-            glLoadIdentity();
-            glOrtho(0, cameraManager.getScreenWidth(), cameraManager.getScreenHeight(), 0, -1, 1);
-            glMatrixMode(GL_MODELVIEW);
-            glLoadIdentity();
 
-            // Draw the game
-            renderer.render();
+            // --- Rendering ---
+            // Calculate interpolation factor for smooth rendering between fixed updates (if using accumulator)
+            // final double alpha = accumulator / TARGET_TIME_PER_FRAME;
+            renderGame(/* alpha */); // Pass alpha if interpolating graphics
 
-            glfwSwapBuffers(window); // swap the color buffers
-
-            // Poll for window events. The key callback above will only be
-            // invoked during this call.
-            glfwPollEvents();
-
-            // Sleep a bit to control the frame rate
-            try {
-                Thread.sleep(50); // ~20 FPS
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+            glfwSwapBuffers(window); // Present the rendered frame
         }
 
-        System.out.println("Game loop exited");
+        System.out.println("Game loop exited.");
+        cleanup();
+    }
+
+    private void updateGameLogic(double deltaTime) {
+        inputHandler.handleContinuousInput(deltaTime); // Handle keys held down (e.g., camera pan)
+        player.update(deltaTime); // Update player animation timers etc.
+        cameraManager.update(deltaTime); // Update camera smoothing
+        // Update other game entities or systems here
+    }
+
+    private void renderGame(/* double interpolationAlpha */) {
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear the framebuffer
+
+        // Renderer handles projection and view setup internally now
+        renderer.render();
+    }
+
+    private void cleanup() {
+        System.out.println("Cleaning up resources...");
+        renderer.cleanup(); // Clean up renderer resources (textures, shaders etc.)
+        // Handlers don't usually need explicit cleanup unless they hold OpenGL resources
+        // GLFW cleanup happens in Main
+        System.out.println("Cleanup complete.");
     }
 }

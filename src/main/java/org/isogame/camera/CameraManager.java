@@ -3,7 +3,7 @@ package org.isogame.camera;
 import static org.isogame.constants.Constants.*;
 
 public class CameraManager {
-    // Camera position in tile coordinates (can be fractional for smooth movement)
+    // Camera position in Map Tile coordinates (center of view)
     private float cameraX;
     private float cameraY;
 
@@ -11,183 +11,178 @@ public class CameraManager {
     private float targetX;
     private float targetY;
 
-    // Movement speed for smooth camera transitions
-    private float moveSpeed = 0.1f;
-
-    // Zoom level (1.0 is default)
+    // Zoom level
     private float zoom = 1.0f;
     private float targetZoom = 1.0f;
-    private float zoomSpeed = 0.05f;
 
-    // Screen dimensions (will be updated when window resizes)
+    // Screen dimensions
     private int screenWidth;
     private int screenHeight;
 
-    public CameraManager(int initialScreenWidth, int initialScreenHeight) {
+    // Map dimensions (to potentially constrain camera)
+    private final int mapWidth;
+    private final int mapHeight;
+
+    public CameraManager(int initialScreenWidth, int initialScreenHeight, int mapWidth, int mapHeight) {
         this.screenWidth = initialScreenWidth;
         this.screenHeight = initialScreenHeight;
+        this.mapWidth = mapWidth;
+        this.mapHeight = mapHeight;
 
-        // Initialize camera position to center of map
-        this.cameraX = MAP_WIDTH / 2.0f;
-        this.cameraY = MAP_HEIGHT / 2.0f;
+        // Initialize camera to center of map
+        this.cameraX = mapWidth / 2.0f;
+        this.cameraY = mapHeight / 2.0f;
         this.targetX = cameraX;
         this.targetY = cameraY;
+        this.zoom = 1.0f;
+        this.targetZoom = 1.0f;
     }
 
     /**
-     * Update the camera position (smooth movement)
+     * Update camera position and zoom smoothly towards targets.
+     * Call this once per frame.
+     * @param deltaTime Time elapsed since the last frame.
      */
-    public void update() {
-        // Move camera towards target position
-        float dx = targetX - cameraX;
-        float dy = targetY - cameraY;
+    public void update(double deltaTime) {
+        // Smooth position interpolation (Lerp)
+        cameraX += (targetX - cameraX) * CAMERA_SMOOTH_FACTOR * (float)deltaTime * 60.0f; // Normalize smoothing to 60fps baseline
+        cameraY += (targetY - cameraY) * CAMERA_SMOOTH_FACTOR * (float)deltaTime * 60.0f;
 
-        if (Math.abs(dx) > 0.01f) {
-            cameraX += dx * moveSpeed;
-        } else {
-            cameraX = targetX;
-        }
+        // Smooth zoom interpolation (Lerp)
+        zoom += (targetZoom - zoom) * CAMERA_SMOOTH_FACTOR * (float)deltaTime * 60.0f;
 
-        if (Math.abs(dy) > 0.01f) {
-            cameraY += dy * moveSpeed;
-        } else {
-            cameraY = targetY;
-        }
-
-        // Update zoom with smooth transition
-        float dz = targetZoom - zoom;
-        if (Math.abs(dz) > 0.01f) {
-            zoom += dz * zoomSpeed;
-        } else {
-            zoom = targetZoom;
-        }
+        // Snap to target if very close to avoid drifting
+        if (Math.abs(targetX - cameraX) < 0.01f) cameraX = targetX;
+        if (Math.abs(targetY - cameraY) < 0.01f) cameraY = targetY;
+        if (Math.abs(targetZoom - zoom) < 0.01f) zoom = targetZoom;
     }
 
-    /**
-     * Set target camera position
-     */
-    public void setTargetPosition(float x, float y) {
-        this.targetX = x;
-        this.targetY = y;
+    /** Sets the target position instantly and updates current position. */
+    public void setTargetPositionInstantly(float mapX, float mapY) {
+        this.targetX = mapX;
+        this.targetY = mapY;
+        this.cameraX = mapX;
+        this.cameraY = mapY;
+        constrainTargets();
     }
 
-    /**
-     * Move camera by the specified amount
-     */
-    public void moveCamera(float dx, float dy) {
-        this.targetX += dx;
-        this.targetY += dy;
-
-        // Constrain camera to map boundaries with some margin
-        float margin = 2.0f;
-        this.targetX = Math.max(margin, Math.min(MAP_WIDTH - margin, this.targetX));
-        this.targetY = Math.max(margin, Math.min(MAP_HEIGHT - margin, this.targetY));
+    /** Sets the target position for the camera to smoothly move towards. */
+    public void setTargetPosition(float mapX, float mapY) {
+        this.targetX = mapX;
+        this.targetY = mapY;
+        constrainTargets();
     }
 
-    /**
-     * Set zoom level
-     */
-    public void setZoom(float zoom) {
-        this.targetZoom = Math.max(0.5f, Math.min(2.0f, zoom));
+    /** Moves the target position by a delta amount. */
+    public void moveTargetPosition(float dMapX, float dMapY) {
+        this.targetX += dMapX;
+        this.targetY += dMapY;
+        constrainTargets();
     }
 
-    /**
-     * Adjust zoom by the specified amount
-     */
+    /** Constrains target position to keep view mostly within map bounds (optional) */
+    private void constrainTargets() {
+        // Basic clamping - more sophisticated bounds check might be needed depending on desired behavior at edges
+        // float margin = 5.0f / zoom; // Example margin, adjusts with zoom
+        // this.targetX = Math.max(margin, Math.min(mapWidth - margin, this.targetX));
+        // this.targetY = Math.max(margin, Math.min(mapHeight - margin, this.targetY));
+    }
+
+    /** Adjusts the target zoom level by a relative amount. */
     public void adjustZoom(float amount) {
-        this.targetZoom = Math.max(0.5f, Math.min(2.0f, this.targetZoom + amount));
+        this.targetZoom += amount;
+        this.targetZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.targetZoom)); // Clamp zoom
     }
 
-    /**
-     * Update screen dimensions when window is resized
-     */
+    /** Sets the absolute target zoom level. */
+    public void setZoom(float zoomLevel) {
+        this.targetZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel)); // Clamp zoom
+    }
+
+    /** Updates screen dimensions when window is resized. */
     public void updateScreenSize(int width, int height) {
         this.screenWidth = width;
         this.screenHeight = height;
     }
 
-    /**
-     * Convert map coordinates to screen coordinates
-     */
+    // --- Coordinate Transformations ---
+
+    /** Converts Map Tile coordinates (+ elevation) to Screen pixel coordinates. */
     public int[] mapToScreenCoords(float mapX, float mapY, int elevation) {
-        // Calculate the isometric position
-        int tileScreenWidth = (int)(TILE_WIDTH * zoom);
-        int tileScreenHeight = (int)(TILE_HEIGHT * zoom);
+        // Effective tile dimensions based on zoom
+        float effTileWidth = TILE_WIDTH * zoom;
+        float effTileHeight = TILE_HEIGHT * zoom;
+        float effTileThickness = TILE_THICKNESS * zoom;
 
-        // Calculate the center of the screen
-        int screenCenterX = screenWidth / 2;
-        int screenCenterY = screenHeight / 2;
+        // Position relative to camera center (in tile units)
+        float relativeX = mapX - cameraX;
+        float relativeY = mapY - cameraY;
 
-        // Calculate the offset from the center based on camera position
-        float offsetX = mapX - cameraX;
-        float offsetY = mapY - cameraY;
+        // Isometric projection
+        float isoX = (relativeX - relativeY) * (effTileWidth / 2.0f);
+        float isoY = (relativeX + relativeY) * (effTileHeight / 2.0f);
 
-        // Calculate the isometric offset
-        int isoX = (int)((offsetX - offsetY) * tileScreenWidth / 2);
-        int isoY = (int)((offsetX + offsetY) * tileScreenHeight / 2);
+        // Offset by elevation
+        float elevationOffset = elevation * effTileThickness;
 
-        // Adjust for elevation
-        int elevationOffset = (int)(elevation * tileThickness * zoom);
+        // Final screen coordinates relative to screen center
+        int screenX = screenWidth / 2 + (int) isoX;
+        int screenY = screenHeight / 2 + (int) isoY - (int) elevationOffset; // Y grows downwards
 
-        // Calculate final screen position
-        int screenX = screenCenterX + isoX;
-        int screenY = screenCenterY + isoY - elevationOffset;
-
-        return new int[] {screenX, screenY};
+        return new int[]{screenX, screenY};
     }
 
-    /**
-     * Convert screen coordinates to map coordinates
-     */
+    /** Converts Screen pixel coordinates back to Map Tile coordinates (at elevation 0). */
     public float[] screenToMapCoords(int screenX, int screenY) {
-        // Calculate the center of the screen
-        int screenCenterX = screenWidth / 2;
-        int screenCenterY = screenHeight / 2;
+        // Effective tile dimensions based on zoom
+        float effTileWidth = TILE_WIDTH * zoom;
+        float effTileHeight = TILE_HEIGHT * zoom;
+        // float effTileThickness = TILE_THICKNESS * zoom; // Needed for 3D picking
 
-        // Calculate the offset from the center
-        int offsetX = screenX - screenCenterX;
-        int offsetY = screenY - screenCenterY;
+        // Screen coordinates relative to screen center
+        float screenRelativeX = screenX - (screenWidth / 2.0f);
+        float screenRelativeY = screenY - (screenHeight / 2.0f);
 
-        // Calculate the isometric offset
-        float tileScreenWidth = TILE_WIDTH * zoom;
-        float tileScreenHeight = TILE_HEIGHT * zoom;
+        // Reverse the isometric projection (ignoring elevation for simple 2D picking)
+        // isoX = (relX - relY) * w/2  =>  relX - relY = 2 * isoX / w
+        // isoY = (relX + relY) * h/2  =>  relX + relY = 2 * isoY / h
+        // Add equations: 2 * relX = (2*isoX/w) + (2*isoY/h) => relX = isoX/w + isoY/h
+        // Sub equations: 2 * relY = (2*isoY/h) - (2*isoX/w) => relY = isoY/h - isoX/w
 
-        // Convert screen to isometric coordinates
-        float isoX = (offsetX / (tileScreenWidth / 2) + offsetY / (tileScreenHeight / 2)) / 2;
-        float isoY = (offsetY / (tileScreenHeight / 2) - offsetX / (tileScreenWidth / 2)) / 2;
+        // Note: screenRelativeX corresponds to isoX, screenRelativeY to isoY
+        float relativeX = (screenRelativeX / effTileWidth) + (screenRelativeY / effTileHeight);
+        float relativeY = (screenRelativeY / effTileHeight) - (screenRelativeX / effTileWidth);
 
-        // Add camera position to get map coordinates
-        float mapX = cameraX + isoX;
-        float mapY = cameraY + isoY;
+        // Add camera position to get absolute map coordinates
+        float mapX = cameraX + relativeX;
+        float mapY = cameraY + relativeY;
 
-        return new float[] {mapX, mapY};
+        return new float[]{mapX, mapY};
     }
 
-    /**
-     * Get effective tile width after zoom
-     */
-    public int getEffectiveTileWidth() {
-        return (int)(TILE_WIDTH * zoom);
+    /** Converts a vector in screen space (e.g., mouse drag) to a vector in map space. */
+    public float[] screenVectorToMapVector(float screenDX, float screenDY) {
+        // Similar inversion as screenToMapCoords, but for deltas (ignores camera position)
+        float effTileWidth = TILE_WIDTH * zoom;
+        float effTileHeight = TILE_HEIGHT * zoom;
+
+        float mapDX = (screenDX / effTileWidth) + (screenDY / effTileHeight);
+        float mapDY = (screenDY / effTileHeight) - (screenDX / effTileWidth);
+
+        return new float[]{mapDX, mapDY};
     }
 
-    /**
-     * Get effective tile height after zoom
-     */
-    public int getEffectiveTileHeight() {
-        return (int)(TILE_HEIGHT * zoom);
-    }
 
-    /**
-     * Get effective tile thickness after zoom
-     */
-    public int getEffectiveTileThickness() {
-        return (int)(tileThickness * zoom);
-    }
-
-    // Getters
+    // --- Getters for Renderer ---
     public float getCameraX() { return cameraX; }
     public float getCameraY() { return cameraY; }
     public float getZoom() { return zoom; }
     public int getScreenWidth() { return screenWidth; }
     public int getScreenHeight() { return screenHeight; }
+
+    // Calculate effective dimensions based on current zoom
+    public int getEffectiveTileWidth() { return (int) (TILE_WIDTH * zoom); }
+    public int getEffectiveTileHeight() { return (int) (TILE_HEIGHT * zoom); }
+    public int getEffectiveTileThickness() { return (int) (TILE_THICKNESS * zoom); }
+    public int getEffectiveBaseThickness() { return (int) (BASE_THICKNESS * zoom); }
 }
