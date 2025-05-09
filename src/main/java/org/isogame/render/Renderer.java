@@ -165,33 +165,37 @@ public class Renderer {
 
     private void renderPlayer() {
         if (playerTexture == null) {
-            // Fallback or just don't render player if texture is missing
             System.err.println("Player texture not loaded, cannot render player sprite.");
-            // Optionally call a simplified immediate mode draw here: renderPlayerImmediateMode();
+            // Optionally call a simplified immediate mode draw here for fallback
+            // renderPlayerImmediateMode(); // You would need to create/keep this method
             return;
         }
 
+        // --- Calculate player's base screen position FIRST ---
         int playerTileRow = player.getTileRow();
         int playerTileCol = player.getTileCol();
         Tile currentTile = map.getTile(playerTileRow, playerTileCol);
         int playerBaseElevation = (currentTile != null) ? currentTile.getElevation() : 0;
 
-        // Get screen coordinates for the player's logical base position on the tile's surface
+        // This gets the player's logical position on the screen at the top surface of the tile they are on
         int[] playerScreenBaseCoords = camera.mapToScreenCoords(player.getMapCol(), player.getMapRow(), playerBaseElevation);
-        float screenX = playerScreenBaseCoords[0]; // Center of the tile base where player stands
-        float screenY = playerScreenBaseCoords[1]; // Top surface Y of the tile where player stands
+        float screenX = playerScreenBaseCoords[0]; // Now screenX is defined
+        float screenY = playerScreenBaseCoords[1]; // Now screenY is defined
 
+        // --- Now proceed with texture rendering ---
         glEnable(GL_TEXTURE_2D);
         playerTexture.bind();
         glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // Ensure no tinting and full alpha for texture
 
         // Animation information from PlayerModel
-        int frameWidthPx = PlayerModel.LPC_FRAME_WIDTH;
-        int frameHeightPx = PlayerModel.LPC_FRAME_HEIGHT;
-        int visualFrameToRender = player.getVisualFrameIndex(); // Handles IDLE vs. animated frame
-        int animationSheetRow = player.getAnimationRow();       // Gets the correct row on the sheet
+        int frameWidthPx = PlayerModel.FRAME_WIDTH;   // e.g., 64
+        int frameHeightPx = PlayerModel.FRAME_HEIGHT; // e.g., 64
 
-        float framePixelXOnSheet = visualFrameToRender * frameWidthPx;
+        int animationFrameColumn = player.getVisualFrameIndex(); // This is the current frame/column
+        int animationSheetRow = player.getAnimationRow();       // This gets the correct ROW for current action/direction
+
+        // Calculate pixel coordinates of the current frame's top-left corner on the spritesheet
+        float framePixelXOnSheet = animationFrameColumn * frameWidthPx;
         float framePixelYOnSheet = animationSheetRow * frameHeightPx;
 
         float totalSheetWidthPx = playerTexture.getWidth();
@@ -199,18 +203,17 @@ public class Renderer {
 
         // Calculate normalized UV coordinates for the specific frame
         float u0 = framePixelXOnSheet / totalSheetWidthPx;
-        float v0 = framePixelYOnSheet / totalSheetHeightPx;                     // Top Y UV
+        float v0 = framePixelYOnSheet / totalSheetHeightPx;
         float u1 = (framePixelXOnSheet + frameWidthPx) / totalSheetWidthPx;
-        float v1 = (framePixelYOnSheet + frameHeightPx) / totalSheetHeightPx;   // Bottom Y UV
+        float v1 = (framePixelYOnSheet + frameHeightPx) / totalSheetHeightPx;
 
         // Define sprite screen draw dimensions (scaled by camera zoom)
-        // You might add an additional global sprite scale factor here if needed
         float spriteDrawWidth = frameWidthPx * camera.getZoom();
         float spriteDrawHeight = frameHeightPx * camera.getZoom();
 
         // Calculate drawing position on screen. Anchor point: bottom-center of sprite.
-        float drawX = screenX - (spriteDrawWidth / 2.0f);
-        float drawY = screenY - spriteDrawHeight; // Sprite's bottom edge aligns with tile surface Y
+        float drawX = screenX - (spriteDrawWidth / 2.0f); // Uses screenX
+        float drawY = screenY - spriteDrawHeight;         // Uses screenY
 
         // Apply levitation offset if active (adjusts Y upwards)
         if (player.isLevitating()) {
@@ -228,7 +231,6 @@ public class Renderer {
         playerTexture.unbind();
         glDisable(GL_TEXTURE_2D);
     }
-
     // renderUI method remains the same.
     // For brevity, I'm omitting it here but ensure it's present in your file.
     private void renderUI() {
