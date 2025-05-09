@@ -2,6 +2,8 @@ package org.isogame;
 
 import org.isogame.game.Game;
 import org.lwjgl.glfw.*;
+import org.lwjgl.opengl.GL;
+import org.lwjgl.opengl.GL11;
 import org.lwjgl.system.*;
 
 import java.nio.*;
@@ -28,19 +30,39 @@ public class Main {
     }
 
     private void initWindow() {
-        // Setup an error callback. The default implementation
-        // will print the error message in System.err.
+        // Setup an error callback.
         GLFWErrorCallback.createPrint(System.err).set();
 
         // Initialize GLFW. Most GLFW functions will not work before doing this.
-        if (!glfwInit()) {
+        if (!glfwInit()) { // <<<<<<<<<<<<<<<<<<<< CHECK THIS
             throw new IllegalStateException("Unable to initialize GLFW");
         }
 
         // Configure GLFW
-        glfwDefaultWindowHints(); // optional, the current window hints are already the default
-        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // the window will stay hidden after creation
-        glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE); // the window will be resizable
+        glfwDefaultWindowHints();
+        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+        glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+
+        // Create the window
+        window = glfwCreateWindow(WIDTH, HEIGHT, "LWJGL Isometric Game", NULL, NULL);
+        if (window == NULL) { // <<<<<<<<<<<<<<<<<<<< CHECK THIS
+            throw new RuntimeException("Failed to create the GLFW window");
+        }
+        System.out.println("GLFW Window created successfully."); // This should print if window is okay
+
+        // Make the OpenGL context current
+        glfwMakeContextCurrent(window); // <<< Error points here (line 36 in your case)
+
+        // Enable v-sync
+        glfwSwapInterval(1); // <<< Error points here (line 37 in your case)
+
+        // Make the window visible
+        glfwShowWindow(window); // <<< NullPointerException points here (line 38 in your case)
+
+        GL.createCapabilities();
+        System.out.println("OpenGL version: " + GL11.glGetString(GL11.GL_VERSION));
+
+
 
         // Create the window
         window = glfwCreateWindow(WIDTH, HEIGHT, "LWJGL Isometric Game", NULL, NULL);

@@ -18,11 +18,8 @@ public class InputHandler {
     private final Map map;
     private final PlayerModel player;
 
-    // Tile selection state
     public int selectedRow = 0;
     public int selectedCol = 0;
-
-    // Keep track of held keys for smooth movement/actions
     private final Set<Integer> keysDown = new HashSet<>();
 
     public InputHandler(long window, CameraManager cameraManager, Map map, PlayerModel player) {
@@ -30,8 +27,6 @@ public class InputHandler {
         this.cameraManager = cameraManager;
         this.map = map;
         this.player = player;
-
-        // Initialize selection to player start position
         this.selectedRow = player.getTileRow();
         this.selectedCol = player.getTileCol();
     }
@@ -42,89 +37,99 @@ public class InputHandler {
                 glfwSetWindowShouldClose(window, true);
                 return;
             }
-
             if (action == GLFW_PRESS) {
                 keysDown.add(key);
-                handleKeyPress(key, onGenerateMap);
+                handleSingleKeyPress(key, onGenerateMap); // Handle non-movement instant actions
             } else if (action == GLFW_RELEASE) {
                 keysDown.remove(key);
             }
         });
-
-        // We might not need a repeat callback if we handle continuous input separately
-        // glfwSetKeyCallback handles PRESS and RELEASE which is usually sufficient with the keysDown set
     }
 
-    // Handle instant actions on key press
-    private void handleKeyPress(int key, Runnable onGenerateMap) {
+    private void handleSingleKeyPress(int key, Runnable onGenerateMap) {
         switch (key) {
-            case GLFW_KEY_G: // Regenerate Map
+            case GLFW_KEY_G:
                 if (onGenerateMap != null) {
                     onGenerateMap.run();
-                    // Reset player/camera to new spawn point after regeneration
                     player.setPosition(map.getCharacterSpawnRow(), map.getCharacterSpawnCol());
-                    selectedRow = player.getTileRow();
-                    selectedCol = player.getTileCol();
+                    selectedRow = player.getTileRow(); selectedCol = player.getTileCol();
                     cameraManager.setTargetPositionInstantly(player.getMapCol(), player.getMapRow());
                 }
                 break;
-            case GLFW_KEY_F: // Toggle Levitate
-                player.toggleLevitate();
-                break;
-            case GLFW_KEY_C: // Center Camera on Player
-                cameraManager.setTargetPosition(player.getMapCol(), player.getMapRow());
-                break;
-            case GLFW_KEY_Q: // Modify selected tile height (Example action)
-                modifySelectedTileElevation(-1);
-                break;
-            case GLFW_KEY_E: // Modify selected tile height (Example action)
-                modifySelectedTileElevation(1);
-                break;
-            // Arrow keys can select tile (optional) - maybe better for mouse?
-            case GLFW_KEY_UP: selectedRow = Math.max(0, selectedRow - 1); break;
-            case GLFW_KEY_DOWN: selectedRow = Math.min(map.getHeight() - 1, selectedRow + 1); break;
-            case GLFW_KEY_LEFT: selectedCol = Math.max(0, selectedCol - 1); break;
-            case GLFW_KEY_RIGHT: selectedCol = Math.min(map.getWidth() - 1, selectedCol + 1); break;
-
+            case GLFW_KEY_F: player.toggleLevitate(); break;
+            case GLFW_KEY_C: cameraManager.setTargetPosition(player.getMapCol(), player.getMapRow()); break;
+            case GLFW_KEY_Q: modifySelectedTileElevation(-1); break;
+            case GLFW_KEY_E: modifySelectedTileElevation(1); break;
+            // Removed arrow key selection to focus on player movement
         }
     }
 
-    // Handle continuous actions for keys held down (called from game loop)
     public void handleContinuousInput(double deltaTime) {
-        // --- Player Movement ---
         float moveAmount = (float) (PLAYER_MOVE_SPEED * deltaTime);
         float dRow = 0, dCol = 0;
-        boolean moved = false;
+        boolean attemptedMove = false;
+        PlayerModel.Direction intendedDirection = player.getCurrentDirection(); // Start with current
 
-        if (keysDown.contains(GLFW_KEY_W)) { dRow -= moveAmount; moved = true; }
-        if (keysDown.contains(GLFW_KEY_S)) { dRow += moveAmount; moved = true; }
-        if (keysDown.contains(GLFW_KEY_A)) { dCol -= moveAmount; moved = true; }
-        if (keysDown.contains(GLFW_KEY_D)) { dCol += moveAmount; moved = true; }
+        // Determine intended direction and if a move key is pressed
+        // This simplified logic prioritizes vertical, then horizontal.
+        // For 8-directional, you'd check combinations.
+        if (keysDown.contains(GLFW_KEY_W)) {
+            dRow -= moveAmount;
+            intendedDirection = PlayerModel.Direction.NORTH;
+            attemptedMove = true;
+        } else if (keysDown.contains(GLFW_KEY_S)) {
+            dRow += moveAmount;
+            intendedDirection = PlayerModel.Direction.SOUTH;
+            attemptedMove = true;
+        }
 
-        if (moved) {
-            // Basic collision detection/boundary check before moving
+        if (keysDown.contains(GLFW_KEY_A)) {
+            dCol -= moveAmount;
+            if (!attemptedMove) { // If not already moving N/S, set direction to W
+                intendedDirection = PlayerModel.Direction.WEST;
+            } else { // Moving diagonally
+                if (intendedDirection == PlayerModel.Direction.NORTH) { /* intendedDirection = PlayerModel.Direction.NORTH_WEST; */ } // TODO: Add diagonal enums/logic
+                else if (intendedDirection == PlayerModel.Direction.SOUTH) { /* intendedDirection = PlayerModel.Direction.SOUTH_WEST; */ }
+            }
+            attemptedMove = true;
+        } else if (keysDown.contains(GLFW_KEY_D)) {
+            dCol += moveAmount;
+            if (!attemptedMove) { // If not already moving N/S, set direction to E
+                intendedDirection = PlayerModel.Direction.EAST;
+            } else { // Moving diagonally
+                if (intendedDirection == PlayerModel.Direction.NORTH) { /* intendedDirection = PlayerModel.Direction.NORTH_EAST; */ }
+                else if (intendedDirection == PlayerModel.Direction.SOUTH) { /* intendedDirection = PlayerModel.Direction.SOUTH_EAST; */ }
+            }
+            attemptedMove = true;
+        }
+
+        player.setDirection(intendedDirection); // Always update facing direction based on input
+
+        if (attemptedMove) {
             float nextRow = player.getMapRow() + dRow;
             float nextCol = player.getMapCol() + dCol;
 
-            // Check bounds roughly
-            if (nextRow >= 0 && nextRow < map.getHeight() && nextCol >= 0 && nextCol < map.getWidth()) {
-                // Very simple: allow movement only on non-water tiles (more complex checks needed for height differences)
+            if (map.isValid(Math.round(nextRow), Math.round(nextCol))) {
                 Tile targetTile = map.getTile(Math.round(nextRow), Math.round(nextCol));
-                if (targetTile != null && targetTile.getType() != Tile.TileType.WATER) {
+                // Basic walkability: not water and not too steep (example: max 1 level step)
+                Tile currentTile = map.getTile(player.getTileRow(), player.getTileCol());
+                int currentElevation = (currentTile != null) ? currentTile.getElevation() : 0;
+                int targetElevation = (targetTile != null) ? targetTile.getElevation() : currentElevation;
+
+                if (targetTile != null && targetTile.getType() != Tile.TileType.WATER && Math.abs(targetElevation - currentElevation) <= 1) {
                     player.move(dRow, dCol);
-                    cameraManager.setTargetPosition(player.getMapCol(), player.getMapRow()); // Make camera follow player
+                    cameraManager.setTargetPosition(player.getMapCol(), player.getMapRow());
+                    player.setAction(PlayerModel.Action.WALK);
+                } else {
+                    player.setAction(PlayerModel.Action.IDLE); // Blocked, so idle
                 }
+            } else {
+                player.setAction(PlayerModel.Action.IDLE); // Hit map boundary
             }
+        } else {
+            player.setAction(PlayerModel.Action.IDLE);
         }
-
-        // --- Camera Panning (Example - can be removed if camera always follows player) ---
-//        float camPanAmount = (float) (CAMERA_PAN_SPEED * deltaTime / cameraManager.getZoom()); // Adjust pan speed by zoom
-//        if (keysDown.contains(GLFW_KEY_UP)) cameraManager.moveTargetPosition(0, -camPanAmount);
-//        if (keysDown.contains(GLFW_KEY_DOWN)) cameraManager.moveTargetPosition(0, camPanAmount);
-//        if (keysDown.contains(GLFW_KEY_LEFT)) cameraManager.moveTargetPosition(-camPanAmount, 0);
-//        if (keysDown.contains(GLFW_KEY_RIGHT)) cameraManager.moveTargetPosition(camPanAmount, 0);
     }
-
 
     private void modifySelectedTileElevation(int amount) {
         Tile tile = map.getTile(selectedRow, selectedCol);
@@ -137,19 +142,12 @@ public class InputHandler {
         }
     }
 
-    // Called by MouseHandler to update the selected tile
     public void setSelectedTile(int row, int col) {
         if (map.isValid(row, col)) {
             this.selectedRow = row;
             this.selectedCol = col;
         }
     }
-
-    public int getSelectedRow() {
-        return selectedRow;
-    }
-
-    public int getSelectedCol() {
-        return selectedCol;
-    }
+    public int getSelectedRow() { return selectedRow; }
+    public int getSelectedCol() { return selectedCol; }
 }
