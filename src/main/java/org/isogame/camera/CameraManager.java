@@ -1,5 +1,7 @@
 package org.isogame.camera;
-
+import org.isogame.map.Map;
+import org.isogame.tile.Tile;
+// import org.joml.Matrix4f; // Keep if you have it for other reasons
 import static org.isogame.constants.Constants.*;
 
 public class CameraManager {
@@ -106,7 +108,65 @@ public class CameraManager {
     }
 
     // --- Coordinate Transformations ---
+    // --- ADD OR VERIFY THIS METHOD ---
+    public int[] screenToAccurateMapTile(int mouseScreenX, int mouseScreenY, Map gameMap) {
+        // Initial guess using the base plane picking
+        float[] baseMapCoords = screenToMapCoords(mouseScreenX, mouseScreenY); // Uses your existing method
+        int initialGuessR = Math.round(baseMapCoords[1]);
+        int initialGuessC = Math.round(baseMapCoords[0]);
 
+        int bestR = initialGuessR;
+        int bestC = initialGuessC;
+        boolean foundAccurateTile = false;
+        int highestFoundElevation = -Integer.MAX_VALUE; // Initialize to a very low number
+
+        int searchRadius = 3;
+
+        // Iterate in a way that tends to find visually "top" tiles first for tie-breaking
+        // This can be complex; a simple grid search prioritizing higher elevation is often good enough.
+        for (int rOffset = -searchRadius; rOffset <= searchRadius; rOffset++) {
+            for (int cOffset = -searchRadius; cOffset <= searchRadius; cOffset++) {
+                int currentR = initialGuessR + rOffset;
+                int currentC = initialGuessC + cOffset;
+
+                if (!gameMap.isValid(currentR, currentC)) {
+                    continue;
+                }
+
+                Tile tile = gameMap.getTile(currentR, currentC);
+                if (tile == null || tile.getType() == Tile.TileType.WATER) {
+                    continue;
+                }
+
+                int elevation = tile.getElevation();
+                int effTileDrawWidth = getEffectiveTileWidth();
+                int effTileDrawHeight = getEffectiveTileHeight();
+
+                int[] topPointScreenCoords = mapToScreenCoords(currentC, currentR, elevation);
+                float diamondTopX = topPointScreenCoords[0];
+                float diamondTopY = topPointScreenCoords[1];
+                float diamondCenterY = diamondTopY + (effTileDrawHeight / 2.0f);
+
+                float normX = Math.abs((mouseScreenX - diamondTopX) / (effTileDrawWidth / 2.0f));
+                float normY = Math.abs((mouseScreenY - diamondCenterY) / (effTileDrawHeight / 2.0f));
+
+                if (normX + normY <= 1.0f) { // Mouse is within this tile's top diamond
+                    if (!foundAccurateTile || elevation > highestFoundElevation) {
+                        bestR = currentR;
+                        bestC = currentC;
+                        highestFoundElevation = elevation;
+                        foundAccurateTile = true;
+                    }
+                }
+            }
+        }
+
+        if (foundAccurateTile) {
+            return new int[]{bestC, bestR}; // Return col, row
+        } else {
+            return new int[]{initialGuessC, initialGuessR}; // Fallback
+        }
+    }   
     /** Converts Map Tile coordinates (+ elevation) to Screen pixel coordinates. */
     public int[] mapToScreenCoords(float mapX, float mapY, int elevation) {
         // Effective tile dimensions based on zoom

@@ -1,82 +1,119 @@
 package org.isogame.input;
 
 import org.isogame.camera.CameraManager;
+import org.isogame.entity.PlayerModel;
 import org.isogame.map.Map;
+import org.isogame.map.PathNode;
+import org.isogame.map.AStarPathfinder;
 import org.lwjgl.system.MemoryStack;
+
 import java.nio.DoubleBuffer;
+import java.util.List;
+
 import static org.lwjgl.glfw.GLFW.*;
 import static org.isogame.constants.Constants.*;
 
 public class MouseHandler {
     private final long window;
     private final CameraManager camera;
-    private final Map map; // Need map reference for bounds checking
-    private final InputHandler inputHandler; // To set selected tile
+    private final Map map;
+    private final InputHandler inputHandler;
+    private final PlayerModel player;
+    private final AStarPathfinder pathfinder;
 
     private double lastMouseX, lastMouseY;
-    private boolean middleMousePressed = false; // For panning
-    private boolean leftMousePressed = false;   // For selection dragging
+    private boolean middleMousePressed = false;
 
-    public MouseHandler(long window, CameraManager camera, Map map, InputHandler inputHandler) {
+    public MouseHandler(long window, CameraManager camera, Map map, InputHandler inputHandler, PlayerModel player) {
         this.window = window;
         this.camera = camera;
         this.map = map;
         this.inputHandler = inputHandler;
-
+        this.player = player;
+        this.pathfinder = new AStarPathfinder();
         setupCallbacks();
     }
 
     private void setupCallbacks() {
-        // Mouse button callback
         glfwSetMouseButtonCallback(window, (win, button, action, mods) -> {
-            captureMousePosition(); // Update position on any click action
+            captureMousePosition();
 
             if (button == GLFW_MOUSE_BUTTON_MIDDLE) {
                 middleMousePressed = (action == GLFW_PRESS);
-            } else if (button == GLFW_MOUSE_BUTTON_LEFT) {
-                leftMousePressed = (action == GLFW_PRESS);
-                if (leftMousePressed) {
-                    handleTileSelection(lastMouseX, lastMouseY); // Select on initial press
-                }
+            } else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+                // Use the accurate picking for pathfinding target
+                int[] accurateCoordsPath = camera.screenToAccurateMapTile((int) lastMouseX, (int) lastMouseY, map);
+                handlePathfindingRequest(accurateCoordsPath[0], accurateCoordsPath[1]); // Pass col, row
+
+                // Also update the selected tile for other UI/interactions using accurate picking
+                int[] accurateCoordsSelect = camera.screenToAccurateMapTile((int) lastMouseX, (int) lastMouseY, map);
+                inputHandler.setSelectedTile(accurateCoordsSelect[0], accurateCoordsSelect[1]); // Pass col, row
             }
-            // Add right mouse button handling if needed
         });
 
-        // Mouse position callback (Cursor Movement)
         glfwSetCursorPosCallback(window, (win, xpos, ypos) -> {
-            double currentX = xpos;
-            double currentY = ypos;
-
             if (middleMousePressed) {
-                // Handle camera panning based on delta movement
-                double deltaX = currentX - lastMouseX;
-                double deltaY = currentY - lastMouseY;
-
-                // Convert screen delta to map delta (adjust sensitivity as needed)
-                // Panning should feel intuitive, so map moves opposite to mouse drag
-                float screenMoveScale = 1.0f / camera.getZoom(); // Panning speed depends on zoom
+                double deltaX = xpos - lastMouseX;
+                double deltaY = ypos - lastMouseY;
+                float screenMoveScale = 1.0f / camera.getZoom();
                 float[] mapDelta = camera.screenVectorToMapVector((float) -deltaX * screenMoveScale, (float) -deltaY * screenMoveScale);
-
-                camera.moveTargetPosition(mapDelta[0], mapDelta[1]); // Use moveTargetPosition for smooth panning
-            } else if (leftMousePressed) {
-                // Continuously update selected tile while dragging
-                handleTileSelection(currentX, currentY);
+                camera.moveTargetPosition(mapDelta[0], mapDelta[1]);
             }
-
-            // Update last known position for the next callback
-            lastMouseX = currentX;
-            lastMouseY = currentY;
+            // Update the "hovered" tile for visual feedback (optional, done in InputHandler or Renderer)
+            // if (inputHandler != null) {
+            //    int[] hoveredCoords = camera.screenToAccurateMapTile((int) xpos, (int) ypos, map);
+            //    inputHandler.setHoveredTile(hoveredCoords[0], hoveredCoords[1]); // Would need this method in InputHandler
+            // }
+            lastMouseX = xpos;
+            lastMouseY = ypos;
         });
 
-        // Scroll callback for zoom
         glfwSetScrollCallback(window, (win, xoffset, yoffset) -> {
             if (yoffset > 0) {
-                camera.adjustZoom(CAMERA_ZOOM_SPEED);  // Zoom in
+                camera.adjustZoom(CAMERA_ZOOM_SPEED);
             } else if (yoffset < 0) {
-                camera.adjustZoom(-CAMERA_ZOOM_SPEED); // Zoom out
+                camera.adjustZoom(-CAMERA_ZOOM_SPEED);
             }
         });
     }
+
+    // Renamed parameters to reflect they are already map coordinates
+    private void handlePathfindingRequest(int targetCol, int targetRow) {
+        // targetCol and targetRow are now already accurately picked map coordinates
+
+        if (map.isValid(targetRow, targetCol)) {
+            if (player.getTileRow() == targetRow && player.getTileCol() == targetCol) {
+                System.out.println("Target is player's current tile. No path needed.");
+                player.setPath(null);
+                return;
+            }
+
+            System.out.println("Pathfinding request from (" + player.getTileRow() + "," + player.getTileCol() +
+                    ") to (" + targetRow + "," + targetCol + ")");
+
+            List<PathNode> path = pathfinder.findPath(
+                    player.getTileRow(), player.getTileCol(),
+                    targetRow, targetCol,
+                    map
+            );
+            player.setPath(path);
+        }
+    }
+
+    // These methods are no longer strictly needed if the logic is moved directly into the callbacks,
+    // but if InputHandler still uses them, they should use the accurate picking.
+    // Let's remove them for now to avoid confusion, as the callbacks now directly call screenToAccurateMapTile.
+    /*
+    private int getTileRowAtMouse(double screenX, double screenY) {
+        int[] accurateCoords = camera.screenToAccurateMapTile((int) screenX, (int) screenY, map);
+        return accurateCoords[1]; // row
+    }
+
+    private int getTileColAtMouse(double screenX, double screenY) {
+        int[] accurateCoords = camera.screenToAccurateMapTile((int) screenX, (int) screenY, map);
+        return accurateCoords[0]; // col
+    }
+    */
 
     private void captureMousePosition() {
         try (MemoryStack stack = MemoryStack.stackPush()) {
@@ -87,24 +124,4 @@ public class MouseHandler {
             lastMouseY = posY.get(0);
         }
     }
-
-    // Handles converting screen coords to map tile and updating InputHandler
-    private void handleTileSelection(double screenX, double screenY) {
-        // Convert screen coordinates to map coordinates (can be fractional)
-        float[] mapCoords = camera.screenToMapCoords((int) screenX, (int) screenY);
-
-        // Find the closest tile CENTER (more intuitive for isometric selection)
-        // This requires a slightly more complex calculation than simple rounding
-        // For now, stick to rounding, but be aware it might select adjacent tiles sometimes.
-        int col = Math.round(mapCoords[0]);
-        int row = Math.round(mapCoords[1]);
-
-        // Update the selected tile in the InputHandler if it's valid
-        if (map.isValid(row, col)) {
-            inputHandler.setSelectedTile(row, col);
-        }
-    }
-
-    // This update method is not needed if logic is handled in callbacks
-    // public void update(double deltaTime) {}
 }
