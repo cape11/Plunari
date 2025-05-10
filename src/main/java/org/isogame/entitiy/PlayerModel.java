@@ -1,3 +1,11 @@
+package org.isogame.entity;
+
+import org.isogame.map.PathNode;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map; // Should resolve to java.util.Map
+
 public class PlayerModel {
 
     private float mapRow;
@@ -5,42 +13,43 @@ public class PlayerModel {
     private boolean levitating = false;
     private float levitateTimer = 0;
 
-    public enum Action {
-        IDLE, WALK // Start with these, add more like SLASH, SPELLCAST later
-    }
+    // Pathfinding State
+    private List<PathNode> currentPath;
+    private int currentPathIndex; // Index of the *current node in the path the player is AT or just left*
+    private PathNode currentMoveTargetNode; // The immediate next tile in the path we are moving towards
+    private float targetVisualRow; // For smooth visual interpolation to currentMoveTargetNode.row
+    private float targetVisualCol; // For smooth visual interpolation to currentMoveTargetNode.col
 
-    public enum Direction {
-        NORTH, WEST, SOUTH, EAST // Cardinal directions
-        // NORTH_WEST, NORTH_EAST, SOUTH_WEST, SOUTH_EAST // For 8-directional movement later
-    }
+    public static final float MOVEMENT_SPEED = 3.0f; // Tiles per second for path following
+
+    public enum Action { IDLE, WALK }
+    public enum Direction { NORTH, WEST, SOUTH, EAST }
 
     private Action currentAction = Action.IDLE;
-    private Direction currentDirection = Direction.SOUTH; // Default facing direction
+    private Direction currentDirection = Direction.SOUTH;
     private int currentFrameIndex = 0;
     private double animationTimer = 0.0;
-    private double frameDuration = 0.1; // Duration of each frame in seconds (e.g., 0.1 = 10 FPS animation)
+    private double frameDuration = 0.1;
 
-    // LPC specific constants
-    public static final int LPC_FRAME_WIDTH = 64;
-    public static final int LPC_FRAME_HEIGHT = 64;
+    public static final int FRAME_WIDTH = 64;
+    public static final int FRAME_HEIGHT = 64;
+    public static final int ROW_WALK_NORTH = 8;
+    public static final int ROW_WALK_WEST = 9;
+    public static final int ROW_WALK_SOUTH = 10;
+    public static final int ROW_WALK_EAST = 11;
+    public static final int FRAMES_PER_WALK_CYCLE = 9;
 
-    // Base rows for different actions on the LPC sheet (VERIFY THESE WITH YOUR SHEET GUIDE)
-    public static final int LPC_ROW_BASE_WALK = 16;   // Typical base row for walking
-    public static final int LPC_ROW_BASE_SHOOT = 32;  // Typical base row for shooting (example)
-    // public static final int LPC_ROW_BASE_SLASH = 24;
-    // public static final int LPC_ROW_BASE_THRUST = 8;
+    private java.util.Map<String, Integer> inventory; // Explicitly java.util.Map
 
-    // Frame counts for different actions (VERIFY THESE)
-    public static final int LPC_FRAMES_WALK = 9;
-    public static final int LPC_FRAMES_SHOOT = 13; // Example
-    // public static final int LPC_FRAMES_SLASH = 6;
-    // public static final int LPC_FRAMES_THRUST = 8;
-
-
-    // Constructor
     public PlayerModel(int startRow, int startCol) {
         this.mapRow = startRow;
         this.mapCol = startCol;
+        this.targetVisualRow = startRow;
+        this.targetVisualCol = startCol;
+        this.inventory = new HashMap<>();
+        this.currentPath = new ArrayList<>(); // Initialize to avoid null pointer
+        this.currentPathIndex = -1;       // No path active
+        this.currentMoveTargetNode = null;
     }
 
     public void update(double deltaTime) {
@@ -48,120 +57,155 @@ public class PlayerModel {
             levitateTimer += (float) deltaTime * 5.0f;
         }
 
+        boolean activelyMovingOnPath = false;
+        if (currentPath != null && !currentPath.isEmpty()) {
+            // If no current target, try to get the next one from the path
+            if (currentMoveTargetNode == null) {
+                // currentPathIndex points to the node we *were* at or the start node (index 0)
+                // So, the next target is currentPathIndex + 1
+                if (currentPathIndex < currentPath.size() - 1) {
+                    currentPathIndex++; // Advance to the next segment of the path
+                    currentMoveTargetNode = currentPath.get(currentPathIndex);
+                    targetVisualRow = currentMoveTargetNode.row;
+                    targetVisualCol = currentMoveTargetNode.col;
+                } else { // Reached end of path, or no more segments
+                    pathFinished();
+                }
+            }
+
+            if (currentMoveTargetNode != null) {
+                activelyMovingOnPath = true;
+                setAction(Action.WALK);
+
+                float moveStep = MOVEMENT_SPEED * (float) deltaTime;
+                float dx = targetVisualCol - this.mapCol;
+                float dy = targetVisualRow - this.mapRow;
+                float distance = (float) Math.sqrt(dx * dx + dy * dy);
+
+                if (distance <= moveStep || distance == 0.0f) {
+                    this.mapRow = targetVisualRow;
+                    this.mapCol = targetVisualCol;
+                    currentMoveTargetNode = null; // Arrived, ready for next target in next update frame
+                    if (currentPathIndex >= currentPath.size() - 1) { // Is this the final node?
+                        pathFinished();
+                        activelyMovingOnPath = false; // Path is done
+                    }
+                } else {
+                    float moveX = (dx / distance) * moveStep;
+                    float moveY = (dy / distance) * moveStep;
+                    this.mapCol += moveX;
+                    this.mapRow += moveY;
+
+                    // Update direction for animation
+                    if (Math.abs(dx) > Math.abs(dy) * 0.8) { // Favor horizontal if clearly more dx
+                        setDirection(dx > 0 ? Direction.EAST : Direction.WEST);
+                    } else if (Math.abs(dy) > Math.abs(dx) * 0.8) { // Favor vertical if clearly more dy
+                        setDirection(dy > 0 ? Direction.SOUTH : Direction.NORTH);
+                    }
+                    // If dx and dy are similar, direction might not change (keeps last direction)
+                }
+            }
+        }
+
+        if (!activelyMovingOnPath && currentAction == Action.WALK) {
+            setAction(Action.IDLE);
+        }
+
         // Animation Update Logic
         animationTimer += deltaTime;
         if (animationTimer >= frameDuration) {
-            animationTimer -= frameDuration; // Reset timer for the next frame interval
+            animationTimer -= frameDuration;
             currentFrameIndex++;
-
-            int maxFrames = 1; // Default for a static IDLE or unhandled action
-            if (currentAction == Action.WALK) {
-                maxFrames = LPC_FRAMES_WALK;
-            }
-            // Add other actions here, e.g.:
-            // else if (currentAction == Action.SHOOT) {
-            //     maxFrames = LPC_FRAMES_SHOOT;
-            // }
+            int maxFrames = (currentAction == Action.WALK) ? FRAMES_PER_WALK_CYCLE : 1; // Simpler
+            if (currentAction == Action.IDLE) maxFrames = 1; // Ensure IDLE only has 1 frame for now via getVisualFrameIndex
 
             if (currentFrameIndex >= maxFrames) {
-                currentFrameIndex = 0; // Loop animation
+                currentFrameIndex = 0;
             }
         }
     }
 
-    // Determines the correct row on the sprite sheet for the current action and direction
-    public int getAnimationRow() {
-        int baseRow;
-        switch (currentAction) {
-            case WALK:
-                baseRow = LPC_ROW_BASE_WALK;
-                break;
-            // EXAMPLE: If you add a SHOOT action
-            // case SHOOT:
-            //     baseRow = LPC_ROW_BASE_SHOOT;
-            //     break;
-            case IDLE: // For IDLE, use the walk base row. getVisualFrameIndex() will show frame 0.
-            default:   // Fallback for any other undefined actions for now
-                baseRow = LPC_ROW_BASE_WALK;
-                break;
-        }
+    private void pathFinished() {
+        setAction(Action.IDLE);
+        if (currentPath != null) currentPath.clear(); // Clear the path list
+        currentPathIndex = -1;
+        currentMoveTargetNode = null;
+        // Keep player at final mapRow, mapCol
+        System.out.println("Player reached destination or path cleared.");
+    }
 
-        // This directional offset logic should align with LPC standard (N, W, S, E, NW, NE, SW, SE)
-        switch (currentDirection) {
-            case NORTH: return baseRow + 0;
-            case WEST:  return baseRow + 1;
-            case SOUTH: return baseRow + 2;
-            case EAST:  return baseRow + 3;
-            // For 8-directional movement, add these cases:
-            // case NORTH_WEST: return baseRow + 4;
-            // case NORTH_EAST: return baseRow + 5;
-            // case SOUTH_WEST: return baseRow + 6;
-            // case SOUTH_EAST: return baseRow + 7;
-            default: return baseRow + 2; // Default to South if direction is somehow unset
+    public void setPath(List<PathNode> path) {
+        if (path != null && !path.isEmpty()) {
+            this.currentPath = new ArrayList<>(path); // Take a copy
+            // First node in path is player's current location, so actual first target is index 1
+            this.currentPathIndex = 0; // Start at the beginning of the path (current location)
+            this.currentMoveTargetNode = null; // Let update() pick the first actual move target
+            // Visual position should already be player's current position
+            this.targetVisualRow = path.get(0).row;
+            this.targetVisualCol = path.get(0).col;
+            System.out.println("Path set with " + this.currentPath.size() + " nodes.");
+        } else {
+            pathFinished(); // Clear everything and set to IDLE
+            System.out.println("Path set to null or empty.");
         }
     }
 
-    // Determines which frame index to actually render (handles static IDLE frame)
-    public int getVisualFrameIndex() {
-        if (currentAction == Action.IDLE) {
-            return 0; // For IDLE, always show the first frame of the current direction's walk/base cycle
+    public int getAnimationRow() {
+        switch (currentDirection) {
+            case NORTH: return ROW_WALK_NORTH;
+            case WEST:  return ROW_WALK_WEST;
+            case SOUTH: return ROW_WALK_SOUTH;
+            case EAST:  return ROW_WALK_EAST;
+            default:    return ROW_WALK_SOUTH;
         }
-        return currentFrameIndex; // For other (animated) actions
+    }
+
+    public int getVisualFrameIndex() {
+        if (currentAction == Action.IDLE) return 0;
+        return currentFrameIndex;
     }
 
     public void setAction(Action newAction) {
         if (this.currentAction != newAction) {
             this.currentAction = newAction;
-            this.currentFrameIndex = 0; // Reset frame when action changes
-            this.animationTimer = 0.0;  // Reset animation timer
+            this.currentFrameIndex = 0;
+            this.animationTimer = 0.0;
         }
     }
 
     public void setDirection(Direction newDirection) {
         if (this.currentDirection != newDirection) {
             this.currentDirection = newDirection;
-            // If the action is one that depends on direction (like WALK),
-            // reset its animation frame, so it starts fresh for the new direction.
-            if (this.currentAction == Action.WALK) { // Or any other directional animation
+            if (this.currentAction == Action.WALK) {
                 this.currentFrameIndex = 0;
                 this.animationTimer = 0.0;
             }
         }
     }
 
-    // Standard Getters
+    public void addResource(String resourceType, int amount) {
+        inventory.put(resourceType, inventory.getOrDefault(resourceType, 0) + amount);
+        System.out.println("Player collected: " + amount + " " + resourceType + ". Total: " + getResourceCount(resourceType));
+    }
+
+    public int getResourceCount(String resourceType) {
+        return inventory.getOrDefault(resourceType, 0);
+    }
+
+    public java.util.Map<String, Integer> getInventory() { // Explicitly java.util.Map
+        return inventory;
+    }
+
     public float getMapRow() { return mapRow; }
     public float getMapCol() { return mapCol; }
-    public int getTileRow() { return Math.round(mapRow); }
-    public int getTileCol() { return Math.round(mapCol); }
+    public int getTileRow() { return Math.round(mapRow); } // Current logical tile
+    public int getTileCol() { return Math.round(mapCol); } // Current logical tile
     public boolean isLevitating() { return levitating; }
     public float getLevitateTimer() { return levitateTimer; }
     public Action getCurrentAction() { return currentAction; }
     public Direction getCurrentDirection() { return currentDirection; }
-    // Using getVisualFrameIndex() for rendering is preferred over directly accessing currentFrameIndex
-
-    // Standard Setters / Modifiers
-    public void setPosition(float row, float col) {
-        this.mapRow = row;
-        this.mapCol = col;
-    }
-
-    public void move(float dRow, float dCol) {
-        this.mapRow += dRow;
-        this.mapCol += dCol;
-    }
-
-    public void toggleLevitate() {
-        this.levitating = !this.levitating;
-        if (!this.levitating) {
-            levitateTimer = 0;
-        }
-    }
-
-    public void setLevitating(boolean levitating) {
-        this.levitating = levitating;
-        if (!this.levitating) {
-            levitateTimer = 0;
-        }
-    }
+    public void setPosition(float row, float col) { this.mapRow = row; this.mapCol = col; this.targetVisualRow = row; this.targetVisualCol = col; }
+    // public void move(float dRow, float dCol) { this.mapRow += dRow; this.mapCol += dCol; } // Direct move, likely not used now
+    public void toggleLevitate() { this.levitating = !this.levitating; if (!this.levitating) levitateTimer = 0; }
+    public void setLevitating(boolean levitating) { this.levitating = levitating; if (!this.levitating) levitateTimer = 0;}
 }

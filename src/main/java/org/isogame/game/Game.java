@@ -38,7 +38,7 @@ public class Game {
 
         // Input handlers
         inputHandler = new InputHandler(window, cameraManager, map, player);
-        mouseHandler = new MouseHandler(window, cameraManager, map, inputHandler);
+        mouseHandler = new MouseHandler(window, cameraManager, map, inputHandler, player); // MODIFIED
 
         // Renderer
         renderer = new Renderer(cameraManager, map, player, inputHandler);
