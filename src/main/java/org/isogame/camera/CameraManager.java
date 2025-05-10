@@ -166,7 +166,8 @@ public class CameraManager {
         } else {
             return new int[]{initialGuessC, initialGuessR}; // Fallback
         }
-    }   
+    }
+
     /** Converts Map Tile coordinates (+ elevation) to Screen pixel coordinates. */
     public int[] mapToScreenCoords(float mapX, float mapY, int elevation) {
         // Effective tile dimensions based on zoom
