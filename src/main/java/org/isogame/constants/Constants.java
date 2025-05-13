@@ -16,7 +16,7 @@ public class Constants {
     public static final int ALTURA_MAXIMA = 25; // Max possible elevation units
 
     // Terrain thresholds (elevation units)
-    public static final int NIVEL_MAR = 5;   // Below this is water
+    public static final int NIVEL_MAR = 7;   // Below this is water
     public static final int NIVEL_ARENA = 9; // Below this is sand
     public static final int NIVEL_ROCA = 20; // Below this is grass/dirt
     public static final int NIVEL_NIEVE = 23; // Below this is rock/stone, above is snow
@@ -37,7 +37,7 @@ public class Constants {
     public static final float CAMERA_ZOOM_SPEED = 0.1f; // Amount per scroll tick
     public static final float MIN_ZOOM = 0.5f;
     public static final float MAX_ZOOM = 3.0f;
-    public static final float CAMERA_SMOOTH_FACTOR = 0.1f; // For smooth following/movement (0-1)
+    public static final float CAMERA_SMOOTH_FACTOR = 0.15f; // For smooth following/movement (0-1)
 
     // Resource Types
     public static final String RESOURCE_DIRT = "Dirt";

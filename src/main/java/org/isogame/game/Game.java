@@ -6,12 +6,10 @@ import org.isogame.camera.CameraManager;
 import org.isogame.map.Map;
 import org.isogame.render.Renderer;
 import org.isogame.entity.PlayerModel;
-// GL import is not strictly needed here if not directly calling GL.createCapabilities()
-// import org.lwjgl.opengl.GL; // Can be removed if GL.createCapabilities() is solely in Main
 
-import static org.isogame.constants.Constants.*;
-import static org.lwjgl.glfw.GLFW.*; // For glfwGetTime, glfwWindowShouldClose, glfwSwapBuffers, glfwPollEvents
-import static org.lwjgl.opengl.GL11.*; // For glGetString, glClearColor, GL_BLEND, etc.
+import static org.isogame.constants.Constants.*; // For MAP_WIDTH, MAP_HEIGHT etc.
+import static org.lwjgl.glfw.GLFW.*;
+import static org.lwjgl.opengl.GL11.*;
 
 public class Game {
 
@@ -23,65 +21,63 @@ public class Game {
     private final Map map;
     private final PlayerModel player;
 
-    // Timing
     private double lastFrameTime;
-    private double accumulator = 0.0; // For fixed timestep update (currently not fully implemented but stubbed)
+    private double accumulator = 0.0;
 
-    public Game(long window) {
+    // Constructor now takes initial framebuffer dimensions
+    public Game(long window, int initialFramebufferWidth, int initialFramebufferHeight) {
         this.window = window;
 
         // Core components
-        map = new Map(MAP_WIDTH, MAP_HEIGHT); // Ensure MAP_WIDTH, MAP_HEIGHT are appropriate
+        map = new Map(MAP_WIDTH, MAP_HEIGHT);
         player = new PlayerModel(map.getCharacterSpawnRow(), map.getCharacterSpawnCol());
-        cameraManager = new CameraManager(WIDTH, HEIGHT, map.getWidth(), map.getHeight());
+
+        // IMPORTANT: Initialize CameraManager with actual framebuffer dimensions
+        cameraManager = new CameraManager(initialFramebufferWidth, initialFramebufferHeight, map.getWidth(), map.getHeight());
         cameraManager.setTargetPositionInstantly(player.getMapCol(), player.getMapRow());
 
-        // Input handlers
         inputHandler = new InputHandler(window, cameraManager, map, player);
-        mouseHandler = new MouseHandler(window, cameraManager, map, inputHandler, player); // MODIFIED
-
-        // Renderer
+        // Pass player to MouseHandler for pathfinding start position
+        mouseHandler = new MouseHandler(window, cameraManager, map, inputHandler, player);
         renderer = new Renderer(cameraManager, map, player, inputHandler);
 
-        // Initial setup
-        inputHandler.registerCallbacks(map::generateMap); // Allow 'G' to regenerate map
+        inputHandler.registerCallbacks(map::generateMap);
 
-        // Set up window resize callback
-        glfwSetFramebufferSizeCallback(window, (win, w, h) -> {
-            // glViewport is called by renderer.onResize
-            cameraManager.updateScreenSize(w, h);
-            if (renderer != null) { // Check if renderer is initialized
-                renderer.onResize(w, h);
+        // Framebuffer resize callback is crucial for runtime changes
+        glfwSetFramebufferSizeCallback(window, (win, fbW, fbH) -> {
+            System.out.println("Framebuffer resized to: " + fbW + "x" + fbH);
+            cameraManager.updateScreenSize(fbW, fbH); // Update camera with new pixel dimensions
+            if (renderer != null) {
+                renderer.onResize(fbW, fbH); // This will call glViewport and update projection
             }
         });
 
+        // Initial call to renderer.onResize with correct framebuffer size
+        // This ensures viewport and projection are correct from the very start
+        if (renderer != null) {
+            System.out.println("Initial renderer setup with framebuffer: " + initialFramebufferWidth + "x" + initialFramebufferHeight);
+            renderer.onResize(initialFramebufferWidth, initialFramebufferHeight);
+        } else {
+            System.err.println("Renderer was null during Game constructor's initial onResize call!");
+        }
         System.out.println("Game components initialized.");
     }
 
     private void initOpenGL() {
-        // Assuming GL.createCapabilities() was called in Main.initWindow()
-        // after glfwMakeContextCurrent and before new Game()
-
-        // It's good to print this to confirm context is working from Game's perspective too
-        System.out.println("Game.initOpenGL() - OpenGL version: " + glGetString(GL_VERSION));
+        // GL.createCapabilities() is now in Main.initWindow() and should have been called before this.
+        System.out.println("Game.initOpenGL() - OpenGL version from context: " + glGetString(GL_VERSION));
 
         glClearColor(0.1f, 0.2f, 0.3f, 1.0f); // Background color
-
-        glEnable(GL_BLEND); // For transparency
+        glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-        // Initial projection and viewport setup is handled by renderer.onResize
-        // This ensures it's set correctly after renderer is constructed.
-        if (renderer != null) {
-            renderer.onResize(WIDTH, HEIGHT); // Initial call to set up projection
-        } else {
-            System.err.println("Renderer is null during initOpenGL, cannot set initial projection.");
-        }
+        // The initial renderer.onResize call in the Game constructor already set up
+        // the viewport and projection matrix for the renderer.
     }
 
     public void gameLoop() {
-        initOpenGL(); // Prepare OpenGL states
-        lastFrameTime = glfwGetTime(); // Initialize lastFrameTime
+        initOpenGL(); // Prepare OpenGL states for this thread's context
+        lastFrameTime = glfwGetTime();
 
         System.out.println("Entering game loop...");
 
@@ -90,25 +86,17 @@ public class Game {
             double deltaTime = currentTime - lastFrameTime;
             lastFrameTime = currentTime;
 
-            // Cap deltaTime to prevent spiral of death if game lags significantly
-            if (deltaTime > 0.1) { // e.g., if deltaTime is more than 100ms (10 FPS)
+            // Cap deltaTime to prevent large jumps if game lags
+            if (deltaTime > 0.1) { // Max step of 0.1 seconds (10 FPS equivalent)
                 deltaTime = 0.1;
             }
 
-            glfwPollEvents(); // Process all pending window and input events
+            glfwPollEvents(); // Process window and input events
 
-            // Update game logic
-            // Accumulator logic for fixed timestep is commented out for simplicity with variable step
-            // accumulator += deltaTime;
-            // while (accumulator >= TARGET_TIME_PER_FRAME) {
-            //     updateGameLogic(TARGET_TIME_PER_FRAME);
-            //     accumulator -= TARGET_TIME_PER_FRAME;
-            // }
-            updateGameLogic(deltaTime); // Using variable delta time
+            updateGameLogic(deltaTime); // Update game state
+            renderGame();               // Render the game
 
-            renderGame(); // Render the current state
-
-            glfwSwapBuffers(window); // Swap the front and back buffers
+            glfwSwapBuffers(window);    // Display the rendered frame
         }
 
         System.out.println("Game loop exited.");
@@ -119,12 +107,10 @@ public class Game {
         if (inputHandler != null) inputHandler.handleContinuousInput(deltaTime);
         if (player != null) player.update(deltaTime);
         if (cameraManager != null) cameraManager.update(deltaTime);
-        // Update other game entities or systems
     }
 
     private void renderGame() {
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear buffers
-
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         if (renderer != null) {
             renderer.render();
         }
@@ -135,7 +121,6 @@ public class Game {
         if (renderer != null) {
             renderer.cleanup();
         }
-        // Other game-specific cleanup if needed
         System.out.println("Game cleanup complete.");
     }
 }

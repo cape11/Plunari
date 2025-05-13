@@ -4,137 +4,201 @@ import org.isogame.tile.Tile;
 import java.util.Random;
 import static org.isogame.constants.Constants.*;
 
+/**
+ * Manages the game map, including its generation, tiles, and character spawn.
+ */
 public class Map {
 
-    private final Tile[][] tiles;
-    private final int width;
-    private final int height;
-    private SimplexNoise noiseGenerator;
-    private final Random random = new Random();
-    private int characterSpawnRow;
-    private int characterSpawnCol;
+    private final Tile[][] tiles; // 2D array storing all tiles in the map
+    private final int width;      // Width of the map in number of tiles
+    private final int height;     // Height of the map in number of tiles
+    private SimplexNoise noiseGenerator; // For procedural generation
+    private final Random random = new Random(); // For random elements like tree placement and noise seed
+    private int characterSpawnRow; // Calculated row for player to spawn
+    private int characterSpawnCol; // Calculated column for player to spawn
 
+    /**
+     * Constructs a new Map with the given dimensions and generates its terrain.
+     * @param width The width of the map in tiles.
+     * @param height The height of the map in tiles.
+     */
     public Map(int width, int height) {
         this.width = width;
         this.height = height;
         this.tiles = new Tile[height][width];
-        // Initialize with default tiles before generation
+
+        // Initialize tiles array with a default (e.g., water), will be overwritten by generateMap
         for (int r = 0; r < height; r++) {
             for (int c = 0; c < width; c++) {
-                // Default to water or a placeholder, will be overwritten by generateMap
                 tiles[r][c] = new Tile(Tile.TileType.WATER, 0);
             }
         }
-        generateMap(); // Generate map on creation
+        generateMap(); // Generate the actual map content
     }
 
+    /**
+     * Generates the map terrain, including elevations, tile types, and tree placement.
+     * This method is called when a new Map object is created or can be called to regenerate.
+     */
     public void generateMap() {
         System.out.println("Generating map...");
-        this.noiseGenerator = new SimplexNoise(random.nextInt(1000));
+        this.noiseGenerator = new SimplexNoise(random.nextInt(1000)); // New seed for varied maps
 
         int[][] rawElevations = new int[height][width];
 
-        for (int row = 0; row < height; row++) {
-            for (int col = 0; col < width; col++) {
-                double noiseValue = calculateNoise(row, col); // Combined noise
-                // Scale noise from [-1, 1] to [0, ALTURA_MAXIMA]
+        // 1. Generate raw elevation data using noise
+        for (int r = 0; r < height; r++) {
+            for (int c = 0; c < width; c++) {
+                double noiseValue = calculateCombinedNoise(r, c); // Get combined noise value
+                // Scale noise from [-1, 1] range to [0, ALTURA_MAXIMA] range
                 int elevation = (int) (((noiseValue + 1.0) / 2.0) * ALTURA_MAXIMA);
-                rawElevations[row][col] = Math.max(0, Math.min(ALTURA_MAXIMA, elevation)); // Clamp elevation
+                // Clamp elevation to be within defined min/max
+                rawElevations[r][c] = Math.max(0, Math.min(ALTURA_MAXIMA, elevation));
             }
         }
 
-        smoothTerrain(rawElevations, 2); // Apply 2 passes of smoothing (adjust as needed)
+        // 2. Smooth the raw elevation data
+        smoothTerrain(rawElevations, 2); // Adjust number of passes for more/less smoothing
 
-        for (int row = 0; row < height; row++) {
-            for (int col = 0; col < width; col++) {
-                int elevation = rawElevations[row][col];
-                Tile.TileType type;
-                // Determine tile type based on FINAL elevation and constants
-                if (elevation < NIVEL_MAR) {
-                    type = Tile.TileType.WATER;
-                } else if (elevation < NIVEL_ARENA) {
-                    type = Tile.TileType.SAND;
-                } else if (elevation < NIVEL_ROCA) { // This is effectively the GRASS band
-                    type = Tile.TileType.GRASS;
-                } else if (elevation < NIVEL_NIEVE) {
-                    type = Tile.TileType.ROCK;
-                } else {
-                    type = Tile.TileType.SNOW;
+        // 3. Assign Tile objects with types and place trees based on final elevations
+        for (int r = 0; r < height; r++) {
+            for (int c = 0; c < width; c++) {
+                int elevation = rawElevations[r][c];
+                Tile.TileType type = determineTileTypeFromElevation(elevation);
+                tiles[r][c] = new Tile(type, elevation); // Create new Tile object
+
+                // Place trees based on tile type and other conditions
+                if (type == Tile.TileType.GRASS && elevation >= NIVEL_ARENA) { // e.g., only on grass above sand
+                    if (random.nextFloat() < 0.05) { // 5% chance for a tree on this grass tile
+                        // Randomly pick between your chosen tree types
+                        // This assumes you have at least APPLE_TREE_FRUITING and PINE_TREE_SMALL in TreeVisualType enum
+                        if (random.nextBoolean()) {
+                            tiles[r][c].setTreeType(Tile.TreeVisualType.APPLE_TREE_FRUITING);
+                        } else {
+                            tiles[r][c].setTreeType(Tile.TreeVisualType.PINE_TREE_SMALL);
+                        }
+                        // Example for 3 types:
+                        // float pick = random.nextFloat();
+                        // if (pick < 0.33f) tiles[r][c].setTreeType(Tile.TreeVisualType.TYPE_1);
+                        // else if (pick < 0.66f) tiles[r][c].setTreeType(Tile.TreeVisualType.TYPE_2);
+                        // else tiles[r][c].setTreeType(Tile.TreeVisualType.TYPE_3);
+                    }
                 }
-                tiles[row][col] = new Tile(type, elevation);
             }
         }
 
+        // 4. Find a suitable spawn position for the character
         findSuitableCharacterPosition();
         System.out.println("Map generated successfully. Spawn: (" + characterSpawnRow + ", " + characterSpawnCol + ")");
     }
 
-    private double calculateNoise(double x, double y) {
-        // Experiment with these values for different terrain feels
-        // For more plains and beaches, you want larger features and less extreme roughness.
-        double baseFrequency = NOISE_SCALE * 0.8; // Controls overall feature size (smaller = larger features)
-        double mountainFrequency = NOISE_SCALE * 0.3;
-        double roughnessFrequency = NOISE_SCALE * 1.5;
+    /**
+     * Calculates a combined noise value for a given map coordinate.
+     * This is where you can layer different noise frequencies and amplitudes
+     * to create varied terrain features like base landmass, mountains, and roughness.
+     * @param x The x-coordinate (often row) for noise calculation.
+     * @param y The y-coordinate (often col) for noise calculation.
+     * @return A noise value, typically clamped between -1.0 and 1.0.
+     */
+    private double calculateCombinedNoise(double x, double y) {
+        // --- Experiment with these values for desired terrain ---
+        // NOISE_SCALE is from Constants.java
+        double baseFrequency = NOISE_SCALE * 0.8; // Controls overall feature size (smaller value = larger features)
+        double mountainFrequency = NOISE_SCALE * 0.1; // For larger, sparser features like mountain ranges
+        double roughnessFrequency = NOISE_SCALE * 0.4; // For smaller, detailed features
 
-        double base = noiseGenerator.octaveNoise(x * baseFrequency, y * baseFrequency, 6, 0.5);
-        double mountains = noiseGenerator.noise(x * mountainFrequency, y * mountainFrequency) * 0.35; // Amplitude for mountains
-        double roughness = noiseGenerator.noise(x * roughnessFrequency, y * roughnessFrequency) * 0.05; // Lower amplitude for roughness for flatter plains
+        // Base landmass shape
+        double baseNoise = noiseGenerator.octaveNoise(x * baseFrequency, y * baseFrequency, 6, 0.5); // 6 octaves, 0.5 persistence
 
-        // To create more defined land vs. water, you could apply a shaping function
-        // For example, make values closer to sea level more common.
-        // Or use a separate noise map for continent definition.
-        // For now, simple combination:
-        double combined = base + mountains + roughness;
+        // Larger features like mountains/hills
+        double mountainNoise = noiseGenerator.noise(x * mountainFrequency, y * mountainFrequency) * 0.35; // Adjust amplitude (0.35 here)
 
-        // You can try to "flatten" certain ranges for plains
-        // For example, if 'combined' is in a mid-range, reduce its variance.
-        // This is more advanced; for now, we rely on the elevation thresholds.
+        // Finer details, roughness
+        double roughnessNoise = noiseGenerator.noise(x * roughnessFrequency, y * roughnessFrequency) * 0.05; // Lower amplitude for subtle roughness
 
-        return Math.max(-1.0, Math.min(1.0, combined)); // Clamp to [-1, 1]
+        double combined = baseNoise + mountainNoise + roughnessNoise;
+
+        // Optional: Apply shaping functions here if desired (e.g., Math.pow for sharper peaks, or functions to create flatter plains)
+        // Example: combined = Math.pow(combined, 1.2); // Would make lower areas lower and higher areas higher (needs careful tuning)
+
+        return Math.max(-1.0, Math.min(1.0, combined)); // Clamp result to [-1, 1]
     }
 
+    /**
+     * Determines the TileType based on an elevation value and predefined thresholds.
+     * @param elevation The elevation of the tile.
+     * @return The corresponding TileType.
+     */
+    private Tile.TileType determineTileTypeFromElevation(int elevation) {
+        if (elevation < NIVEL_MAR) {
+            return Tile.TileType.WATER;
+        } else if (elevation < NIVEL_ARENA) {
+            return Tile.TileType.SAND;
+        } else if (elevation < NIVEL_ROCA) { // This band is typically GRASS
+            return Tile.TileType.GRASS;
+        } else if (elevation < NIVEL_NIEVE) {
+            return Tile.TileType.ROCK;
+        } else {
+            return Tile.TileType.SNOW;
+        }
+    }
+
+    /**
+     * Smooths the terrain elevations using a simple averaging filter.
+     * @param elevations The 2D array of raw elevation data to smooth.
+     * @param passes The number of smoothing passes to apply.
+     */
     private void smoothTerrain(int[][] elevations, int passes) {
         if (passes <= 0) return;
 
-        int[][] tempAlturas = new int[height][width];
+        int currentHeight = elevations.length;
+        int currentWidth = elevations[0].length;
+        int[][] tempAlturas = new int[currentHeight][currentWidth];
+
         for (int pass = 0; pass < passes; pass++) {
-            for (int row = 0; row < height; row++) {
-                System.arraycopy(elevations[row], 0, tempAlturas[row], 0, width);
+            // Copy current elevations to temp array for reading
+            for (int r = 0; r < currentHeight; r++) {
+                System.arraycopy(elevations[r], 0, tempAlturas[r], 0, currentWidth);
             }
 
-            for (int row = 1; row < height - 1; row++) {
-                for (int col = 1; col < width - 1; col++) {
+            // Apply smoothing, reading from tempAlturas and writing to elevations
+            for (int r = 1; r < currentHeight - 1; r++) {
+                for (int c = 1; c < currentWidth - 1; c++) {
                     int sum = 0;
                     // 3x3 average (box blur)
                     for (int i = -1; i <= 1; i++) {
                         for (int j = -1; j <= 1; j++) {
-                            sum += elevations[row + i][col + j];
+                            sum += tempAlturas[r + i][c + j]; // Read from the copied array
                         }
                     }
-                    tempAlturas[row][col] = sum / 9;
+                    elevations[r][c] = sum / 9; // Write to the original array
                 }
-            }
-            // Copy smoothed data back to elevations
-            for (int row = 1; row < height - 1; row++) {
-                System.arraycopy(tempAlturas[row], 1, elevations[row], 1, width - 2);
             }
         }
     }
 
+    /**
+     * Finds a suitable non-water tile for character spawning, typically near the map center.
+     * Sets the characterSpawnRow and characterSpawnCol fields.
+     */
     private void findSuitableCharacterPosition() {
         int centerRow = height / 2;
         int centerCol = width / 2;
 
+        // Search outwards from the center
         for (int radius = 0; radius < Math.max(width, height) / 2; radius++) {
-            for (int i = -radius; i <= radius; i++) {
-                for (int j = -radius; j <= radius; j++) {
-                    if (Math.abs(i) == radius || Math.abs(j) == radius) {
-                        int row = centerRow + i;
-                        int col = centerCol + j;
-                        if (isValid(row, col)) {
-                            if (tiles[row][col].getType() != Tile.TileType.WATER && tiles[row][col].getElevation() >= NIVEL_MAR) {
-                                characterSpawnRow = row;
-                                characterSpawnCol = col;
+            for (int rOffset = -radius; rOffset <= radius; rOffset++) {
+                for (int cOffset = -radius; cOffset <= radius; cOffset++) {
+                    // Only check the perimeter of the current search square
+                    if (Math.abs(rOffset) == radius || Math.abs(cOffset) == radius) {
+                        int r = centerRow + rOffset;
+                        int c = centerCol + cOffset;
+                        if (isValid(r, c)) {
+                            // tiles[r][c] should already be initialized from generateMap's main loop
+                            if (tiles[r][c].getType() != Tile.TileType.WATER && tiles[r][c].getElevation() >= NIVEL_MAR) {
+                                characterSpawnRow = r;
+                                characterSpawnCol = c;
+                                System.out.println("Spawn found at: (" + r + ", " + c + ")");
                                 return;
                             }
                         }
@@ -142,10 +206,18 @@ public class Map {
                 }
             }
         }
-        characterSpawnRow = centerRow; // Fallback
+        // Fallback if no suitable land found (should be rare with reasonable generation)
+        characterSpawnRow = centerRow;
         characterSpawnCol = centerCol;
+        System.out.println("Warning: No suitable non-water spawn found near center. Spawning at map center.");
     }
 
+    /**
+     * Retrieves the Tile object at the specified map coordinates.
+     * @param row The row index.
+     * @param col The column index.
+     * @return The Tile object, or null if coordinates are out of bounds.
+     */
     public Tile getTile(int row, int col) {
         if (isValid(row, col)) {
             return tiles[row][col];
@@ -153,34 +225,44 @@ public class Map {
         return null;
     }
 
+    /**
+     * Checks if the given map coordinates are within the map boundaries.
+     * @param row The row index.
+     * @param col The column index.
+     * @return true if the coordinates are valid, false otherwise.
+     */
     public boolean isValid(int row, int col) {
         return row >= 0 && row < height && col >= 0 && col < width;
     }
 
+    // --- Getters ---
     public int getWidth() { return width; }
     public int getHeight() { return height; }
     public int getCharacterSpawnRow() { return characterSpawnRow; }
     public int getCharacterSpawnCol() { return characterSpawnCol; }
 
+    /**
+     * Sets the elevation of a specific tile and updates its TileType accordingly.
+     * Does NOT handle tree placement/removal; that's part of initial generation or specific game mechanics.
+     * @param row The row index of the tile.
+     * @param col The column index of the tile.
+     * @param elevation The new elevation value.
+     */
     public void setTileElevation(int row, int col, int elevation) {
         if (isValid(row, col)) {
-            Tile tile = tiles[row][col];
-            int clampedElevation = Math.max(0, Math.min(ALTURA_MAXIMA, elevation));
+            Tile tile = tiles[row][col]; // Get existing tile
+            int clampedElevation = Math.max(0, Math.min(ALTURA_MAXIMA, elevation)); // Clamp to valid range
             tile.setElevation(clampedElevation);
+            tile.setType(determineTileTypeFromElevation(clampedElevation)); // Update type based on new elevation
 
-            Tile.TileType newType;
-            if (clampedElevation < NIVEL_MAR) {
-                newType = Tile.TileType.WATER;
-            } else if (clampedElevation < NIVEL_ARENA) {
-                newType = Tile.TileType.SAND;
-            } else if (clampedElevation < NIVEL_ROCA) {
-                newType = Tile.TileType.GRASS;
-            } else if (clampedElevation < NIVEL_NIEVE) {
-                newType = Tile.TileType.ROCK;
-            } else {
-                newType = Tile.TileType.SNOW;
-            }
-            tile.setType(newType);
+            // IMPORTANT: Removing tree placement logic from here.
+            // Tree placement should be in generateMap() or a specific player action.
+            // Changing elevation generally shouldn't spontaneously grow/remove trees
+            // unless that's a specific desired mechanic.
+            // If elevation change implies tree removal (e.g., digging up a tree tile):
+            // if (tile.getTreeType() != Tile.TreeVisualType.NONE && newType != Tile.TileType.GRASS) {
+            //     tile.setTreeType(Tile.TreeVisualType.NONE); // Example: remove tree if no longer grass
+            // }
         }
     }
 }

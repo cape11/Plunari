@@ -1,156 +1,181 @@
 package org.isogame.camera;
-import org.isogame.map.Map;
-import org.isogame.tile.Tile;
-// import org.joml.Matrix4f; // Keep if you have it for other reasons
-import static org.isogame.constants.Constants.*;
+
+import org.isogame.map.Map; // Assuming your game's Map class
+import org.isogame.tile.Tile; // Assuming your Tile class
+// import org.joml.Matrix4f; // Only if you were using this for modern GL projection
+
+import static org.isogame.constants.Constants.*; // Make sure TILE_WIDTH, TILE_HEIGHT, TILE_THICKNESS are here
 
 public class CameraManager {
-    // Camera position in Map Tile coordinates (center of view)
-    private float cameraX;
-    private float cameraY;
-
-    // Target position for smooth camera movement
+    private float cameraX; // Map coordinate at the center of the screen
+    private float cameraY; // Map coordinate at the center of the screen
     private float targetX;
     private float targetY;
 
-    // Zoom level
     private float zoom = 1.0f;
     private float targetZoom = 1.0f;
 
-    // Screen dimensions
-    private int screenWidth;
-    private int screenHeight;
+    private int screenWidth;  // Framebuffer width in pixels
+    private int screenHeight; // Framebuffer height in pixels
 
-    // Map dimensions (to potentially constrain camera)
-    private final int mapWidth;
-    private final int mapHeight;
+    private final int mapTileWidth;  // Total tiles wide for map (for potential clamping, not used here)
+    private final int mapTileHeight; // Total tiles high for map
 
-    public CameraManager(int initialScreenWidth, int initialScreenHeight, int mapWidth, int mapHeight) {
+    public CameraManager(int initialScreenWidth, int initialScreenHeight, int mapTileWidth, int mapTileHeight) {
         this.screenWidth = initialScreenWidth;
         this.screenHeight = initialScreenHeight;
-        this.mapWidth = mapWidth;
-        this.mapHeight = mapHeight;
+        this.mapTileWidth = mapTileWidth;
+        this.mapTileHeight = mapTileHeight;
 
-        // Initialize camera to center of map
-        this.cameraX = mapWidth / 2.0f;
-        this.cameraY = mapHeight / 2.0f;
+        this.cameraX = mapTileWidth / 2.0f;
+        this.cameraY = mapTileHeight / 2.0f;
         this.targetX = cameraX;
         this.targetY = cameraY;
-        this.zoom = 1.0f;
-        this.targetZoom = 1.0f;
     }
 
-    /**
-     * Update camera position and zoom smoothly towards targets.
-     * Call this once per frame.
-     * @param deltaTime Time elapsed since the last frame.
-     */
     public void update(double deltaTime) {
-        // Smooth position interpolation (Lerp)
-        cameraX += (targetX - cameraX) * CAMERA_SMOOTH_FACTOR * (float)deltaTime * 60.0f; // Normalize smoothing to 60fps baseline
-        cameraY += (targetY - cameraY) * CAMERA_SMOOTH_FACTOR * (float)deltaTime * 60.0f;
+        cameraX += (targetX - cameraX) * CAMERA_SMOOTH_FACTOR; // Simplified smoothing for example
+        cameraY += (targetY - cameraY) * CAMERA_SMOOTH_FACTOR;
+        zoom += (targetZoom - zoom) * CAMERA_SMOOTH_FACTOR;
 
-        // Smooth zoom interpolation (Lerp)
-        zoom += (targetZoom - zoom) * CAMERA_SMOOTH_FACTOR * (float)deltaTime * 60.0f;
-
-        // Snap to target if very close to avoid drifting
         if (Math.abs(targetX - cameraX) < 0.01f) cameraX = targetX;
         if (Math.abs(targetY - cameraY) < 0.01f) cameraY = targetY;
         if (Math.abs(targetZoom - zoom) < 0.01f) zoom = targetZoom;
     }
 
-    /** Sets the target position instantly and updates current position. */
-    public void setTargetPositionInstantly(float mapX, float mapY) {
-        this.targetX = mapX;
-        this.targetY = mapY;
-        this.cameraX = mapX;
-        this.cameraY = mapY;
-        constrainTargets();
+    /**
+     * Converts map tile coordinates (col, row) and elevation to screen pixel coordinates.
+     * The (mapCol, mapRow) usually refers to the logical grid point.
+     * The projection typically places the visual "top" corner of the diamond for (0,0,0)
+     * at the screen center before camera offset.
+     */
+
+    public int[] mapToScreenCoords(float mapCol, float mapRow, int elevation) {
+        float effTileScreenWidth = TILE_WIDTH * zoom;       // Full width of the diamond on screen
+        float effTileScreenHeight = TILE_HEIGHT * zoom;     // Full height of the diamond on screen
+        float effTileThicknessPerElevationUnit = TILE_THICKNESS * zoom;
+
+        // Calculate position relative to the camera's focus point in the world
+        float worldRelCol = mapCol - this.cameraX;
+        float worldRelRow = mapRow - this.cameraY;
+
+        // Standard isometric projection:
+        // Screen X = (WorldCol - WorldRow) * (TileScreenWidth / 2)
+        // Screen Y = (WorldCol + WorldRow) * (TileScreenHeight / 4) OR (WorldCol + WorldRow) * (TileScreenHeightPerStep)
+        // where TileScreenHeightPerStep is typically TileScreenHeight / 2 (if TILE_HEIGHT is full diamond height)
+        float screenIsoX = (worldRelCol - worldRelRow) * (effTileScreenWidth / 2.0f);
+        float screenIsoY = (worldRelCol + worldRelRow) * (effTileScreenHeight / 2.0f); // This uses effTileScreenHeight / 2
+
+        // Apply elevation offset (subtract because screen Y increases downwards)
+        float elevationScreenOffset = elevation * effTileThicknessPerElevationUnit;
+
+        int finalScreenX = this.screenWidth / 2 + (int) screenIsoX;
+        int finalScreenY = this.screenHeight / 2 + (int) screenIsoY - (int) elevationScreenOffset;
+
+        return new int[]{finalScreenX, finalScreenY};
     }
 
-    /** Sets the target position for the camera to smoothly move towards. */
-    public void setTargetPosition(float mapX, float mapY) {
-        this.targetX = mapX;
-        this.targetY = mapY;
-        constrainTargets();
+    /**
+     * Converts screen pixel coordinates (pickScreenX, pickScreenY) to approximate map tile coordinates (col, row)
+     * on the base plane (elevation 0). This is the inverse of the projection part of mapToScreenCoords.
+     */
+    public float[] screenToMapCoords(int pickScreenX, int pickScreenY) {
+        float effTileScreenWidth = TILE_WIDTH * zoom;
+        float effTileScreenHeight = TILE_HEIGHT * zoom; // Full visual height of the diamond
+
+        // Screen coordinates relative to the center of the screen
+        float screenRelativeX = pickScreenX - (this.screenWidth / 2.0f);
+        float screenRelativeY = pickScreenY - (this.screenHeight / 2.0f);
+        // Note: For accurate Z=0 picking, screenRelativeY should ideally be adjusted
+        // if the general terrain level isn't at Z=0 screen height, but screenToAccurateMapTile handles elevation.
+
+        // Define the scaling factors used in mapToScreenCoords' projection part
+        float isoTileHalfWidthOnScreen = effTileScreenWidth / 2.0f;
+        float isoTileHalfHeightOnScreen = effTileScreenHeight / 2.0f; // This corresponds to the Y scaling factor per map unit step
+
+        // Reverse the projection:
+        // screenRelativeX = (mapRelCol - mapRelRow) * isoTileHalfWidthOnScreen;
+        // screenRelativeY = (mapRelCol + mapRelRow) * isoTileHalfHeightOnScreen;
+
+        // Let termX = screenRelativeX / isoTileHalfWidthOnScreen
+        // Let termY = screenRelativeY / isoTileHalfHeightOnScreen
+        // mapRelCol - mapRelRow = termX
+        // mapRelCol + mapRelRow = termY
+        // Adding them: 2 * mapRelCol = termX + termY  => mapRelCol = (termX + termY) / 2
+        // Subtracting first from second: 2 * mapRelRow = termY - termX => mapRelRow = (termY - termX) / 2
+
+        float termX = screenRelativeX / isoTileHalfWidthOnScreen;
+        float termY = screenRelativeY / isoTileHalfHeightOnScreen;
+
+        float relativeMapCol = (termX + termY) / 2.0f;
+        float relativeMapRow = (termY - termX) / 2.0f;
+
+        // Add camera's current map position to get absolute map coordinates
+        float finalMapCol = this.cameraX + relativeMapCol;
+        float finalMapRow = this.cameraY + relativeMapRow;
+
+        return new float[]{finalMapCol, finalMapRow};
     }
 
-    /** Moves the target position by a delta amount. */
-    public void moveTargetPosition(float dMapX, float dMapY) {
-        this.targetX += dMapX;
-        this.targetY += dMapY;
-        constrainTargets();
-    }
-
-    /** Constrains target position to keep view mostly within map bounds (optional) */
-    private void constrainTargets() {
-        // Basic clamping - more sophisticated bounds check might be needed depending on desired behavior at edges
-        // float margin = 5.0f / zoom; // Example margin, adjusts with zoom
-        // this.targetX = Math.max(margin, Math.min(mapWidth - margin, this.targetX));
-        // this.targetY = Math.max(margin, Math.min(mapHeight - margin, this.targetY));
-    }
-
-    /** Adjusts the target zoom level by a relative amount. */
-    public void adjustZoom(float amount) {
-        this.targetZoom += amount;
-        this.targetZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.targetZoom)); // Clamp zoom
-    }
-
-    /** Sets the absolute target zoom level. */
-    public void setZoom(float zoomLevel) {
-        this.targetZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel)); // Clamp zoom
-    }
-
-    /** Updates screen dimensions when window is resized. */
-    public void updateScreenSize(int width, int height) {
-        this.screenWidth = width;
-        this.screenHeight = height;
-    }
-
-    // --- Coordinate Transformations ---
-    // --- ADD OR VERIFY THIS METHOD ---
+    /**
+     * Iteratively finds the most likely tile under the mouse cursor, considering elevation.
+     * @param mouseScreenX The mouse's X screen coordinate.
+     * @param mouseScreenY The mouse's Y screen coordinate.
+     * @param gameMap The game map to query for tile data.
+     * @return int[]{column, row} of the picked tile.
+     */
     public int[] screenToAccurateMapTile(int mouseScreenX, int mouseScreenY, Map gameMap) {
-        // Initial guess using the base plane picking
-        float[] baseMapCoords = screenToMapCoords(mouseScreenX, mouseScreenY); // Uses your existing method
+        float[] baseMapCoords = screenToMapCoords(mouseScreenX, mouseScreenY);
         int initialGuessR = Math.round(baseMapCoords[1]);
         int initialGuessC = Math.round(baseMapCoords[0]);
 
         int bestR = initialGuessR;
         int bestC = initialGuessC;
         boolean foundAccurateTile = false;
-        int highestFoundElevation = -Integer.MAX_VALUE; // Initialize to a very low number
+        int highestFoundElevation = -Integer.MAX_VALUE; // Start very low
 
-        int searchRadius = 3;
+        int searchRadius = 4; // Increased slightly, can be tuned
 
-        // Iterate in a way that tends to find visually "top" tiles first for tie-breaking
-        // This can be complex; a simple grid search prioritizing higher elevation is often good enough.
+        // Iterate a search area. For isometric, the visual "top" can be tricky.
+        // A common approach is to iterate in rendering order (back-to-front)
+        // and pick the first hit, or iterate all and pick the highest valid hit.
+        // This simplified loop checks a square area.
         for (int rOffset = -searchRadius; rOffset <= searchRadius; rOffset++) {
             for (int cOffset = -searchRadius; cOffset <= searchRadius; cOffset++) {
                 int currentR = initialGuessR + rOffset;
                 int currentC = initialGuessC + cOffset;
 
-                if (!gameMap.isValid(currentR, currentC)) {
-                    continue;
-                }
+                if (!gameMap.isValid(currentR, currentC)) continue;
 
                 Tile tile = gameMap.getTile(currentR, currentC);
-                if (tile == null || tile.getType() == Tile.TileType.WATER) {
-                    continue;
-                }
+                if (tile == null || tile.getType() == Tile.TileType.WATER) continue; // Usually can't select water this way
 
                 int elevation = tile.getElevation();
-                int effTileDrawWidth = getEffectiveTileWidth();
-                int effTileDrawHeight = getEffectiveTileHeight();
+                float effTileDrawWidth = getEffectiveTileWidth();
+                float effTileDrawHeight = getEffectiveTileHeight();
 
-                int[] topPointScreenCoords = mapToScreenCoords(currentC, currentR, elevation);
-                float diamondTopX = topPointScreenCoords[0];
-                float diamondTopY = topPointScreenCoords[1];
-                float diamondCenterY = diamondTopY + (effTileDrawHeight / 2.0f);
+                // Calculate the screen coordinates of the *top-most point* of this tile's diamond.
+                // mapToScreenCoords gives the screen (X,Y) where the (mapCol, mapRow)
+                // at the given elevation projects. This is usually the "tip" or "origin" of the tile's diamond.
+                int[] topPointOfDiamondScreenCoords = mapToScreenCoords(currentC, currentR, elevation);
+                float diamondTopScreenX = topPointOfDiamondScreenCoords[0]; // This is the diamond's horizontal center
+                float diamondTopScreenY = topPointOfDiamondScreenCoords[1]; // This is the diamond's highest Y point
 
-                float normX = Math.abs((mouseScreenX - diamondTopX) / (effTileDrawWidth / 2.0f));
-                float normY = Math.abs((mouseScreenY - diamondCenterY) / (effTileDrawHeight / 2.0f));
+                // The visual center of the diamond (for hit-testing)
+                float diamondCenterScreenX = diamondTopScreenX;
+                float diamondCenterScreenY = diamondTopScreenY + (effTileDrawHeight / 2.0f);
 
-                if (normX + normY <= 1.0f) { // Mouse is within this tile's top diamond
+                // Check if the mouse click is within this tile's top diamond
+                // Diamond check: |(mx - dcx) / (diamondHalfWidth)| + |(my - dcy) / (diamondHalfHeight)| <= 1
+                float diamondHalfWidth = effTileDrawWidth / 2.0f;
+                float diamondHalfHeight = effTileDrawHeight / 2.0f;
+
+                if (diamondHalfWidth == 0 || diamondHalfHeight == 0) continue; // Avoid division by zero
+
+                float normalizedMouseX = Math.abs((mouseScreenX - diamondCenterScreenX) / diamondHalfWidth);
+                float normalizedMouseY = Math.abs((mouseScreenY - diamondCenterScreenY) / diamondHalfHeight);
+
+                if (normalizedMouseX + normalizedMouseY <= 1.0f) { // Mouse is within this tile's top diamond
                     if (!foundAccurateTile || elevation > highestFoundElevation) {
                         bestR = currentR;
                         bestC = currentC;
@@ -162,88 +187,38 @@ public class CameraManager {
         }
 
         if (foundAccurateTile) {
-            return new int[]{bestC, bestR}; // Return col, row
+            return new int[]{bestC, bestR};
         } else {
-            return new int[]{initialGuessC, initialGuessR}; // Fallback
+            // Fallback to the initial base plane guess if no clear elevated tile was hit
+            // This might be what's happening if the diamond check is too strict or search radius too small
+            // For debugging, print when this fallback occurs:
+            // System.out.println("Accurate pick failed, falling back to base plane guess: " + initialGuessC + "," + initialGuessR);
+            return new int[]{initialGuessC, initialGuessR};
         }
     }
 
-    /** Converts Map Tile coordinates (+ elevation) to Screen pixel coordinates. */
-    public int[] mapToScreenCoords(float mapX, float mapY, int elevation) {
-        // Effective tile dimensions based on zoom
-        float effTileWidth = TILE_WIDTH * zoom;
-        float effTileHeight = TILE_HEIGHT * zoom;
-        float effTileThickness = TILE_THICKNESS * zoom;
 
-        // Position relative to camera center (in tile units)
-        float relativeX = mapX - cameraX;
-        float relativeY = mapY - cameraY;
-
-        // Isometric projection
-        float isoX = (relativeX - relativeY) * (effTileWidth / 2.0f);
-        float isoY = (relativeX + relativeY) * (effTileHeight / 2.0f);
-
-        // Offset by elevation
-        float elevationOffset = elevation * effTileThickness;
-
-        // Final screen coordinates relative to screen center
-        int screenX = screenWidth / 2 + (int) isoX;
-        int screenY = screenHeight / 2 + (int) isoY - (int) elevationOffset; // Y grows downwards
-
-        return new int[]{screenX, screenY};
-    }
-
-    /** Converts Screen pixel coordinates back to Map Tile coordinates (at elevation 0). */
-    public float[] screenToMapCoords(int screenX, int screenY) {
-        // Effective tile dimensions based on zoom
-        float effTileWidth = TILE_WIDTH * zoom;
-        float effTileHeight = TILE_HEIGHT * zoom;
-        // float effTileThickness = TILE_THICKNESS * zoom; // Needed for 3D picking
-
-        // Screen coordinates relative to screen center
-        float screenRelativeX = screenX - (screenWidth / 2.0f);
-        float screenRelativeY = screenY - (screenHeight / 2.0f);
-
-        // Reverse the isometric projection (ignoring elevation for simple 2D picking)
-        // isoX = (relX - relY) * w/2  =>  relX - relY = 2 * isoX / w
-        // isoY = (relX + relY) * h/2  =>  relX + relY = 2 * isoY / h
-        // Add equations: 2 * relX = (2*isoX/w) + (2*isoY/h) => relX = isoX/w + isoY/h
-        // Sub equations: 2 * relY = (2*isoY/h) - (2*isoX/w) => relY = isoY/h - isoX/w
-
-        // Note: screenRelativeX corresponds to isoX, screenRelativeY to isoY
-        float relativeX = (screenRelativeX / effTileWidth) + (screenRelativeY / effTileHeight);
-        float relativeY = (screenRelativeY / effTileHeight) - (screenRelativeX / effTileWidth);
-
-        // Add camera position to get absolute map coordinates
-        float mapX = cameraX + relativeX;
-        float mapY = cameraY + relativeY;
-
-        return new float[]{mapX, mapY};
-    }
-
-    /** Converts a vector in screen space (e.g., mouse drag) to a vector in map space. */
-    public float[] screenVectorToMapVector(float screenDX, float screenDY) {
-        // Similar inversion as screenToMapCoords, but for deltas (ignores camera position)
-        float effTileWidth = TILE_WIDTH * zoom;
-        float effTileHeight = TILE_HEIGHT * zoom;
-
-        float mapDX = (screenDX / effTileWidth) + (screenDY / effTileHeight);
-        float mapDY = (screenDY / effTileHeight) - (screenDX / effTileWidth);
-
-        return new float[]{mapDX, mapDY};
-    }
-
-
-    // --- Getters for Renderer ---
+    // Getters
     public float getCameraX() { return cameraX; }
     public float getCameraY() { return cameraY; }
     public float getZoom() { return zoom; }
     public int getScreenWidth() { return screenWidth; }
     public int getScreenHeight() { return screenHeight; }
-
-    // Calculate effective dimensions based on current zoom
     public int getEffectiveTileWidth() { return (int) (TILE_WIDTH * zoom); }
     public int getEffectiveTileHeight() { return (int) (TILE_HEIGHT * zoom); }
     public int getEffectiveTileThickness() { return (int) (TILE_THICKNESS * zoom); }
     public int getEffectiveBaseThickness() { return (int) (BASE_THICKNESS * zoom); }
+    public void setTargetPositionInstantly(float mapX, float mapY) { /* ... */ this.targetX = mapX; this.targetY = mapY; this.cameraX = mapX; this.cameraY = mapY; }
+    public void setTargetPosition(float mapX, float mapY) { /* ... */ this.targetX = mapX; this.targetY = mapY; }
+    public void moveTargetPosition(float dMapX, float dMapY) { /* ... */ this.targetX += dMapX; this.targetY += dMapY; }
+    public void adjustZoom(float amount) { /* ... */ this.targetZoom += amount; this.targetZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.targetZoom));}
+    public void setZoom(float zoomLevel) { /* ... */ this.targetZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel));}
+    public void updateScreenSize(int width, int height) { this.screenWidth = width; this.screenHeight = height; }
+    public float[] screenVectorToMapVector(float screenDX, float screenDY) { // Unchanged
+        float effTileWidth = TILE_WIDTH * zoom;
+        float effTileHeight = TILE_HEIGHT * zoom;
+        float mapDX = (screenDX / (effTileWidth / 2.0f) + screenDY / (effTileHeight / 2.0f)) / 2.0f;
+        float mapDY = (screenDY / (effTileHeight / 2.0f) - screenDX / (effTileWidth / 2.0f)) / 2.0f;
+        return new float[]{mapDX, mapDY};
+    }
 }
