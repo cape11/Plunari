@@ -98,25 +98,22 @@ public class CameraManager {
      * This is the method your Input/MouseHandler should call for accurate picking.
      */
     public int[] screenToAccurateMapTile(int mouseScreenX, int mouseScreenY, Map gameMap) {
-        // Use the base plane conversion for an initial guess
-        float[] baseMapCoords = screenToMapCoords_BasePlaneOnly(mouseScreenX, mouseScreenY);
+        System.out.printf("--- ACCURATE PICK (Drawing Order, Last Hit) --- Mouse Screen (X:%d, Y:%d)%n", mouseScreenX, mouseScreenY);
 
-        int initialGuessC = Math.round(baseMapCoords[0]); // col is index 0
-        int initialGuessR = Math.round(baseMapCoords[1]); // row is index 1
+        int effTileWidth = getEffectiveTileWidth();
+        int effTileHeight = getEffectiveTileHeight();
+        int mapW = gameMap.getWidth();
+        int mapH = gameMap.getHeight();
 
-        int bestC = -1, bestR = -1;
-        double bestVisualDepth = -Double.MAX_VALUE;
+        int pickedC = -1;
+        int pickedR = -1;
+        int pickedElevation = -Integer.MIN_VALUE; // For logging the picked tile's elevation
 
-        // int mapW = gameMap.getWidth(); // Not needed if using searchRadius
-        // int mapH = gameMap.getHeight();
-        int effTileWidth = getEffectiveTileWidth(); // Cached for use in isPointInDiamond
-        int effTileHeight = getEffectiveTileHeight(); // Cached
-
-        int searchRadius = 5; // How far around the initial guess to check. Adjust as needed.
-        for (int rOffset = -searchRadius; rOffset <= searchRadius; rOffset++) {
-            for (int cOffset = -searchRadius; cOffset <= searchRadius; cOffset++) {
-                int r = initialGuessR + rOffset;
-                int c = initialGuessC + cOffset;
+        // Iterate in your standard map drawing order (back-most to front-most)
+        // Your drawing order is for (sum = 0 to MAX_SUM), then for (r = 0 to sum), c = sum - r.
+        for (int sum = 0; sum <= mapW + mapH - 2; sum++) {
+            for (int r = 0; r <= sum; r++) {
+                int c = sum - r;
 
                 if (!gameMap.isValid(r, c)) {
                     continue;
@@ -126,59 +123,93 @@ public class CameraManager {
                 if (tile == null) {
                     continue;
                 }
-                // Consider if you want to be able to select water tiles:
+                // Optional: Skip certain unselectable tiles
                 // if (tile.getType() == Tile.TileType.WATER && tile.getElevation() < NIVEL_MAR) continue;
 
-
                 int elevation = tile.getElevation();
-                // Use THE existing mapToScreenCoords method to get the tile's screen position
                 int[] tileScreenCoords = this.mapToScreenCoords((float)c, (float)r, elevation);
-
                 float topX = tileScreenCoords[0];
                 float topY = tileScreenCoords[1];
 
-                // Pass effTileWidth and effTileHeight to isPointInDiamond if it needs them
+            /*
+            // Optional Debug: Print info for tiles being checked
+            if (Math.abs(topX - mouseScreenX) < effTileWidth * 1.5 && Math.abs(topY + effTileHeight/2.0f - mouseScreenY) < effTileHeight * 1.5) {
+                 System.out.printf("    Checking Tile (C:%d, R:%d, E:%d) -> ScreenTop(X:%.0f, Y:%.0f)%n", c, r, elevation, topX, topY);
+            }
+            */
+
                 if (isPointInDiamond((float)mouseScreenX, (float)mouseScreenY,
                         topX, topY,
-                        effTileWidth, effTileHeight)) { // Simplified call
-                    double currentVisualDepth = calculateVisualDepth(c, r, elevation);
-                    if (currentVisualDepth > bestVisualDepth) {
-                        bestVisualDepth = currentVisualDepth;
-                        bestR = r;
-                        bestC = c;
-                    }
+                        effTileWidth, effTileHeight)) {
+                    // This tile's diamond contains the mouse. Since we iterate in drawing order,
+                    // this one is potentially "on top" of previous hits.
+                    // The last one that satisfies this condition will be the topmost.
+                    // System.out.printf("    >>>> HIT DIAMOND for Tile (C:%d, R:%d, E:%d) <<<<%n", c, r, elevation);
+                    pickedC = c;
+                    pickedR = r;
+                    pickedElevation = elevation; // Store for logging
                 }
             }
         }
 
-        if (bestR != -1) {
-            return new int[]{bestC, bestR}; // Return as {col, row}
+        if (pickedR != -1) { // Check if any tile was picked
+            System.out.printf("--- ACCURATE PICK END --- Selected (Col:%d, Row:%d, Elev:%d) by drawing order/last hit%n", pickedC, pickedR, pickedElevation);
+            return new int[]{pickedC, pickedR};
+        } else {
+            // If still no tile selected, try the base plane guess as a last resort if you want
+            // For debugging, it's better to see when this happens.
+            float[] baseGuess = screenToMapCoords_BasePlaneOnly(mouseScreenX, mouseScreenY);
+            System.out.printf("--- ACCURATE PICK END --- No tile selected (iterated all). Base guess was (C:%.0f, R:%.0f)%n", baseGuess[0], baseGuess[1]);
+            return null;
         }
-        return null;
     }
+
+    // The isPointInDiamond, mapToScreenCoords, screenToMapCoords_BasePlaneOnly methods
+// remain the same as in the previous "best method" attempt.
+// Ensure they are present and correct.
+// For example:
+    // In CameraManager.java
+
+    // THIS METHOD IS THE ONE TO CHANGE FOR PICKING LOGIC
+    private boolean isPointInDiamond(float px, float py,
+                                     float diamondAnchorX_from_mapToScreenCoords, // This is the X from mapToScreenCoords
+                                     float diamondAnchorY_from_mapToScreenCoords, // This is the Y from mapToScreenCoords
+                                     int tileDiamondScreenWidth,
+                                     int tileDiamondScreenHeight) {
+
+        float diamondCenterX = diamondAnchorX_from_mapToScreenCoords; // Assume anchor X is center X
+        // HYPOTHESIS: Assume diamondAnchorY_from_mapToScreenCoords IS THE CENTER Y
+        float diamondCenterY = diamondAnchorY_from_mapToScreenCoords;
+        // OLD (if diamondAnchorY was top tip): float diamondCenterY = diamondAnchorY_from_mapToScreenCoords + (tileDiamondScreenHeight / 2.0f);
+
+
+        float diamondHalfWidth = tileDiamondScreenWidth / 2.0f;
+        float diamondHalfHeight = tileDiamondScreenHeight / 2.0f;
+
+        if (diamondHalfWidth <= 0 || diamondHalfHeight <= 0) return false;
+
+        float normalizedMouseX = Math.abs((px - diamondCenterX) / diamondHalfWidth);
+        float normalizedMouseY = Math.abs((py - diamondCenterY) / diamondHalfHeight);
+
+        boolean hit = normalizedMouseX + normalizedMouseY <= 1.0f;
+
+        // Optional: Add a temporary debug print here to see what's happening
+        // if (Math.abs(px - 691) < 5 && Math.abs(py - 182) < 5) { // Example: mouse around your previous test click
+        //     System.out.printf("isPointInDiamond check: mouse(%.0f,%.0f) vs diamondCenter(%.0f,%.0f) halfW:%.0f halfH:%.0f -> Hit: %b%n",
+        //                       px, py, diamondCenterX, diamondCenterY, diamondHalfWidth, diamondHalfHeight, hit);
+        // }
+
+        return hit;
+    }
+// And ensure mapToScreenCoords and screenToMapCoords_BasePlaneOnly are correctly defined
+// as per previous discussions.
+
 
     private double calculateVisualDepth(int c, int r, int elevation) {
         return elevation * 1000.0 + (r + c);
     }
 
-    // Helper method to check if a point is inside a diamond based on its top point and dimensions
-    private boolean isPointInDiamond(float px, float py,
-                                     float diamondTopScreenX, float diamondTopScreenY,
-                                     int tileDiamondScreenWidth, int tileDiamondScreenHeight) {
-        // Diamond center:
-        float diamondCenterX = diamondTopScreenX;
-        float diamondCenterY = diamondTopScreenY + (tileDiamondScreenHeight / 2.0f);
 
-        float diamondHalfWidth = tileDiamondScreenWidth / 2.0f;
-        float diamondHalfHeight = tileDiamondScreenHeight / 2.0f;
-
-        if (diamondHalfWidth == 0 || diamondHalfHeight == 0) return false;
-
-        float normalizedMouseX = Math.abs((px - diamondCenterX) / diamondHalfWidth);
-        float normalizedMouseY = Math.abs((py - diamondCenterY) / diamondHalfHeight);
-
-        return normalizedMouseX + normalizedMouseY <= 1.001f; // Add small epsilon
-    }
 
     // Getters
     public float getCameraX() { return cameraX; }

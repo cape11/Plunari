@@ -269,6 +269,12 @@ public class Renderer {
         glEnd();
     }
 
+
+    // Add a flag to toggle debug drawing
+    private boolean DEBUG_DRAW_PICKING_DIAMONDS = true; // Set to true to see them
+
+// ... (rest of Renderer.java up to renderMapBaseGeometry)
+
     private void renderMapBaseGeometry() {
         int mapW = map.getWidth();
         int mapH = map.getHeight();
@@ -277,17 +283,73 @@ public class Renderer {
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         for (int sum = 0; sum <= mapW + mapH - 2; sum++) {
-            for (int r = 0; r <= sum; r++) {
-                int col = sum - r;
-                if (map.isValid(r, col)) {
-                    Tile tile = map.getTile(r, col);
+            for (int r_loop = 0; r_loop <= sum; r_loop++) { // Renamed loop variable to avoid confusion
+                int c_loop = sum - r_loop;                 // Renamed loop variable
+                if (map.isValid(r_loop, c_loop)) {
+                    Tile tile = map.getTile(r_loop, c_loop);
                     if (tile != null) {
-                        renderTileGeometry(r, col, tile, (r == inputHandler.getSelectedRow() && col == inputHandler.getSelectedCol()));
+                        renderTileGeometry(r_loop, c_loop, tile, (r_loop == inputHandler.getSelectedRow() && c_loop == inputHandler.getSelectedCol()));
+
+                        if (DEBUG_DRAW_PICKING_DIAMONDS) {
+                            // Pass the correct loop variables c_loop and r_loop
+                            if (Math.abs(r_loop - inputHandler.getSelectedRow()) <= 5 && Math.abs(c_loop - inputHandler.getSelectedCol()) <= 5) {
+                                drawPickableDiamondOutline(c_loop, r_loop, tile.getElevation());
+                            }
+                        }
                     }
                 }
             }
         }
     }
+
+    // Corrected debug drawing method in Renderer.java
+    // In Renderer.java
+    private void drawPickableDiamondOutline(int mapCol, int mapRow, int elevation) {
+        int effTileWidth = camera.getEffectiveTileWidth();
+        int effTileHeight = camera.getEffectiveTileHeight();
+
+        // mapToScreenCoords now assumed to return the CENTER of the diamond's top face
+        int[] diamondCenterScreenCoords = camera.mapToScreenCoords((float)mapCol, (float)mapRow, elevation);
+        float centerX = diamondCenterScreenCoords[0];
+        float centerY = diamondCenterScreenCoords[1];
+
+        float halfW = effTileWidth / 2.0f;
+        float halfH = effTileHeight / 2.0f;
+
+        // Calculate diamond corners from the center
+        float pointTopX = centerX;
+        float pointTopY = centerY - halfH;
+        float pointLeftX = centerX - halfW;
+        float pointLeftY = centerY;
+        float pointRightX = centerX + halfW;
+        float pointRightY = centerY;
+        float pointBottomX = centerX;
+        float pointBottomY = centerY + halfH;
+
+        glDisable(GL_TEXTURE_2D);
+        // Draw the PICKING diamond outline (YELLOW)
+        glColor4f(1.0f, 1.0f, 0.0f, 0.7f); // Yellow
+        glBegin(GL_LINE_LOOP);
+        glVertex2f(pointTopX, pointTopY);
+        glVertex2f(pointLeftX, pointLeftY);
+        glVertex2f(pointBottomX, pointBottomY);
+        glVertex2f(pointRightX, pointRightY);
+        glEnd();
+
+        // Draw the CYAN debug dot AT THE CENTER (which is now directly from mapToScreenCoords)
+        glColor4f(0.0f, 1.0f, 1.0f, 0.8f); // Cyan
+        float radius = 3 * camera.getZoom();
+        glBegin(GL_TRIANGLE_FAN);
+        glVertex2f(centerX, centerY); // Center point IS diamondCenterScreenCoords[0], diamondCenterScreenCoords[1]
+        for (int i = 0; i <= 16; i++) {
+            double angle = Math.PI * 2.0 * i / 16.0;
+            glVertex2f(centerX + (float)(Math.cos(angle) * radius),
+                    centerY + (float)(Math.sin(angle) * radius));
+        }
+        glEnd();
+    }
+
+
 
     private void renderTileGeometry(int tileR, int tileC, Tile tile, boolean isSelected) {
         int elevation = tile.getElevation();
@@ -396,6 +458,11 @@ public class Renderer {
             glColor4f(1.0f,1.0f,1.0f,0.8f);glBegin(GL_LINES);glVertex2f(x,y+15/2.0f);glVertex2f(x+text.length()*8,y+15/2.0f);glEnd();
         }
     }
+    // Add a flag to toggle debug drawin
+// ... inside your main render() method, AFTER renderMapBaseGeometry() and AFTER
+// the main loop for rendering sortableItems, but BEFORE renderUI():
+// Or, more effectively, modify renderMapBaseGeometry to also draw these debug outlines.
+
 
     public void cleanup() {
         if(playerTexture!=null)playerTexture.delete();
