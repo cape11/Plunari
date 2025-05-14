@@ -1,7 +1,7 @@
 package org.isogame.input;
 
 import org.isogame.camera.CameraManager;
-import org.isogame.entity.PlayerModel;
+import org.isogame.entitiy.PlayerModel;
 import org.isogame.map.Map;
 import org.isogame.tile.Tile;
 

@@ -5,7 +5,7 @@ import org.isogame.input.MouseHandler;
 import org.isogame.camera.CameraManager;
 import org.isogame.map.Map;
 import org.isogame.render.Renderer;
-import org.isogame.entity.PlayerModel;
+import org.isogame.entitiy.PlayerModel;
 
 import static org.isogame.constants.Constants.*; // For MAP_WIDTH, MAP_HEIGHT etc.
 import static org.lwjgl.glfw.GLFW.*;

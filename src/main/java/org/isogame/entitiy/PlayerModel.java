@@ -1,11 +1,17 @@
-package org.isogame.entity;
+package org.isogame.entitiy; // Ensure this package is correct
 
+// Remove imports related to Renderable interface if they were added:
+// import org.isogame.render.Renderable;
+// import org.isogame.render.Renderer; // Only if it was used by a Renderable.render method
+
+// Keep other necessary imports
 import org.isogame.map.PathNode;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map; // Should resolve to java.util.Map
+// import java.util.Map; // For java.util.Map
 
+// NO "implements Renderable" here
 public class PlayerModel {
 
     private float mapRow;
@@ -13,14 +19,13 @@ public class PlayerModel {
     private boolean levitating = false;
     private float levitateTimer = 0;
 
-    // Pathfinding State
     private List<PathNode> currentPath;
-    private int currentPathIndex; // Index of the *current node in the path the player is AT or just left*
-    private PathNode currentMoveTargetNode; // The immediate next tile in the path we are moving towards
-    private float targetVisualRow; // For smooth visual interpolation to currentMoveTargetNode.row
-    private float targetVisualCol; // For smooth visual interpolation to currentMoveTargetNode.col
+    private int currentPathIndex;
+    private PathNode currentMoveTargetNode;
+    private float targetVisualRow;
+    private float targetVisualCol;
 
-    public static final float MOVEMENT_SPEED = 3.0f; // Tiles per second for path following
+    public static final float MOVEMENT_SPEED = 3.0f;
 
     public enum Action { IDLE, WALK }
     public enum Direction { NORTH, WEST, SOUTH, EAST }
@@ -39,7 +44,7 @@ public class PlayerModel {
     public static final int ROW_WALK_EAST = 11;
     public static final int FRAMES_PER_WALK_CYCLE = 9;
 
-    private java.util.Map<String, Integer> inventory; // Explicitly java.util.Map
+    private java.util.Map<String, Integer> inventory;
 
     public PlayerModel(int startRow, int startCol) {
         this.mapRow = startRow;
@@ -47,8 +52,8 @@ public class PlayerModel {
         this.targetVisualRow = startRow;
         this.targetVisualCol = startCol;
         this.inventory = new HashMap<>();
-        this.currentPath = new ArrayList<>(); // Initialize to avoid null pointer
-        this.currentPathIndex = -1;       // No path active
+        this.currentPath = new ArrayList<>();
+        this.currentPathIndex = -1;
         this.currentMoveTargetNode = null;
     }
 
@@ -59,16 +64,13 @@ public class PlayerModel {
 
         boolean activelyMovingOnPath = false;
         if (currentPath != null && !currentPath.isEmpty()) {
-            // If no current target, try to get the next one from the path
             if (currentMoveTargetNode == null) {
-                // currentPathIndex points to the node we *were* at or the start node (index 0)
-                // So, the next target is currentPathIndex + 1
                 if (currentPathIndex < currentPath.size() - 1) {
-                    currentPathIndex++; // Advance to the next segment of the path
+                    currentPathIndex++;
                     currentMoveTargetNode = currentPath.get(currentPathIndex);
                     targetVisualRow = currentMoveTargetNode.row;
                     targetVisualCol = currentMoveTargetNode.col;
-                } else { // Reached end of path, or no more segments
+                } else {
                     pathFinished();
                 }
             }
@@ -85,10 +87,10 @@ public class PlayerModel {
                 if (distance <= moveStep || distance == 0.0f) {
                     this.mapRow = targetVisualRow;
                     this.mapCol = targetVisualCol;
-                    currentMoveTargetNode = null; // Arrived, ready for next target in next update frame
-                    if (currentPathIndex >= currentPath.size() - 1) { // Is this the final node?
+                    currentMoveTargetNode = null;
+                    if (currentPathIndex >= currentPath.size() - 1) {
                         pathFinished();
-                        activelyMovingOnPath = false; // Path is done
+                        activelyMovingOnPath = false;
                     }
                 } else {
                     float moveX = (dx / distance) * moveStep;
@@ -96,13 +98,11 @@ public class PlayerModel {
                     this.mapCol += moveX;
                     this.mapRow += moveY;
 
-                    // Update direction for animation
-                    if (Math.abs(dx) > Math.abs(dy) * 0.8) { // Favor horizontal if clearly more dx
+                    if (Math.abs(dx) > Math.abs(dy) * 0.8) {
                         setDirection(dx > 0 ? Direction.EAST : Direction.WEST);
-                    } else if (Math.abs(dy) > Math.abs(dx) * 0.8) { // Favor vertical if clearly more dy
+                    } else if (Math.abs(dy) > Math.abs(dx) * 0.8) {
                         setDirection(dy > 0 ? Direction.SOUTH : Direction.NORTH);
                     }
-                    // If dx and dy are similar, direction might not change (keeps last direction)
                 }
             }
         }
@@ -111,13 +111,12 @@ public class PlayerModel {
             setAction(Action.IDLE);
         }
 
-        // Animation Update Logic
         animationTimer += deltaTime;
         if (animationTimer >= frameDuration) {
             animationTimer -= frameDuration;
             currentFrameIndex++;
-            int maxFrames = (currentAction == Action.WALK) ? FRAMES_PER_WALK_CYCLE : 1; // Simpler
-            if (currentAction == Action.IDLE) maxFrames = 1; // Ensure IDLE only has 1 frame for now via getVisualFrameIndex
+            int maxFrames = (currentAction == Action.WALK) ? FRAMES_PER_WALK_CYCLE : 1;
+            if (currentAction == Action.IDLE) maxFrames = 1;
 
             if (currentFrameIndex >= maxFrames) {
                 currentFrameIndex = 0;
@@ -127,26 +126,20 @@ public class PlayerModel {
 
     private void pathFinished() {
         setAction(Action.IDLE);
-        if (currentPath != null) currentPath.clear(); // Clear the path list
+        if (currentPath != null) currentPath.clear();
         currentPathIndex = -1;
         currentMoveTargetNode = null;
-        // Keep player at final mapRow, mapCol
-        System.out.println("Player reached destination or path cleared.");
     }
 
     public void setPath(List<PathNode> path) {
         if (path != null && !path.isEmpty()) {
-            this.currentPath = new ArrayList<>(path); // Take a copy
-            // First node in path is player's current location, so actual first target is index 1
-            this.currentPathIndex = 0; // Start at the beginning of the path (current location)
-            this.currentMoveTargetNode = null; // Let update() pick the first actual move target
-            // Visual position should already be player's current position
+            this.currentPath = new ArrayList<>(path);
+            this.currentPathIndex = 0;
+            this.currentMoveTargetNode = null;
             this.targetVisualRow = path.get(0).row;
             this.targetVisualCol = path.get(0).col;
-            System.out.println("Path set with " + this.currentPath.size() + " nodes.");
         } else {
-            pathFinished(); // Clear everything and set to IDLE
-            System.out.println("Path set to null or empty.");
+            pathFinished();
         }
     }
 
@@ -185,27 +178,27 @@ public class PlayerModel {
 
     public void addResource(String resourceType, int amount) {
         inventory.put(resourceType, inventory.getOrDefault(resourceType, 0) + amount);
-        System.out.println("Player collected: " + amount + " " + resourceType + ". Total: " + getResourceCount(resourceType));
     }
 
     public int getResourceCount(String resourceType) {
         return inventory.getOrDefault(resourceType, 0);
     }
 
-    public java.util.Map<String, Integer> getInventory() { // Explicitly java.util.Map
+    public java.util.Map<String, Integer> getInventory() {
         return inventory;
     }
 
     public float getMapRow() { return mapRow; }
     public float getMapCol() { return mapCol; }
-    public int getTileRow() { return Math.round(mapRow); } // Current logical tile
-    public int getTileCol() { return Math.round(mapCol); } // Current logical tile
+    public int getTileRow() { return Math.round(mapRow); }
+    public int getTileCol() { return Math.round(mapCol); }
     public boolean isLevitating() { return levitating; }
     public float getLevitateTimer() { return levitateTimer; }
     public Action getCurrentAction() { return currentAction; }
     public Direction getCurrentDirection() { return currentDirection; }
     public void setPosition(float row, float col) { this.mapRow = row; this.mapCol = col; this.targetVisualRow = row; this.targetVisualCol = col; }
-    // public void move(float dRow, float dCol) { this.mapRow += dRow; this.mapCol += dCol; } // Direct move, likely not used now
     public void toggleLevitate() { this.levitating = !this.levitating; if (!this.levitating) levitateTimer = 0; }
     public void setLevitating(boolean levitating) { this.levitating = levitating; if (!this.levitating) levitateTimer = 0;}
+
+    // NO RENDERABLE METHODS HERE (getScreenYSortKey, getZOrder, render(...))
 }
