@@ -5,9 +5,9 @@ import org.isogame.entitiy.PlayerModel;
 import org.isogame.map.Map;
 import org.isogame.map.PathNode;
 import org.isogame.map.AStarPathfinder;
-import org.lwjgl.system.MemoryStack;
+// import org.lwjgl.system.MemoryStack; // Not strictly needed for this change unless used elsewhere
 
-import java.nio.DoubleBuffer;
+// import java.nio.DoubleBuffer; // Not strictly needed for this change
 import java.util.List;
 
 import static org.lwjgl.glfw.GLFW.*;
@@ -17,12 +17,18 @@ public class MouseHandler {
     private final long window;
     private final CameraManager camera;
     private final Map map;
-    private final InputHandler inputHandler;
-    private final PlayerModel player;
+    private final InputHandler inputHandler; // Keep this for tile selection
+    private final PlayerModel player;       // Keep this for pathfinding
     private final AStarPathfinder pathfinder;
 
     private double lastMouseX, lastMouseY;
-    private boolean middleMousePressed = false;
+    // private boolean middleMousePressed = false; // OLD
+    private boolean isLeftDraggingForPan = false;   // NEW: Flag for left-click drag panning
+    private boolean isLeftMousePressed = false; // NEW: General flag for left mouse button state
+
+    private static final double DRAG_THRESHOLD_SQUARED = 5*5; // Ignore small movements after click for selection (5 pixels squared)
+    private double pressMouseX, pressMouseY;
+
 
     public MouseHandler(long window, CameraManager camera, Map map, InputHandler inputHandler, PlayerModel player) {
         this.window = window;
@@ -36,178 +42,88 @@ public class MouseHandler {
 
     private void setupCallbacks() {
         glfwSetCursorPosCallback(window, (win, xpos, ypos) -> {
-            lastMouseX = xpos; // These are logical screen coordinates
-            lastMouseY = ypos;
+            double currentX = xpos;
+            double currentY = ypos;
+            double dx = currentX - lastMouseX;
+            double dy = currentY - lastMouseY;
+
+            if (isLeftMousePressed && !isLeftDraggingForPan) {
+                // Check if movement exceeds threshold to start a pan
+                double dragDx = currentX - pressMouseX;
+                double dragDy = currentY - pressMouseY;
+                if ((dragDx * dragDx + dragDy * dragDy) > DRAG_THRESHOLD_SQUARED) {
+                    System.out.println("Left mouse drag detected for panning.");
+                    isLeftDraggingForPan = true; // Start panning
+                }
+            }
+
+            if (isLeftDraggingForPan && camera != null) { // Check the new flag
+                System.out.println("Panning with Left Mouse: dx=" + dx + ", dy=" + dy);
+                float[] mapDelta = camera.screenVectorToMapVector((float) -dx, (float) -dy);
+                camera.moveTargetPosition(mapDelta[0], mapDelta[1]);
+            }
+            lastMouseX = currentX;
+            lastMouseY = currentY;
         });
 
         glfwSetMouseButtonCallback(window, (win, button, action, mods) -> {
-            // captureMousePosition(); // Already have lastMouseX/Y from cursorPosCallback
+            // Physical pixel coordinate calculations (existing code)
+            int[] fbWidthPixels = new int[1]; int[] fbHeightPixels = new int[1];
+            glfwGetFramebufferSize(window, fbWidthPixels, fbHeightPixels);
+            int[] windowWidthPoints = new int[1]; int[] windowHeightPoints = new int[1];
+            glfwGetWindowSize(window, windowWidthPoints, windowHeightPoints);
+            double scaleX = (double) fbWidthPixels[0] / windowWidthPoints[0];
+            double scaleY = (double) fbHeightPixels[0] / windowHeightPoints[0];
+            int mouseX_physical = (int) (lastMouseX * scaleX); // Use lastMouseX/Y which are updated by cursorPosCallback
+            int mouseY_physical = (int) (lastMouseY * scaleY);
 
-            if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
-                // Get current window size (logical points) and framebuffer size (physical pixels)
-                // This is crucial for scaling mouse coordinates correctly.
-                int[] windowWidthPoints = new int[1];
-                int[] windowHeightPoints = new int[1];
-                glfwGetWindowSize(window, windowWidthPoints, windowHeightPoints);
+            System.out.println("Mouse Button Event: button=" + button + ", action=" + action);
 
-                int[] fbWidthPixels = new int[1];
-                int[] fbHeightPixels = new int[1];
-                glfwGetFramebufferSize(window, fbWidthPixels, fbHeightPixels);
+            if (button == GLFW_MOUSE_BUTTON_LEFT) {
+                if (action == GLFW_PRESS) {
+                    isLeftMousePressed = true;
+                    isLeftDraggingForPan = false; // Reset pan flag on new press
+                    pressMouseX = lastMouseX;     // Record position at press
+                    pressMouseY = lastMouseY;
+                    System.out.println("Left Mouse Button PRESSED. Potential pan start or selection click.");
+                    // DO NOT start pathfinding here yet. Wait for RELEASE to distinguish click from drag.
 
-                double mouseX_logical = lastMouseX;
-                double mouseY_logical = lastMouseY;
-
-                // Calculate scale factors
-                double scaleX = (double) fbWidthPixels[0] / windowWidthPoints[0];
-                double scaleY = (double) fbHeightPixels[0] / windowHeightPoints[0];
-                // On macOS Retina, scaleX and scaleY will typically be 2.0
-
-                // Scale mouse coordinates to framebuffer pixel space
-                int mouseX_physical = (int) (mouseX_logical * scaleX);
-                int mouseY_physical = (int) (mouseY_logical * scaleY);
-
-                System.out.printf("Mouse: Logical(%.0f,%.0f) -> Scaled Physical(X:%d, Y:%d) (ScaleX:%.1f, ScaleY:%.1f)%n",
-                        mouseX_logical, mouseY_logical, mouseX_physical, mouseY_physical, scaleX, scaleY);
-
-                // Use the SCALED physical coordinates for picking
-                int[] accurateCoordsPath = camera.screenToAccurateMapTile(mouseX_physical, mouseY_physical, map);
-
-                // ----- !!! CRUCIAL NULL CHECK !!! -----
-                if (accurateCoordsPath != null) {
-                    int targetColPath = accurateCoordsPath[0];
-                    int targetRowPath = accurateCoordsPath[1];
-
-                    inputHandler.setSelectedTile(targetColPath, targetRowPath);
-
-                    System.out.printf("Pathfinding request from (R:%d,C:%d) to (R:%d,C:%d)%n",
-                            player.getTileRow(), player.getTileCol(),
-                            targetRowPath, targetColPath);
-
-                    List<PathNode> path = pathfinder.findPath(
-                            player.getTileRow(), player.getTileCol(),
-                            targetRowPath, targetColPath,
-                            map
-                    );
-                    player.setPath(path);
-
-                } else {
-                    // screenToAccurateMapTile returned null
-                    System.out.println("Mouse click for pathfinding/selection DID NOT LAND on a valid map tile according to screenToAccurateMapTile.");
-                    // Optionally, clear selection or do nothing:
-                    // inputHandler.setSelectedTile(-1, -1); // Example: deselect if you want this behavior
+                } else if (action == GLFW_RELEASE) {
+                    System.out.println("Left Mouse Button RELEASED.");
+                    if (!isLeftDraggingForPan) { // If it wasn't a pan (i.e., it was a click)
+                        System.out.println("Processing as Left CLICK for tile selection/pathing.");
+                        if (camera != null && map != null && inputHandler != null && player != null && pathfinder != null) {
+                            int[] accurateCoords = camera.screenToAccurateMapTile(mouseX_physical, mouseY_physical, map);
+                            if (accurateCoords != null) {
+                                inputHandler.setSelectedTile(accurateCoords[0], accurateCoords[1]);
+                                List<PathNode> path = pathfinder.findPath(
+                                        player.getTileRow(), player.getTileCol(),
+                                        accurateCoords[1], accurateCoords[0], map); // A* usually row, col
+                                player.setPath(path);
+                                System.out.println("Path set for player to: C" + accurateCoords[0] + " R" + accurateCoords[1]);
+                            } else {
+                                System.out.println("No accurate tile coords found for pathing.");
+                            }
+                        }
+                    } else {
+                        System.out.println("Left mouse drag pan finished.");
+                    }
+                    isLeftMousePressed = false;
+                    isLeftDraggingForPan = false; // Ensure pan flag is reset
                 }
+            } else if (button == GLFW_MOUSE_BUTTON_MIDDLE) { // Keep middle mouse logic if you want, or remove
+                // middleMousePressed = (action == GLFW_PRESS); // Old logic
+                if (action == GLFW_PRESS) System.out.println("Middle mouse button pressed (currently no action).");
+                if (action == GLFW_RELEASE) System.out.println("Middle mouse button released.");
             }
         });
-
-        glfwSetCursorPosCallback(window, (win, xpos, ypos) -> {
-            if (middleMousePressed) {
-                double deltaX = xpos - lastMouseX;
-                double deltaY = ypos - lastMouseY;
-                float screenMoveScale = 1.0f / camera.getZoom();
-                float[] mapDelta = camera.screenVectorToMapVector((float) -deltaX * screenMoveScale, (float) -deltaY * screenMoveScale);
-                camera.moveTargetPosition(mapDelta[0], mapDelta[1]);
-            }
-            // Update the "hovered" tile for visual feedback (optional, done in InputHandler or Renderer)
-            // if (inputHandler != null) {
-            //    int[] hoveredCoords = camera.screenToAccurateMapTile((int) xpos, (int) ypos, map);
-            //    inputHandler.setHoveredTile(hoveredCoords[0], hoveredCoords[1]); // Would need this method in InputHandler
-            // }
-            lastMouseX = xpos;
-            lastMouseY = ypos;
-        });
-// In MouseHandler.java -> setupCallbacks() -> glfwSetMouseButtonCallback for LEFT_PRESS
-
-// This call returns the coordinates for pathfinding
-        int[] accurateCoordsPath = camera.screenToAccurateMapTile((int) lastMouseX, (int) lastMouseY, map);
-
-        if (accurateCoordsPath != null) { // <<< ADD THIS NULL CHECK
-            int targetColPath = accurateCoordsPath[0]; // Column is usually index 0
-            int targetRowPath = accurateCoordsPath[1]; // Row is usually index 1
-
-            System.out.printf("Pathfinding request from (R:%d,C:%d) to (R:%d,C:%d)%n",
-                    player.getTileRow(), player.getTileCol(),
-                    targetRowPath, targetColPath);
-
-            List<PathNode> path = pathfinder.findPath(
-                    player.getTileRow(),    // startRow
-                    player.getTileCol(),    // startCol
-                    targetRowPath,          // endRow
-                    targetColPath,          // endCol
-                    map                     // <<< ADD THE 'map' INSTANCE HERE
-            );
-            player.setPath(path);
-
-        } else {
-            System.out.println("Mouse click for pathfinding did not land on a valid map tile.");
-            // Optionally, clear the player's path if they click off-map while trying to set a new path
-            // player.setPath(null);
-        }
-
-// This part is for setting the selected tile in InputHandler (visual selection)
-// You can reuse accurateCoordsPath if it was not null, or call again if you want to be super safe
-// or if the logic could diverge (though it shouldn't here).
-// For simplicity, let's assume if pathing target is valid, selection target is too.
-        if (accurateCoordsPath != null) {
-            inputHandler.setSelectedTile(accurateCoordsPath[0], accurateCoordsPath[1]); // col, row
-        } else {
-            // If no valid tile for pathfinding, maybe don't change selection or set to invalid
-            // inputHandler.setSelectedTile(-1, -1); // Example for invalid/no selection
-        }
 
         glfwSetScrollCallback(window, (win, xoffset, yoffset) -> {
-            if (yoffset > 0) {
-                camera.adjustZoom(CAMERA_ZOOM_SPEED);
-            } else if (yoffset < 0) {
-                camera.adjustZoom(-CAMERA_ZOOM_SPEED);
+            System.out.println("Mouse Scroll Event: yoffset=" + yoffset);
+            if (camera != null) {
+                if (yoffset > 0) camera.adjustZoom(CAMERA_ZOOM_SPEED);
+                else if (yoffset < 0) camera.adjustZoom(-CAMERA_ZOOM_SPEED);
             }
         });
-    }
-
-    // Renamed parameters to reflect they are already map coordinates
-    private void handlePathfindingRequest(int targetCol, int targetRow) {
-        // targetCol and targetRow are now already accurately picked map coordinates
-
-        if (map.isValid(targetRow, targetCol)) {
-            if (player.getTileRow() == targetRow && player.getTileCol() == targetCol) {
-                System.out.println("Target is player's current tile. No path needed.");
-                player.setPath(null);
-                return;
-            }
-
-            System.out.println("Pathfinding request from (" + player.getTileRow() + "," + player.getTileCol() +
-                    ") to (" + targetRow + "," + targetCol + ")");
-
-            List<PathNode> path = pathfinder.findPath(
-                    player.getTileRow(), player.getTileCol(),
-                    targetRow, targetCol,
-                    map
-            );
-            player.setPath(path);
-        }
-    }
-
-    // These methods are no longer strictly needed if the logic is moved directly into the callbacks,
-    // but if InputHandler still uses them, they should use the accurate picking.
-    // Let's remove them for now to avoid confusion, as the callbacks now directly call screenToAccurateMapTile.
-    /*
-    private int getTileRowAtMouse(double screenX, double screenY) {
-        int[] accurateCoords = camera.screenToAccurateMapTile((int) screenX, (int) screenY, map);
-        return accurateCoords[1]; // row
-    }
-
-    private int getTileColAtMouse(double screenX, double screenY) {
-        int[] accurateCoords = camera.screenToAccurateMapTile((int) screenX, (int) screenY, map);
-        return accurateCoords[0]; // col
-    }
-    */
-
-    private void captureMousePosition() {
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            DoubleBuffer posX = stack.mallocDouble(1);
-            DoubleBuffer posY = stack.mallocDouble(1);
-            glfwGetCursorPos(window, posX, posY);
-            lastMouseX = posX.get(0);
-            lastMouseY = posY.get(0);
-        }
     }
 }

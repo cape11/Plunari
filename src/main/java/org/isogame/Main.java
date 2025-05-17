@@ -1,15 +1,16 @@
 package org.isogame;
 
-import org.isogame.game.Game; // Ensure Game class is imported
+import org.isogame.game.Game;
 import org.lwjgl.glfw.*;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.system.*;
-import org.lwjgl.PointerBuffer; // For glfwGetError
+import org.lwjgl.PointerBuffer;
+import org.lwjgl.opengl.GL20;
 
 import java.nio.*;
 
-import static org.isogame.constants.Constants.*; // For WIDTH, HEIGHT from constants
+import static org.isogame.constants.Constants.*;
 import static org.lwjgl.glfw.Callbacks.*;
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.system.MemoryStack.*;
@@ -19,17 +20,14 @@ public class Main {
 
     private long window;
     private Game game;
-    private int initialFramebufferWidth;  // To store the actual pixel width
-    private int initialFramebufferHeight; // To store the actual pixel height
+    private int initialFramebufferWidth;
+    private int initialFramebufferHeight;
 
     public void run() {
-        System.out.println("Starting LWJGL Isometric Game...");
-        initWindow(); // This will now set initialFramebufferWidth/Height
-
-        // Pass the true framebuffer dimensions to the Game constructor
+        System.out.println("Starting LWJGL Isometric Game (VBO/VAO version)...");
+        initWindow();
         game = new Game(window, initialFramebufferWidth, initialFramebufferHeight);
         game.gameLoop();
-
         cleanupWindow();
     }
 
@@ -41,14 +39,19 @@ public class Main {
         }
 
         glfwDefaultWindowHints();
-        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // Keep window hidden until setup is complete
+        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-        // For macOS Retina displays, explicitly request a HiDPI capable framebuffer
+        // Request an OpenGL 3.3 Core Profile context
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE); // Required for macOS
         glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
 
-        // Create the window using logical width/height from constants
-        window = glfwCreateWindow(WIDTH, HEIGHT, "LWJGL Isometric Game", NULL, NULL);
+
+        window = glfwCreateWindow(WIDTH, HEIGHT, "LWJGL Isometric Game (VBO/VAO)", NULL, NULL);
         if (window == NULL) {
+            // Error logging from your original code
             try (MemoryStack stack = stackPush()) {
                 PointerBuffer description = stack.mallocPointer(1);
                 int error = glfwGetError(description);
@@ -60,7 +63,6 @@ public class Main {
         }
         System.out.println("GLFW Window created (Handle: " + window + ")");
 
-        // IMPORTANT: Get the ACTUAL framebuffer size in pixels
         try (MemoryStack stack = stackPush()) {
             IntBuffer pWidth = stack.mallocInt(1);
             IntBuffer pHeight = stack.mallocInt(1);
@@ -72,12 +74,10 @@ public class Main {
         System.out.println("Initial Actual Framebuffer Size (Pixels): " + initialFramebufferWidth + "x" + initialFramebufferHeight);
 
 
-        // Center the window on the primary monitor (uses window size in screen coordinates)
         try (MemoryStack stack = stackPush()) {
-            IntBuffer pWidth = stack.mallocInt(1); // For window size, not framebuffer
+            IntBuffer pWidth = stack.mallocInt(1);
             IntBuffer pHeight = stack.mallocInt(1);
             glfwGetWindowSize(window, pWidth, pHeight);
-
             GLFWVidMode vidmode = glfwGetVideoMode(glfwGetPrimaryMonitor());
             if (vidmode != null) {
                 glfwSetWindowPos(
@@ -86,18 +86,19 @@ public class Main {
                         (vidmode.height() - pHeight.get(0)) / 2
                 );
             } else {
-                System.err.println("Could not get video mode for primary monitor! Positioning window at default.");
-                glfwSetWindowPos(window, 100, 100); // Fallback position
+                System.err.println("Could not get video mode! Positioning window at default.");
+                glfwSetWindowPos(window, 100, 100);
             }
         }
 
         glfwMakeContextCurrent(window);
-        GL.createCapabilities(); // Initialize LWJGL's OpenGL bindings for the current context
-        System.out.println("OpenGL version reported by context: " + GL11.glGetString(GL11.GL_VERSION));
+        GL.createCapabilities(); // Initialize LWJGL's OpenGL bindings
+        System.out.println("OpenGL version: " + GL11.glGetString(GL11.GL_VERSION));
+        System.out.println("GLSL version: " + GL11.glGetString(GL20.GL_SHADING_LANGUAGE_VERSION));
+
 
         glfwSwapInterval(1); // Enable v-sync
-
-        glfwShowWindow(window); // Show the window only after all setup
+        glfwShowWindow(window);
     }
 
     private void cleanupWindow() {

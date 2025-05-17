@@ -8,8 +8,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
+// import java.nio.channels.Channels; // Not directly used in this corrected version's primary path
+// import java.nio.channels.ReadableByteChannel; // Not directly used
 
 import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.opengl.GL12.GL_CLAMP_TO_EDGE;
@@ -46,86 +46,104 @@ public class Texture {
     public static Texture loadTexture(String resourcePath) {
         ByteBuffer imageBuffer = null;
         int width = 0, height = 0;
-
-        // **Classpath loading should be the primary method**
-        // resourcePath should be like "textures/lpc_character.png"
-        // Ensure files are in src/main/resources/textures/ or src/main/resources/fonts/
+        InputStream sourceStream = null; // Use a different name to avoid conflict if 'source' is used elsewhere or for clarity
 
         System.out.println("Attempting to load texture from classpath: " + resourcePath);
-        InputStream source = Texture.class.getClassLoader().getResourceAsStream(resourcePath);
 
-        if (source == null) {
-            // Try with a leading slash if the path was intended to be absolute from root of classpath
-            // (Though usually not needed if `resourcePath` is already "textures/image.png")
-            System.err.println("Classpath resource '" + resourcePath + "' not found. Trying with leading '/' (e.g., /textures/image.png)");
-            source = Texture.class.getClassLoader().getResourceAsStream("/" + resourcePath);
-            if (source == null) {
-                System.err.println("CRITICAL: Texture resource still not found on classpath: " + resourcePath + " or /" + resourcePath);
-                // Fallback attempt: Try direct file system load (less reliable for JARs)
-                System.err.println("Falling back to direct file system load for: " + resourcePath);
+        String pathForClassLoader = resourcePath;
+        if (resourcePath != null && resourcePath.startsWith("/")) {
+            pathForClassLoader = resourcePath.substring(1);
+        } else if (resourcePath == null) {
+            System.err.println("CRITICAL: Texture resource path is null!");
+            return null;
+        }
+
+        try {
+            sourceStream = Texture.class.getClassLoader().getResourceAsStream(pathForClassLoader);
+
+            if (sourceStream == null) {
+                System.err.println("CRITICAL: Texture resource not found on classpath: " + resourcePath + " (tried as: " + pathForClassLoader + ")");
+                // Fallback attempt to direct file system load
+                System.err.println("Falling back to direct file system load for: " + resourcePath + " (this is unlikely to work reliably, especially in a JAR)");
+
+                // For stbi_load, the path should be an OS-specific file path.
+                // resourcePath (if it was like "/org/...") is not a valid file path here unless your CWD makes it so.
+                // This fallback is brittle. Better to ensure resources are on classpath.
+                String directFilePath = resourcePath; // Or a more intelligently constructed path if possible.
+
                 try (MemoryStack stack = MemoryStack.stackPush()) {
                     IntBuffer w = stack.mallocInt(1);
                     IntBuffer h = stack.mallocInt(1);
                     IntBuffer channels = stack.mallocInt(1);
-                    // stbi_set_flip_vertically_on_load(true); // If needed
-                    imageBuffer = stbi_load(resourcePath, w, h, channels, 4);
+                    // stbi_set_flip_vertically_on_load(true); // If your textures are upside down
+                    imageBuffer = stbi_load(directFilePath, w, h, channels, 4); // Use directFilePath
                     if (imageBuffer != null) {
-                        width = w.get();
-                        height = h.get();
-                        System.out.println("Loaded texture via stbi_load (direct path) as fallback: " + resourcePath);
+                        width = w.get(0);
+                        height = h.get(0);
+                        System.out.println("Loaded texture via stbi_load (direct path FALLBACK): " + directFilePath + " " + width + "x" + height);
                     } else {
-                        System.err.println("Failed to load texture file (direct path fallback): " + resourcePath + " - " + stbi_failure_reason());
+                        System.err.println("Failed to load texture file (direct path fallback): " + directFilePath + " - " + stbi_failure_reason());
                         return null; // Failed both classpath and direct
                     }
                 }
-                // If loaded via stbi_load, imageBuffer is set, proceed to texture creation.
-            }
-        }
+            } else {
+                // Source stream was found on classpath
+                System.out.println("Found texture via classpath: " + resourcePath + ". Reading stream...");
+                try (MemoryStack stack = MemoryStack.stackPush();
+                     BufferedInputStream bis = new BufferedInputStream(sourceStream)) { // Use sourceStream here
 
-        if (imageBuffer == null && source != null) { // imageBuffer not set yet, but source was found
-            System.out.println("Found texture via classpath: " + resourcePath + ". Reading stream...");
-            try (MemoryStack stack = MemoryStack.stackPush();
-                 BufferedInputStream bis = new BufferedInputStream(source)) {
+                    byte[] bytes = bis.readAllBytes(); // Requires Java 9+
+                    // For Java 8 compatibility, read into a ByteArrayOutputStream first, then to byte[]
+                    /*
+                    java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                    byte[] buffer = new byte[4096];
+                    int bytesRead;
+                    while ((bytesRead = bis.read(buffer)) != -1) {
+                        baos.write(buffer, 0, bytesRead);
+                    }
+                    byte[] bytes = baos.toByteArray();
+                    */
 
-                // Read all bytes from the InputStream
-                // This is one way; another is to use ReadableByteChannel if the stream supports it.
-                byte[] bytes = bis.readAllBytes();
-                ByteBuffer bufferForStb = ByteBuffer.allocateDirect(bytes.length);
-                bufferForStb.put(bytes).flip();
+                    ByteBuffer bufferForStb = ByteBuffer.allocateDirect(bytes.length);
+                    bufferForStb.put(bytes).flip();
 
-                IntBuffer w = stack.mallocInt(1);
-                IntBuffer h = stack.mallocInt(1);
-                IntBuffer channels = stack.mallocInt(1);
+                    IntBuffer w = stack.mallocInt(1);
+                    IntBuffer h = stack.mallocInt(1);
+                    IntBuffer channels = stack.mallocInt(1);
+                    // stbi_set_flip_vertically_on_load(true); // If needed
 
-                // stbi_set_flip_vertically_on_load(true); // If needed, ensure it's called before load
-                imageBuffer = stbi_load_from_memory(bufferForStb, w, h, channels, 4);
+                    imageBuffer = stbi_load_from_memory(bufferForStb, w, h, channels, 4);
 
-                if (imageBuffer != null) {
-                    width = w.get();
-                    height = h.get();
-                    System.out.println("Successfully decoded texture from classpath stream: " + resourcePath);
-                } else {
-                    System.err.println("Failed to decode texture from memory (classpath stream) for: " + resourcePath + " - " + stbi_failure_reason());
-                    return null; // Decoding failed
+                    if (imageBuffer != null) {
+                        width = w.get(0);
+                        height = h.get(0);
+                        System.out.println("Successfully decoded texture from classpath stream: " + resourcePath + " " + width + "x" + height);
+                    } else {
+                        System.err.println("Failed to decode texture from memory (classpath stream) for: " + resourcePath + " - " + stbi_failure_reason());
+                        // stbi_image_free(imageBuffer); // imageBuffer is null here if stbi_load_from_memory fails
+                        return null; // Decoding failed
+                    }
                 }
-                // bufferForStb is direct, STB uses it, then stbi_image_free will handle the stbi-allocated buffer.
-                // The original bufferForStb will be garbage collected.
-            } catch (IOException e) {
-                System.err.println("IOException trying to read texture from classpath stream: " + resourcePath + " - " + e.getMessage());
-                return null;
             }
-        } else if (imageBuffer == null && source == null) {
-            // This case should have been caught by the "CRITICAL: Texture resource still not found"
-            // or the stbi_load failure earlier if that was the only path taken.
-            System.err.println("Ultimately failed to load texture: " + resourcePath + ". Both classpath and direct load attempts failed or source was null.");
+        } catch (IOException e) {
+            System.err.println("IOException trying to process texture resource: " + resourcePath + " - " + e.getMessage());
+            e.printStackTrace();
             return null;
+        } finally {
+            if (sourceStream != null) {
+                try {
+                    sourceStream.close();
+                } catch (IOException e) {
+                    System.err.println("IOException closing texture stream: " + e.getMessage());
+                }
+            }
         }
-
 
         // At this point, imageBuffer should be valid if loading was successful by either method
         if (imageBuffer == null || width == 0 || height == 0) {
-            System.err.println("Texture data is invalid or dimensions are zero before OpenGL texture creation for: " + resourcePath + ". STBI reason if available: " + stbi_failure_reason());
-            if(imageBuffer != null) stbi_image_free(imageBuffer); // Free if allocated but unusable
+            System.err.println("Texture data is invalid or dimensions are zero before OpenGL texture creation for: " + resourcePath +
+                    (stbi_failure_reason() != null ? (". STBI reason: " + stbi_failure_reason()) : ""));
+            if(imageBuffer != null) stbi_image_free(imageBuffer); // Free if stbi_load allocated but dimensions are bad
             return null;
         }
 
@@ -135,8 +153,8 @@ public class Texture {
 
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); // Or GL_LINEAR for smoother scaling
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); // Or GL_LINEAR
 
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, imageBuffer);
 

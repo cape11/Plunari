@@ -1,20 +1,25 @@
 package org.isogame.render;
 
 import org.isogame.camera.CameraManager;
-import org.isogame.entitiy.PlayerModel; // Ensure correct package
+import org.isogame.entitiy.PlayerModel;
 import org.isogame.input.InputHandler;
 import org.isogame.map.Map;
 import org.isogame.tile.Tile;
+import org.joml.Matrix4f;
+import org.lwjgl.system.MemoryUtil;
 
 import java.io.IOException;
+import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
-
 import static org.isogame.constants.Constants.*;
 import static org.lwjgl.opengl.GL11.*;
+import static org.lwjgl.opengl.GL15.*;
+import static org.lwjgl.opengl.GL20.*;
+import static org.lwjgl.opengl.GL30.*;
 
 public class Renderer {
     private final CameraManager camera;
@@ -27,96 +32,34 @@ public class Renderer {
     private Font uiFont;
     private Random tileDetailRandom;
 
-    // Helper class/record for items that need sorting
+    // --- FIELDS FOR CHUNKING ---
+    private List<Chunk> mapChunks;
+    private static final int CHUNK_SIZE_TILES = 32;
+    // --- END OF CHUNKING FIELDS ---
+
+    private Shader defaultShader;
+    private Matrix4f projectionMatrix;
+    private Matrix4f modelViewMatrixForSprites;
+
+    private int spriteVaoId = 0;
+    private int spriteVboId = 0;
+    private FloatBuffer spriteVertexBuffer;
+
+    public static final int FLOATS_PER_VERTEX_TEXTURED = 8;
+    public static final int FLOATS_PER_VERTEX_COLORED = 6;
+
     private static class SortableItem {
-        float screenYSortKey;
-        int zOrder; // 0 for trees, 1 for player
-        Object entity; // Can be PlayerModel or TreeData
-
-        // Constructor for Player
-        public SortableItem(PlayerModel player, CameraManager camera, Map gameMap) {
-            this.entity = player;
-            this.zOrder = 1; // Player (drawn after trees on same "depth")
-
-            Tile currentTile = gameMap.getTile(player.getTileRow(), player.getTileCol());
-            int playerBaseElevation = (currentTile != null) ? currentTile.getElevation() : 0;
-
-            // Refined sort key: screenY of base + mapRow for tie-breaking depth
-            // You might also add mapCol, or use a combined mapRow + mapCol as primary
-            // and screenY of feet as secondary. Let's try screenY + mapRow.
-            int[] screenCoords = camera.mapToScreenCoords(player.getMapCol(), player.getMapRow(), playerBaseElevation);
-
-            // A common robust sort key: sum of map coordinates, then elevation, then screenY of feet.
-            // The visual "depth" is often related to mapRow + mapCol.
-            // Higher elevation things on the same (r,c) sum should be drawn later if they obscure lower things.
-            // However, our current sort is ascending Y.
-
-            // Let's try using the raw screenY of the player's feet for now,
-            // but we need a better tie-breaker for entities on the same visual line.
-            // The issue is more likely tree-vs-tree which have zOrder = 0.
-
-            // Sort key idea: prioritize map depth, then elevation, then final Y.
-            // For painter's algorithm (small Y first), we need things further back to have smaller sort keys.
-            // mapRow is a good indicator of "further back" for things on the same isometric diagonal.
-            // mapCol contributes too. Sum (mapRow + mapCol) is a good depth indicator.
-            // Higher Y values are closer to the viewer.
-
-            float visualDepth = (player.getMapRow() + player.getMapCol()) * 1000; // Prioritize map depth
-            visualDepth += playerBaseElevation * 10; // Then elevation
-            // screenCoords[1] is screenY. For sorting, smaller screenY is further.
-            // We need a consistent sort key. Let's use screenY of the base for now and refine if needed.
-            this.screenYSortKey = screenCoords[1]; // Y-coordinate of the player's base on the tile
-            // We can add a sub-sort for things on the exact same Y.
-            // For entities on the same tile, player (zOrder 1) comes after tree (zOrder 0)
-        }
-
-        // Constructor for Tree (using TreeData)
-        // Constructor for Tree (using TreeData)
-        public SortableItem(TreeData tree, CameraManager camera, Map gameMap) {
-            this.entity = tree;
-            this.zOrder = 0; // Tree
-
-            // The screenCoords for a tree should be its base on its tile.
-            int[] screenCoords = camera.mapToScreenCoords(tree.mapCol, tree.mapRow, tree.elevation);
-            this.screenYSortKey = screenCoords[1]; // Y-coordinate of the tree's base on the tile
-
-            // To better sort trees against trees, especially when their bases have similar screenY
-            // due to elevation differences compensating for map depth, we need a tie-breaker.
-            // A common tie-breaker is the sum of map coordinates (row + col).
-            // We want items with a smaller (mapRow + mapCol) sum to be drawn first if screenY is equal.
-            // However, our current sort comparator handles this by zOrder, which is the same for all trees.
-
-            // Let's modify the screenYSortKey to incorporate map depth for tie-breaking.
-            // A simple way: add a small fraction based on map depth.
-            // If mapRow + mapCol is smaller, it's further away.
-            // We sort by screenYSortKey ascending (smaller Y first).
-            // If two tree bases are at the same screenY, the one with smaller (mapRow+mapCol) should be drawn first.
-            // This means its effective screenYSortKey should be slightly smaller.
-            // this.screenYSortKey = screenCoords[1] - (tree.mapRow + tree.mapCol) * 0.001f; // Subtract to make "further" trees have smaller Y
-            // The above is a bit hacky. Let's adjust the comparator.
-        }
+        float screenYSortKey; int zOrder; Object entity; float mapRow, mapCol;
+        public SortableItem(PlayerModel p, CameraManager cam, Map m) { this.entity = p; this.zOrder = 1; this.mapRow = p.getMapRow(); this.mapCol = p.getMapCol(); Tile t = m.getTile(p.getTileRow(),p.getTileCol()); int elev = (t!=null)?t.getElevation():0; int[] sc = cam.mapToScreenCoordsForPicking(p.getMapCol(),p.getMapRow(),elev); this.screenYSortKey = sc[1]; }
+        public SortableItem(TreeData tree, CameraManager cam, Map m) { this.entity = tree; this.zOrder = 0; this.mapRow = tree.mapRow; this.mapCol = tree.mapCol; int[] sc = cam.mapToScreenCoordsForPicking(tree.mapCol,tree.mapRow,tree.elevation); this.screenYSortKey = sc[1]; }
     }
-
-    // Lightweight class to hold tree data for sorting and rendering
     private static class TreeData {
-        Tile.TreeVisualType treeVisualType;
-        float mapCol, mapRow;
-        int elevation;
-        float topDiamondCenterX, topDiamondCenterY_tileTip, topDiamondIsoHeight_tileFace;
-
-        public TreeData(Tile.TreeVisualType type, float tileCol, float tileRow, int tileElev,
-                        float topDiamondCenterX, float topDiamondCenterY_tileTip, float topDiamondIsoHeight_tileFace) {
-            this.treeVisualType = type;
-            this.mapCol = tileCol;
-            this.mapRow = tileRow;
-            this.elevation = tileElev;
-            this.topDiamondCenterX = topDiamondCenterX;
-            this.topDiamondCenterY_tileTip = topDiamondCenterY_tileTip;
-            this.topDiamondIsoHeight_tileFace = topDiamondIsoHeight_tileFace;
-        }
+        Tile.TreeVisualType treeVisualType; float mapCol, mapRow; int elevation;
+        float topDiamondCenterX_screen, topDiamondCenterY_screen;
+        public TreeData(Tile.TreeVisualType type, float tc, float tr, int te, float screenAnchorX, float screenAnchorY) {this.treeVisualType=type; this.mapCol=tc; this.mapRow=tr; this.elevation=te; this.topDiamondCenterX_screen=screenAnchorX; this.topDiamondCenterY_screen=screenAnchorY;}
     }
-
     private List<SortableItem> sortableItems = new ArrayList<>();
+
 
     public Renderer(CameraManager camera, Map map, PlayerModel player, InputHandler inputHandler) {
         this.camera = camera;
@@ -124,560 +67,525 @@ public class Renderer {
         this.player = player;
         this.inputHandler = inputHandler;
         this.tileDetailRandom = new Random();
+        projectionMatrix = new Matrix4f();
+        modelViewMatrixForSprites = new Matrix4f().identity();
+
         loadAssets();
+        checkError("Renderer Constructor - After loadAssets()"); // Check immediately after loadAssets
+        initShaders();
+        checkError("Renderer Constructor - After initShaders()");
+        initRenderObjects();
+        checkError("Renderer Constructor - After initRenderObjects()");
+        uploadTileMapGeometry();
+        checkError("Renderer Constructor - After uploadTileMapGeometry()");
+
+        checkError("Renderer Constructor End");
     }
 
     private void loadAssets() {
-        // Ensure these paths are correct relative to your working directory or classpath
-        String playerTexturePath = "org/isogame/render/textures/lpc_character.png";
+        System.out.println("Renderer: Starting asset loading...");
+        String playerTexturePath = "/org/isogame/render/textures/lpc_character.png";
         this.playerTexture = Texture.loadTexture(playerTexturePath);
-        if (this.playerTexture == null) System.err.println("CRITICAL: Player texture failed to load from: " + playerTexturePath);
+        if (this.playerTexture == null) System.err.println("Renderer CRITICAL: Player texture FAILED: " + playerTexturePath);
+        else System.out.println("Renderer: Player texture loaded: " + playerTexturePath + " ID: " + playerTexture.getId());
+        checkError("Renderer: loadAssets - After Player Texture Load"); // ADDED CHECK
 
-
-        String treeTexturePath = "org/isogame/render/textures/fruit-trees.png";
+        String treeTexturePath = "/org/isogame/render/textures/fruit-trees.png";
         this.treeTexture = Texture.loadTexture(treeTexturePath);
-        if (this.treeTexture == null) System.err.println("CRITICAL: Tree texture failed to load from: " + treeTexturePath);
+        if (this.treeTexture == null) System.err.println("Renderer CRITICAL: Tree texture FAILED: " + treeTexturePath);
+        else System.out.println("Renderer: Tree texture loaded: " + treeTexturePath + " ID: " + treeTexture.getId());
+        checkError("Renderer: loadAssets - After Tree Texture Load"); // ADDED CHECK
 
-        String fontPath = "org/isogame/render/fonts/PressStart2P-Regular.ttf";
+        String fontPath = "/org/isogame/render/fonts/PressStart2P-Regular.ttf";
         try {
-            this.uiFont = new Font(fontPath, 16f); // Assuming Font constructor takes this path
+            System.out.println("Renderer: Attempting to load font: " + fontPath);
+            this.uiFont = new Font(fontPath, 16f, this); // Font constructor has its own extensive logging
+            if (this.uiFont.isInitialized()) {
+                System.out.println("Renderer: Font asset loaded and initialized: " + fontPath + " (Font Tex ID: " + uiFont.getTextureID() + ")");
+            } else {
+                // Font constructor should throw if critical failure, but this is a fallback log
+                System.err.println("Renderer WARNING: Font object created by constructor, but uiFont.isInitialized() is false for: " + fontPath + ". Font will not render.");
+            }
+        } catch (IOException | RuntimeException e) {
+            System.err.println("Renderer CRITICAL: Failed to load UI font (Exception caught in Renderer): " + fontPath + " - " + e.getMessage());
+            e.printStackTrace(); // Print stack trace from here as well
+            this.uiFont = null; // Ensure uiFont is null if constructor failed
+        }
+        checkError("Renderer: loadAssets - After Font Load Attempt"); // ADDED CHECK
+        System.out.println("Renderer: loadAssets method finished."); // New log
+    }
+
+    private void initShaders() {
+        try {
+            defaultShader = new Shader();
+            defaultShader.createVertexShader(Shader.loadResource("/org/isogame/render/shaders/vertex.glsl"));
+            defaultShader.createFragmentShader(Shader.loadResource("/org/isogame/render/shaders/fragment.glsl"));
+            defaultShader.link();
+            checkError("Renderer: initShaders - After Shader Link");
+
+            defaultShader.createUniform("uProjectionMatrix");
+            defaultShader.createUniform("uModelViewMatrix");
+            defaultShader.createUniform("uTextureSampler");
+            defaultShader.createUniform("uHasTexture");
+            defaultShader.createUniform("uIsFont"); // Ensure this is created
+
         } catch (IOException e) {
-            System.err.println("CRITICAL: Failed to load UI font from: " + fontPath + ". " + e.getMessage());
-            this.uiFont = null;
+            System.err.println("Renderer: Error initializing shaders: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Renderer: Failed to initialize shaders", e);
+        }
+        System.out.println("Renderer: Shaders initialized.");
+        // Removed checkError from here, as it's at the end of the try block or in the constructor call
+    }
+
+    public Shader getDefaultShader() { return defaultShader; }
+
+    private void initRenderObjects() {
+        mapChunks = new ArrayList<>();
+        if (map != null) {
+            int numChunksX = (int) Math.ceil((double) map.getWidth() / CHUNK_SIZE_TILES);
+            int numChunksY = (int) Math.ceil((double) map.getHeight() / CHUNK_SIZE_TILES);
+            for (int cy = 0; cy < numChunksY; cy++) {
+                for (int cx = 0; cx < numChunksX; cx++) {
+                    Chunk chunk = new Chunk(cx, cy, CHUNK_SIZE_TILES);
+                    chunk.setupGLResources();
+                    mapChunks.add(chunk);
+                }
+            }
+            System.out.println("Renderer: Initialized " + mapChunks.size() + " map chunk objects.");
+        } else {
+            System.err.println("Renderer: Map is null during initRenderObjects, cannot initialize chunks.");
+        }
+
+        spriteVaoId = glGenVertexArrays();
+        glBindVertexArray(spriteVaoId);
+        spriteVboId = glGenBuffers();
+        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+        // Allocate a reasonable size, e.g., for a few complex sprites or many simple ones.
+        // 20 sprites * 6 vertices/sprite * FLOATS_PER_VERTEX_TEXTURED
+        int initialSpriteBufferCapacity = 20 * 6 * FLOATS_PER_VERTEX_TEXTURED;
+        spriteVertexBuffer = MemoryUtil.memAllocFloat(initialSpriteBufferCapacity);
+        glBufferData(GL_ARRAY_BUFFER, (long)spriteVertexBuffer.capacity() * Float.BYTES, GL_DYNAMIC_DRAW);
+
+        glVertexAttribPointer(0, 2, GL_FLOAT, false, FLOATS_PER_VERTEX_TEXTURED * Float.BYTES, 0L);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 4, GL_FLOAT, false, FLOATS_PER_VERTEX_TEXTURED * Float.BYTES, 2 * Float.BYTES);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(2, 2, GL_FLOAT, false, FLOATS_PER_VERTEX_TEXTURED * Float.BYTES, (2 + 4) * Float.BYTES);
+        glEnableVertexAttribArray(2);
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        System.out.println("Renderer: Render objects (Sprite VAO/VBO & Chunks structure) initialized.");
+        // Removed checkError from here, as it's in the constructor call
+    }
+
+    public void uploadTileMapGeometry() {
+        System.out.println("Renderer: Orchestrating upload of STATIC tile map geometry for ALL CHUNKS (WORLD coordinates)...");
+        if (mapChunks == null || mapChunks.isEmpty()) {
+            System.err.println("Renderer: mapChunks list is null or empty in uploadTileMapGeometry! Check initRenderObjects().");
+            return;
+        }
+        for (Chunk chunk : mapChunks) {
+            chunk.uploadGeometry(map, inputHandler, this); // 'this' is the Renderer instance
+        }
+        System.out.println("Renderer: All chunk geometries processed by their respective chunks.");
+    }
+
+    // <-- NEW METHOD to update a specific chunk -->
+    public void updateChunkContainingTile(int tileRow, int tileCol) {
+        if (map == null || mapChunks == null || mapChunks.isEmpty()) {
+            System.err.println("Renderer: Cannot update chunk, map or chunks not initialized.");
+            return;
+        }
+
+        // Calculate which chunk the tile belongs to
+        // CHUNK_SIZE_TILES is a static final in Constants, but also defined as a private static final in Renderer.
+        // Ensure you're using the correct one consistently. Let's assume it's accessible.
+        int chunkGridX = tileCol / CHUNK_SIZE_TILES;
+        int chunkGridY = tileRow / CHUNK_SIZE_TILES;
+
+        Chunk targetChunk = null;
+        for (Chunk chunk : mapChunks) {
+            if (chunk.chunkGridX == chunkGridX && chunk.chunkGridY == chunkGridY) {
+                targetChunk = chunk;
+                break;
+            }
+        }
+
+        if (targetChunk != null) {
+            System.out.println("Renderer: Updating geometry for chunk: (" + chunkGridX + ", " + chunkGridY + ") containing tile (" + tileRow + ", " + tileCol + ")");
+            // Re-upload geometry for this specific chunk.
+            // The existing chunk.uploadGeometry method rebuilds the VBO based on the current map state.
+            targetChunk.uploadGeometry(this.map, this.inputHandler, this); // Pass necessary arguments
+        } else {
+            System.err.println("Renderer: Could not find chunk for tile: (" + tileRow + ", " + tileCol + ") at chunkCoords (" + chunkGridX + ", " + chunkGridY + ")");
         }
     }
 
     public void onResize(int fbWidth, int fbHeight) {
         if (fbWidth <= 0 || fbHeight <= 0) return;
         glViewport(0, 0, fbWidth, fbHeight);
-        glMatrixMode(GL_PROJECTION);
-        glLoadIdentity();
-        glOrtho(0, fbWidth, fbHeight, 0, -1, 1);
-        glMatrixMode(GL_MODELVIEW);
-        glLoadIdentity();
+        projectionMatrix.identity().ortho(0, fbWidth, fbHeight, 0, -1, 1);
+        if (camera != null) {
+            camera.setProjectionMatrixForCulling(projectionMatrix);
+            camera.forceUpdateViewMatrix();
+        }
+        checkError("Renderer: onResize");
     }
 
     public void render() {
         frameCount++;
-        glMatrixMode(GL_MODELVIEW);
-        glLoadIdentity();
+        defaultShader.bind();
+        defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
 
-        sortableItems.clear();
-        collectSortableItems();
+        // --- 1. Draw static tile map CHUNKS ---
+        defaultShader.setUniform("uModelViewMatrix", camera.getViewMatrix());
+        defaultShader.setUniform("uHasTexture", 0);
+        defaultShader.setUniform("uIsFont", 0); // Tiles are not fonts
 
-        Collections.sort(sortableItems, new Comparator<SortableItem>() {
-            @Override
-            public int compare(SortableItem item1, SortableItem item2) {
-                // Primary sort: screen Y coordinate (smaller Y is further up/back, drawn first)
-                if (Math.abs(item1.screenYSortKey - item2.screenYSortKey) > 0.1f) { // Use a small epsilon for float comparison
-                    return Float.compare(item1.screenYSortKey, item2.screenYSortKey);
+        int chunksRendered = 0;
+        if (mapChunks != null) {
+            for (Chunk chunk : mapChunks) {
+                if (camera.isChunkVisible(chunk.getBoundingBox())) { // Re-enabled culling
+                    chunk.render();
+                    chunksRendered++;
                 }
-
-                // Secondary sort: "depth" in the map. (mapRow + mapCol)
-                // Items with a smaller sum of (mapRow + mapCol) are generally "behind"
-                // those with a larger sum, if they are on the same visual Y-line.
-                // We need to get mapRow and mapCol from the entity.
-                float depth1 = 0, depth2 = 0;
-                int elev1 = 0, elev2 = 0;
-
-                if (item1.entity instanceof PlayerModel) {
-                    PlayerModel p = (PlayerModel) item1.entity;
-                    depth1 = p.getMapRow() + p.getMapCol();
-                    Tile t = map.getTile(p.getTileRow(), p.getTileCol());
-                    if (t != null) elev1 = t.getElevation();
-                } else if (item1.entity instanceof TreeData) {
-                    TreeData td = (TreeData) item1.entity;
-                    depth1 = td.mapRow + td.mapCol;
-                    elev1 = td.elevation;
-                }
-
-                if (item2.entity instanceof PlayerModel) {
-                    PlayerModel p = (PlayerModel) item2.entity;
-                    depth2 = p.getMapRow() + p.getMapCol();
-                    Tile t = map.getTile(p.getTileRow(), p.getTileCol());
-                    if (t != null) elev2 = t.getElevation();
-                } else if (item2.entity instanceof TreeData) {
-                    TreeData td = (TreeData) item2.entity;
-                    depth2 = td.mapRow + td.mapCol;
-                    elev2 = td.elevation;
-                }
-
-                if (depth1 != depth2) {
-                    return Float.compare(depth1, depth2); // Smaller depth sum drawn first
-                }
-
-                // Tertiary sort: elevation (for items at same screenY and map depth sum)
-                // Higher things might need to be drawn after lower things if they are "on top"
-                // Or, if sorting by base, lower elevation things might be further.
-                // For now, let's assume if depth and screenY are same, elevation might be a factor.
-                // If item1 is at a lower elevation on the same depth line, it should be drawn first.
-                if (elev1 != elev2) {
-                    return Integer.compare(elev1, elev2); // Lower elevation drawn first
-                }
-
-                // Quaternary sort: zOrder (player vs tree on the exact same tile)
-                return Integer.compare(item1.zOrder, item2.zOrder); // Tree (0) before Player (1)
-            }
-        });
-
-        renderMapBaseGeometry();
-
-        glEnable(GL_TEXTURE_2D);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-        for (SortableItem item : sortableItems) {
-            if (item.entity instanceof PlayerModel) {
-                drawPlayerInstance((PlayerModel) item.entity);
-            } else if (item.entity instanceof TreeData) {
-                drawTreeInstance((TreeData) item.entity);
             }
         }
-        glDisable(GL_TEXTURE_2D);
-        renderUI();
+        glBindVertexArray(0);
+        if (frameCount % 300 == 0 && mapChunks != null && !mapChunks.isEmpty()) { // Added !mapChunks.isEmpty()
+            System.out.println("Rendered " + chunksRendered + "/" + mapChunks.size() + " chunks.");
+        }
+        checkError("Renderer: render - after map chunks");
+
+        // --- 2. Collect and sort dynamic sprites ---
+        collectSortableItems();
+        Collections.sort(sortableItems, (item1, item2) -> {
+            if (Math.abs(item1.screenYSortKey - item2.screenYSortKey) > 0.1f) return Float.compare(item1.screenYSortKey, item2.screenYSortKey);
+            float d1 = item1.mapRow+item1.mapCol, d2 = item2.mapRow+item2.mapCol; if(Math.abs(d1-d2)>0.01f) return Float.compare(d1,d2);
+            int elev1 = (item1.entity instanceof PlayerModel) ? (map.getTile(((PlayerModel)item1.entity).getTileRow(), ((PlayerModel)item1.entity).getTileCol()) != null ? map.getTile(((PlayerModel)item1.entity).getTileRow(), ((PlayerModel)item1.entity).getTileCol()).getElevation() : 0) : ((TreeData)item1.entity).elevation;
+            int elev2 = (item2.entity instanceof PlayerModel) ? (map.getTile(((PlayerModel)item2.entity).getTileRow(), ((PlayerModel)item2.entity).getTileCol()) != null ? map.getTile(((PlayerModel)item2.entity).getTileRow(), ((PlayerModel)item2.entity).getTileCol()).getElevation() : 0) : ((TreeData)item2.entity).elevation;
+            if (elev1 != elev2) return Integer.compare(elev1, elev2);
+            return Integer.compare(item1.zOrder, item2.zOrder);
+        });
+
+        // --- 3. Draw dynamic sprites (Player, Trees) ---
+        defaultShader.setUniform("uModelViewMatrix", modelViewMatrixForSprites);
+        if (spriteVaoId != 0) {
+            glBindVertexArray(spriteVaoId);
+            defaultShader.setUniform("uHasTexture", 1);
+            defaultShader.setUniform("uIsFont", 0); // Sprites are NOT fonts
+            defaultShader.setUniform("uTextureSampler", 0);
+            glActiveTexture(GL_TEXTURE0);
+            for (SortableItem item : sortableItems) {
+                spriteVertexBuffer.clear(); int currentSpriteVertices = 0; Texture currentTexture = null;
+                if (item.entity instanceof PlayerModel) { PlayerModel p = (PlayerModel)item.entity; if (playerTexture != null && playerTexture.getId() != 0) { currentSpriteVertices = addPlayerVerticesToBuffer_ScreenSpace(p, spriteVertexBuffer); currentTexture = playerTexture; }
+                } else if (item.entity instanceof TreeData) { TreeData td = (TreeData)item.entity; if (treeTexture != null && treeTexture.getId() != 0) { currentSpriteVertices = addTreeVerticesToBuffer_ScreenSpace(td, spriteVertexBuffer); currentTexture = treeTexture; } }
+
+                if (currentSpriteVertices > 0 && currentTexture != null) {
+                    if (spriteVertexBuffer.position() < currentSpriteVertices * FLOATS_PER_VERTEX_TEXTURED) {
+                        // This check is a bit off, flip should happen after all puts for currentSpriteVertices
+                    }
+                    spriteVertexBuffer.flip();
+                    currentTexture.bind();
+                    glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+                    glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+                    glDrawArrays(GL_TRIANGLES, 0, currentSpriteVertices);
+                }
+            }
+            glBindTexture(GL_TEXTURE_2D, 0);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+            glBindVertexArray(0);
+            checkError("Renderer: render - after sprites");
+        }
+
+        // --- 4. Render UI ---
+        if (uiFont != null && uiFont.isInitialized()) {
+            renderUI(); // This method will set uIsFont to 1
+        }
+        defaultShader.unbind();
     }
 
     private void collectSortableItems() {
+        sortableItems.clear();
         if (this.player != null) {
             sortableItems.add(new SortableItem(this.player, this.camera, this.map));
         }
-
-        int mapW = map.getWidth();
-        int mapH = map.getHeight();
-        for (int r = 0; r < mapH; r++) {
-            for (int c = 0; c < mapW; c++) {
-                Tile tile = map.getTile(r, c);
+        if (map == null) return; // Guard against null map
+        int mapW = map.getWidth(); int mapH = map.getHeight();
+        for (int r_loop = 0; r_loop < mapH; r_loop++) {
+            for (int c_loop = 0; c_loop < mapW; c_loop++) {
+                Tile tile = map.getTile(r_loop, c_loop);
                 if (tile != null && tile.getTreeType() != Tile.TreeVisualType.NONE && tile.getType() != Tile.TileType.WATER) {
                     int elevation = tile.getElevation();
-                    int[] baseScreenCoords = camera.mapToScreenCoords(c, r, 0);
-                    int effWidth = camera.getEffectiveTileWidth();
-                    int effHeight = camera.getEffectiveTileHeight();
-                    int effThickness = camera.getEffectiveTileThickness();
-
-                    float topDiamondDrawCenterX;
-                    float topDiamondDrawTipY;
-                    float topDiamondDrawIsoHeight_tileFace;
-
-                    if (elevation > 0) {
-                        topDiamondDrawTipY = baseScreenCoords[1] - (elevation * effThickness);
-                    } else {
-                        topDiamondDrawTipY = baseScreenCoords[1];
-                    }
-                    topDiamondDrawCenterX = baseScreenCoords[0] + effWidth / 2.0f;
-                    topDiamondDrawIsoHeight_tileFace = effHeight;
-
-                    TreeData treeData = new TreeData(tile.getTreeType(), (float)c, (float)r, elevation,
-                            topDiamondDrawCenterX, topDiamondDrawTipY, topDiamondDrawIsoHeight_tileFace);
-                    sortableItems.add(new SortableItem(treeData, this.camera, this.map));
+                    int[] tileTopScreenCoords = camera.mapToScreenCoordsForPicking(c_loop, r_loop, elevation);
+                    sortableItems.add(new SortableItem(
+                            new TreeData(tile.getTreeType(), (float)c_loop, (float)r_loop, elevation,
+                                    tileTopScreenCoords[0], tileTopScreenCoords[1]),
+                            this.camera, this.map));
                 }
             }
         }
     }
 
-    private void drawPlayerInstance(PlayerModel p) {
-        if (playerTexture == null) return;
-
-        Tile currentTile = map.getTile(p.getTileRow(), p.getTileCol());
-        int playerBaseElevation = (currentTile != null) ? currentTile.getElevation() : 0;
-        int[] playerScreenBaseCoords = camera.mapToScreenCoords(p.getMapCol(), p.getMapRow(), playerBaseElevation);
-        float screenX = playerScreenBaseCoords[0];
-        float screenY = playerScreenBaseCoords[1];
-
-        playerTexture.bind();
-        glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-
-        int frameWidthPx = PlayerModel.FRAME_WIDTH;
-        int frameHeightPx = PlayerModel.FRAME_HEIGHT;
-        int animFrameCol = p.getVisualFrameIndex();
-        int animFrameRow = p.getAnimationRow();
-
-        float texSrcX = animFrameCol * frameWidthPx;
-        float texSrcY = animFrameRow * frameHeightPx;
-        float texSheetWidth = playerTexture.getWidth();
-        float texSheetHeight = playerTexture.getHeight();
-
-        float u0 = texSrcX / texSheetWidth;
-        float v0 = texSrcY / texSheetHeight;
-        float u1 = (texSrcX + frameWidthPx) / texSheetWidth;
-        float v1 = (texSrcY + frameHeightPx) / texSheetHeight;
-
-        float scaledSpriteWidth = frameWidthPx * camera.getZoom();
-        float scaledSpriteHeight = frameHeightPx * camera.getZoom();
-        float drawX = screenX - (scaledSpriteWidth / 2.0f);
-        float drawY = screenY - scaledSpriteHeight;
-
-        if (p.isLevitating()) {
-            drawY -= (int) (Math.sin(p.getLevitateTimer()) * 8 * camera.getZoom());
-        }
-
-        glBegin(GL_QUADS);
-        glTexCoord2f(u0, v0); glVertex2f(drawX, drawY);
-        glTexCoord2f(u1, v0); glVertex2f(drawX + scaledSpriteWidth, drawY);
-        glTexCoord2f(u1, v1); glVertex2f(drawX + scaledSpriteWidth, drawY + scaledSpriteHeight);
-        glTexCoord2f(u0, v1); glVertex2f(drawX, drawY + scaledSpriteHeight);
-        glEnd();
-    }
-
-    private void drawTreeInstance(TreeData tree) {
-        if (treeTexture == null || tree.treeVisualType == Tile.TreeVisualType.NONE) return;
-
-        treeTexture.bind();
-        glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-
-        float u0=0,v0=0,u1=0,v1=0;
-        float treeFrameWidthSpritePx=0, treeFrameHeightSpritePx=0;
-        float anchorOffsetYFromVisualBase=0;
-
-        switch(tree.treeVisualType){
-            case APPLE_TREE_FRUITING:
-                treeFrameWidthSpritePx=90.0f; treeFrameHeightSpritePx=130.0f;
-                float appleSX=0.0f,appleSY=0.0f; anchorOffsetYFromVisualBase=10.0f;
-                u0=appleSX/treeTexture.getWidth(); v0=appleSY/treeTexture.getHeight();
-                u1=(appleSX+treeFrameWidthSpritePx)/treeTexture.getWidth();
-                v1=(appleSY+treeFrameHeightSpritePx)/treeTexture.getHeight(); break;
-            case PINE_TREE_SMALL:
-                treeFrameWidthSpritePx=90.0f; treeFrameHeightSpritePx=180.0f;
-                float pineSX=90.0f,pineSY=0.0f; anchorOffsetYFromVisualBase=5.0f;
-                u0=pineSX/treeTexture.getWidth(); v0=pineSY/treeTexture.getHeight();
-                u1=(pineSX+treeFrameWidthSpritePx)/treeTexture.getWidth();
-                v1=(pineSY+treeFrameHeightSpritePx)/treeTexture.getHeight(); break;
-            default: return; // Unknown tree type
-        }
-
-        if (treeFrameWidthSpritePx <= 0 || treeFrameHeightSpritePx <= 0) return;
-
-        float artScale = 1.0f;
-        float treeDrawWidth = treeFrameWidthSpritePx * camera.getZoom() * artScale;
-        float treeDrawHeight = treeFrameHeightSpritePx * camera.getZoom() * artScale;
-        float screenAnchorOffsetY = anchorOffsetYFromVisualBase * camera.getZoom() * artScale;
-
-        float visualAnchorYOnTileSurface = tree.topDiamondCenterY_tileTip + (tree.topDiamondIsoHeight_tileFace / 2.0f);
-        float drawX = tree.topDiamondCenterX - (treeDrawWidth / 2.0f);
-        float drawY = visualAnchorYOnTileSurface - treeDrawHeight + screenAnchorOffsetY;
-
-        glBegin(GL_QUADS);
-        glTexCoord2f(u0, v0); glVertex2f(drawX, drawY);
-        glTexCoord2f(u1, v0); glVertex2f(drawX + treeDrawWidth, drawY);
-        glTexCoord2f(u1, v1); glVertex2f(drawX + treeDrawWidth, drawY + treeDrawHeight);
-        glTexCoord2f(u0, v1); glVertex2f(drawX, drawY + treeDrawHeight);
-        glEnd();
-    }
-
-
-    // Add a flag to toggle debug drawing
-    private boolean DEBUG_DRAW_PICKING_DIAMONDS = false; // Set to true to see them
-
-// ... (rest of Renderer.java up to renderMapBaseGeometry)
-
-    private void renderMapBaseGeometry() {
-        int mapW = map.getWidth();
-        int mapH = map.getHeight();
-        glDisable(GL_TEXTURE_2D);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-        for (int sum = 0; sum <= mapW + mapH - 2; sum++) {
-            for (int r_loop = 0; r_loop <= sum; r_loop++) { // Renamed loop variable to avoid confusion
-                int c_loop = sum - r_loop;                 // Renamed loop variable
-                if (map.isValid(r_loop, c_loop)) {
-                    Tile tile = map.getTile(r_loop, c_loop);
-                    if (tile != null) {
-                        renderTileGeometry(r_loop, c_loop, tile, (r_loop == inputHandler.getSelectedRow() && c_loop == inputHandler.getSelectedCol()));
-
-                        if (DEBUG_DRAW_PICKING_DIAMONDS) {
-                            // Pass the correct loop variables c_loop and r_loop
-                            if (Math.abs(r_loop - inputHandler.getSelectedRow()) <= 5 && Math.abs(c_loop - inputHandler.getSelectedCol()) <= 5) {
-                                drawPickableDiamondOutline(c_loop, r_loop, tile.getElevation());
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Corrected debug drawing method in Renderer.java
-    // In Renderer.java
-    private void drawPickableDiamondOutline(int mapCol, int mapRow, int elevation) {
-        int effTileWidth = camera.getEffectiveTileWidth();
-        int effTileHeight = camera.getEffectiveTileHeight();
-
-        // mapToScreenCoords now assumed to return the CENTER of the diamond's top face
-        int[] diamondCenterScreenCoords = camera.mapToScreenCoords((float)mapCol, (float)mapRow, elevation);
-        float centerX = diamondCenterScreenCoords[0];
-        float centerY = diamondCenterScreenCoords[1];
-
-        float halfW = effTileWidth / 2.0f;
-        float halfH = effTileHeight / 2.0f;
-
-        // Calculate diamond corners from the center
-        float pointTopX = centerX;
-        float pointTopY = centerY - halfH;
-        float pointLeftX = centerX - halfW;
-        float pointLeftY = centerY;
-        float pointRightX = centerX + halfW;
-        float pointRightY = centerY;
-        float pointBottomX = centerX;
-        float pointBottomY = centerY + halfH;
-
-        glDisable(GL_TEXTURE_2D);
-        // Draw the PICKING diamond outline (YELLOW)
-        glColor4f(1.0f, 1.0f, 0.0f, 0.7f); // Yellow
-        glBegin(GL_LINE_LOOP);
-        glVertex2f(pointTopX, pointTopY);
-        glVertex2f(pointLeftX, pointLeftY);
-        glVertex2f(pointBottomX, pointBottomY);
-        glVertex2f(pointRightX, pointRightY);
-        glEnd();
-
-        // Draw the CYAN debug dot AT THE CENTER (which is now directly from mapToScreenCoords)
-        glColor4f(0.0f, 1.0f, 1.0f, 0.8f); // Cyan
-        float radius = 3 * camera.getZoom();
-        glBegin(GL_TRIANGLE_FAN);
-        glVertex2f(centerX, centerY); // Center point IS diamondCenterScreenCoords[0], diamondCenterScreenCoords[1]
-        for (int i = 0; i <= 16; i++) {
-            double angle = Math.PI * 2.0 * i / 16.0;
-            glVertex2f(centerX + (float)(Math.cos(angle) * radius),
-                    centerY + (float)(Math.sin(angle) * radius));
-        }
-        glEnd();
-    }
-
-
-
-    // In Renderer.java
-
-// Make sure frameCount is a member of Renderer and incremented
-// import static org.isogame.constants.Constants.*; // For ALTURA_MAXIMA, NIVEL_MAR etc.
-
-    // In Renderer.java
-
-// Ensure these constants from org.isogame.constants.Constants are available
-// import static org.isogame.constants.Constants.*;
-
-// Assuming frameCount is a member of Renderer and incremented
-// Assuming tileDetailRandom is a member of Renderer and initialized
-
-    private void renderTileGeometry(int tileR, int tileC, Tile tile, boolean isSelected) {
+    public int addSingleTileVerticesToBuffer_WorldSpace_ForChunk(
+            int tileR, int tileC, Tile tile, boolean isSelected, FloatBuffer buffer, float[] chunkBoundsMinMax) {
         int elevation = tile.getElevation();
         Tile.TileType type = tile.getType();
 
-        // Get camera's current zoom directly
-        float currentZoom = camera.getZoom();
+        float halfW_unit = TILE_WIDTH / 2.0f;
+        float halfH_unit = TILE_HEIGHT / 2.0f;
+        float baseThick_worldY_offset = BASE_THICKNESS;
+        float elevThick_worldY_offset = TILE_THICKNESS;
+        float world_gc_x = (tileC - tileR) * halfW_unit;
+        float world_gc_y_plane = (tileC + tileR) * halfH_unit;
+        float world_tc_y = world_gc_y_plane - (elevation * elevThick_worldY_offset);
 
-        // Calculate TILE dimensions as FLOATS based on current zoom
-        // These come from your Constants.java (e.g., TILE_WIDTH, TILE_HEIGHT)
-        float effWidthF = (float)TILE_WIDTH * currentZoom;
-        float effHeightF = (float)TILE_HEIGHT * currentZoom;
-        float effThicknessF = (float)TILE_THICKNESS * currentZoom; // If you use this for tc_y
-        float effBaseThickF = (float)BASE_THICKNESS * currentZoom; // If you use this for vbL_Y etc.
+        float currentTileMinX = Float.MAX_VALUE, currentTileMinY = Float.MAX_VALUE;
+        float currentTileMaxX = Float.MIN_VALUE, currentTileMaxY = Float.MIN_VALUE;
 
-
-        // --- Get CENTER coordinates for the different planes ---
-        // These are already floats if mapToScreenCoords returns float[] or if you cast appropriately
-        // Assuming mapToScreenCoords returns int[], so gc_x, gc_y are initially integer pixels
-        // For smoother tile placement, mapToScreenCoords should ideally work with and return floats.
-        // If mapToScreenCoords uses integer effective widths/heights internally, its results will snap.
-        // Let's assume for now mapToScreenCoords returns the best possible int[] center for now.
-        int[] groundCenterCoords = camera.mapToScreenCoords(tileC, tileR, 0);
-        float gc_x = groundCenterCoords[0]; // Ground Center X
-        float gc_y = groundCenterCoords[1]; // Ground Center Y
-
-        // Center of the diamond face at its actual elevation (top face)
-        // Use the integer effThickness from camera for consistency with how mapToScreenCoords might calculate elevation offset
-        // OR, if mapToScreenCoords is updated to use float thickness, then use effThicknessF here.
-        // For now, sticking to your original use of camera.getEffectiveTileThickness() for this tc_y calculation:
-        float tc_x = gc_x;
-        float tc_y = gc_y - (elevation * camera.getEffectiveTileThickness()); // Using int effThickness for this specific offset calculation
-
-        // Culling (using the actual top face center)
-        // Use integer effWidth/Height from camera for culling margin for consistency with current tc_x/tc_y logic
-        int effWidthForCull = camera.getEffectiveTileWidth();
-        int effHeightForCull = camera.getEffectiveTileHeight();
-        int margin = Math.max(effWidthForCull, effHeightForCull) * 3;
-        if (tc_x < -margin || tc_x > camera.getScreenWidth() + margin ||
-                tc_y < -margin - (ALTURA_MAXIMA * camera.getEffectiveTileThickness()) || tc_y > camera.getScreenHeight() + margin + effHeightForCull) {
-            return;
-        }
-
-        // --- Color determination (your existing logic) ---
-        // This part remains the same
-        float[] topColor = {1f,0f,1f,1f}, side1Color= {1f,0f,1f,1f}, side2Color= {1f,0f,1f,1f};
-        float[] baseTopColor = {1f,0f,1f,1f}, baseSide1Color= {1f,0f,1f,1f}, baseSide2Color= {1f,0f,1f,1f};
-        boolean isWater = (type == Tile.TileType.WATER);
+        float[] topClr, s1Clr, s2Clr, bTopClr, bS1Clr, bS2Clr;
+        boolean isW = (type == Tile.TileType.WATER);
 
         if (isSelected) {
-            topColor = new float[]{1.0f, 0.8f, 0.0f, 0.8f}; side1Color = new float[]{0.9f, 0.7f, 0.0f, 0.8f}; side2Color = new float[]{0.8f, 0.6f, 0.0f, 0.8f};
-            baseTopColor = new float[]{0.5f, 0.4f, 0.0f, 0.8f}; baseSide1Color = new float[]{0.4f, 0.3f, 0.0f, 0.8f}; baseSide2Color = new float[]{0.3f, 0.2f, 0.0f, 0.8f};
+            topClr = new float[]{1.0f, 0.8f, 0.0f, 0.8f};
+            s1Clr = new float[]{0.9f, 0.7f, 0.0f, 0.8f};
+            s2Clr = new float[]{0.8f, 0.6f, 0.0f, 0.8f};
+            bTopClr = new float[]{0.5f, 0.4f, 0.0f, 0.8f};
+            bS1Clr = new float[]{0.4f, 0.3f, 0.0f, 0.8f};
+            bS2Clr = new float[]{0.3f, 0.2f, 0.0f, 0.8f};
         } else {
-            switch (type) { // Your color logic
+            switch (type) {
                 case WATER:
-                    double tS1=0.05,tS2=0.03,sS1=0.4,sS2=0.6,bB=0.3,bA=0.15,gSB=0.3,gSA=0.1;
-                    double wF1=(frameCount*tS1+(tileR+tileC)*sS1),wF2=(frameCount*tS2+(tileR*0.7-tileC*0.6)*sS2);
-                    double wV=(Math.sin(wF1)+Math.cos(wF2))/2.0; float blV=(float)Math.max(0.1,Math.min(1.0,bB+wV*bA));
-                    float grV=(float)Math.max(0.0,Math.min(1.0,blV*(gSB+Math.sin(wF1+tileC*0.5)*gSA)));
-                    topColor=new float[]{0.0f,grV,blV,0.85f}; side1Color=topColor; side2Color=topColor;
-                    baseTopColor=new float[]{0.0f,grV,blV,0.85f};
-                    baseSide1Color=new float[]{0.04f,0.08f,0.18f,1.0f}; baseSide2Color=new float[]{0.03f,0.06f,0.16f,1.0f}; break;
-                case SAND: topColor=new float[]{0.82f,0.7f,0.55f,1.0f}; side1Color=new float[]{0.75f,0.65f,0.49f,1.0f}; side2Color=new float[]{0.67f,0.59f,0.43f,1.0f}; baseTopColor=new float[]{0.59f,0.51f,0.35f,1.0f}; baseSide1Color=new float[]{0.51f,0.43f,0.27f,1.0f}; baseSide2Color=new float[]{0.43f,0.35f,0.19f,1.0f}; break;
-                case GRASS: topColor=new float[]{0.13f,0.55f,0.13f,1.0f}; side1Color=new float[]{0.12f,0.47f,0.12f,1.0f}; side2Color=new float[]{0.10f,0.39f,0.10f,1.0f}; baseTopColor=new float[]{0.31f,0.24f,0.16f,1.0f}; baseSide1Color=new float[]{0.27f,0.20f,0.14f,1.0f}; baseSide2Color=new float[]{0.24f,0.16f,0.12f,1.0f}; break;
-                case ROCK: topColor=new float[]{0.5f,0.5f,0.5f,1.0f}; side1Color=new float[]{0.45f,0.45f,0.45f,1.0f}; side2Color=new float[]{0.4f,0.4f,0.4f,1.0f}; baseTopColor=new float[]{0.35f,0.35f,0.35f,1.0f}; baseSide1Color=new float[]{0.3f,0.3f,0.3f,1.0f}; baseSide2Color=new float[]{0.25f,0.25f,0.25f,1.0f}; break;
-                case SNOW: topColor=new float[]{0.95f,0.95f,1.0f,1.0f}; side1Color=new float[]{0.9f,0.9f,0.95f,1.0f}; side2Color=new float[]{0.85f,0.85f,0.9f,1.0f}; baseTopColor=new float[]{0.5f,0.5f,0.55f,1.0f}; baseSide1Color=new float[]{0.45f,0.45f,0.5f,1.0f}; baseSide2Color=new float[]{0.4f,0.4f,0.45f,1.0f}; break;
+                    final double WATER_TIME_SCALE_FAST = 0.06;
+                    final double WATER_TIME_SCALE_SLOW = 0.025;
+                    final long WATER_TIME_PERIOD = 3600;
+                    final double WATER_SPATIAL_SCALE_FINE = 0.35;
+                    final double WATER_SPATIAL_SCALE_BROAD = 0.15;
+                    final int WATER_SPATIAL_PERIOD = 128;
+                    final float BASE_BLUE_R = 0.05f;
+                    final float BASE_BLUE_G = 0.25f;
+                    final float BASE_BLUE_B = 0.5f;
+                    final float WAVE_HIGHLIGHT_FACTOR = 0.15f;
+                    final float WAVE_SHADOW_FACTOR = 0.1f;
+                    final float WATER_ALPHA = 0.85f;
+                    final float[] SUBMERGED_SIDE_COLOR_1 = new float[]{0.04f, 0.08f, 0.18f, 1.0f};
+                    final float[] SUBMERGED_SIDE_COLOR_2 = new float[]{0.03f, 0.06f, 0.16f, 1.0f};
+
+                    double timeValFast = (this.frameCount % WATER_TIME_PERIOD) * WATER_TIME_SCALE_FAST;
+                    double timeValSlow = (this.frameCount % WATER_TIME_PERIOD) * WATER_TIME_SCALE_SLOW;
+                    double spatialValX_fine = (tileC % WATER_SPATIAL_PERIOD) * WATER_SPATIAL_SCALE_FINE;
+                    double spatialValY_fine = (tileR % WATER_SPATIAL_PERIOD) * WATER_SPATIAL_SCALE_FINE;
+                    double spatialValX_broad = (tileC % WATER_SPATIAL_PERIOD) * WATER_SPATIAL_SCALE_BROAD;
+                    double spatialValY_broad = (tileR % WATER_SPATIAL_PERIOD) * WATER_SPATIAL_SCALE_BROAD;
+                    double wave1 = Math.sin(timeValFast + spatialValX_fine + spatialValY_fine);
+                    double wave2 = Math.cos(timeValSlow + spatialValX_broad - spatialValY_broad * 0.7);
+                    double combinedWaveEffect = (wave1 * 0.6 + wave2 * 0.4);
+
+                    float r = BASE_BLUE_R;
+                    float g = BASE_BLUE_G;
+                    float b = BASE_BLUE_B;
+
+                    if (combinedWaveEffect > 0) {
+                        float highlight = (float) (combinedWaveEffect * WAVE_HIGHLIGHT_FACTOR);
+                        r += highlight * 0.3f; g += highlight * 0.7f; b += highlight;
+                    } else {
+                        float shadow = (float) (-combinedWaveEffect * WAVE_SHADOW_FACTOR);
+                        r -= shadow * 0.5f; g -= shadow * 0.5f; b -= shadow;
+                    }
+
+                    r = Math.max(0.0f, Math.min(1.0f, r));
+                    g = Math.max(0.0f, Math.min(1.0f, g));
+                    b = Math.max(0.0f, Math.min(1.0f, b));
+
+                    topClr = new float[]{r, g, b, WATER_ALPHA};
+                    s1Clr = topClr; s2Clr = topClr; bTopClr = topClr;
+                    bS1Clr = SUBMERGED_SIDE_COLOR_1; bS2Clr = SUBMERGED_SIDE_COLOR_2;
+                    break;
+                case SAND:
+                    topClr = new float[]{0.82f, 0.7f, 0.55f, 1f}; s1Clr = new float[]{0.75f, 0.65f, 0.49f, 1f};
+                    s2Clr = new float[]{0.67f, 0.59f, 0.43f, 1f}; bTopClr = new float[]{0.59f, 0.51f, 0.35f, 1f};
+                    bS1Clr = new float[]{0.51f, 0.43f, 0.27f, 1f}; bS2Clr = new float[]{0.43f, 0.35f, 0.19f, 1f};
+                    break;
+                case GRASS:
+                    topClr = new float[]{0.20f, 0.45f, 0.10f, 1f}; s1Clr = new float[]{0.18f, 0.40f, 0.09f, 1f};
+                    s2Clr = new float[]{0.16f, 0.35f, 0.08f, 1f}; bTopClr = new float[]{0.35f, 0.28f, 0.18f, 1f};
+                    bS1Clr = new float[]{0.30f, 0.23f, 0.15f, 1f}; bS2Clr = new float[]{0.25f, 0.18f, 0.12f, 1f};
+                    break;
+                case ROCK:
+                    topClr = new float[]{0.45f, 0.45f, 0.45f, 1f}; s1Clr = new float[]{0.40f, 0.40f, 0.40f, 1f};
+                    s2Clr = new float[]{0.35f, 0.35f, 0.35f, 1f}; bTopClr = new float[]{0.30f, 0.30f, 0.30f, 1f};
+                    bS1Clr = new float[]{0.25f, 0.25f, 0.25f, 1f}; bS2Clr = new float[]{0.20f, 0.20f, 0.20f, 1f};
+                    break;
+                case SNOW:
+                    topClr = new float[]{0.95f, 0.95f, 1.0f, 1f}; s1Clr = new float[]{0.90f, 0.90f, 0.95f, 1f};
+                    s2Clr = new float[]{0.85f, 0.85f, 0.90f, 1f}; bTopClr = new float[]{0.5f, 0.5f, 0.55f, 1f};
+                    bS1Clr = new float[]{0.45f, 0.45f, 0.50f, 1f}; bS2Clr = new float[]{0.40f, 0.40f, 0.45f, 1f};
+                    break;
+                default:
+                    topClr = new float[]{1f, 0f, 1f, 1f}; s1Clr = topClr; s2Clr = topClr; bTopClr = topClr;
+                    bS1Clr = topClr; bS2Clr = topClr;
+                    break;
             }
         }
 
-        // --- Bleed amount and half dimensions with bleed (using float dimensions) ---
-        float bleedAmount = 0.5f; // Experiment with this value (e.g., 0.5f, 0.75f, 1.0f)
-        float halfWidthFBleed = (effWidthF / 2.0f) + bleedAmount;
-        float halfHeightFBleed = (effHeightF / 2.0f) + bleedAmount;
+        float d_top_y_rel = -halfH_unit; float d_left_x_rel = -halfW_unit; float d_left_y_rel = 0;
+        float d_right_x_rel = halfW_unit; float d_right_y_rel = 0; float d_bottom_y_rel = halfH_unit;
+        float bTx = world_gc_x, bTy = world_gc_y_plane + d_top_y_rel;
+        float bLx = world_gc_x + d_left_x_rel, bLy = world_gc_y_plane + d_left_y_rel;
+        float bRx = world_gc_x + d_right_x_rel, bRy = world_gc_y_plane + d_right_y_rel;
+        float bBx = world_gc_x, bBy = world_gc_y_plane + d_bottom_y_rel;
+        float vbLx = bLx, vbLy_ = bLy + baseThick_worldY_offset;
+        float vbRx = bRx, vbRy_ = bRy + baseThick_worldY_offset;
+        float vbBx = bBx, vbBy_ = bBy + baseThick_worldY_offset;
 
-        // --- Vertices for Ground-Level Diamond (base diamond, b) ---
-        float[] bT = {gc_x, gc_y - halfHeightFBleed};
-        float[] bL = {gc_x - halfWidthFBleed, gc_y};
-        float[] bR = {gc_x + halfWidthFBleed, gc_y};
-        float[] bB = {gc_x, gc_y + halfHeightFBleed};
+        int verticesAdded=0;
+        verticesAdded+=putColoredQuadVerticesAsTriangles(buffer,bLx,bLy,bBx,bBy,vbBx,vbBy_,vbLx,vbLy_,bS1Clr);
+        verticesAdded+=putColoredQuadVerticesAsTriangles(buffer,bBx,bBy,bRx,bRy,vbRx,vbRy_,vbBx,vbBy_,bS2Clr);
+        verticesAdded+=putColoredQuadVerticesAsTriangles(buffer,bLx,bLy,bTx,bTy,bRx,bRy,bBx,bBy,(isW?topClr:bTopClr));
 
-        // --- Vertices for the Very Bottom of the Base Block ---
-        // Use float effBaseThickF for consistent scaling
-        float vbL_Y = bL[1] + effBaseThickF;
-        float vbR_Y = bR[1] + effBaseThickF;
-        float vbB_Y = bB[1] + effBaseThickF;
+        currentTileMinX = Math.min(currentTileMinX, Math.min(bLx, vbLx));
+        currentTileMaxX = Math.max(currentTileMaxX, Math.max(bRx, vbRx));
+        currentTileMinY = Math.min(currentTileMinY, bTy);
+        currentTileMaxY = Math.max(currentTileMaxY, Math.max(vbLy_, Math.max(vbRy_, vbBy_)));
 
+        if(!isW&&elevation>0){
+            float fTx_world = world_gc_x, fTy_world = world_tc_y + d_top_y_rel;
+            float fLx_world = world_gc_x + d_left_x_rel, fLy_world = world_tc_y + d_left_y_rel;
+            float fRx_world = world_gc_x + d_right_x_rel, fRy_world = world_tc_y + d_right_y_rel;
+            float fBx_world = world_gc_x, fBy_world = world_tc_y + d_bottom_y_rel;
+            verticesAdded+=putColoredQuadVerticesAsTriangles(buffer,bLx,bLy,fLx_world,fLy_world,fBx_world,fBy_world,bBx,bBy,s1Clr);
+            verticesAdded+=putColoredQuadVerticesAsTriangles(buffer,bRx,bRy,fRx_world,fRy_world,fBx_world,fBy_world,bBx,bBy,s2Clr);
+            verticesAdded+=putColoredQuadVerticesAsTriangles(buffer,fLx_world,fLy_world,fTx_world,fTy_world,fRx_world,fRy_world,fBx_world,fBy_world,topClr);
 
-        // --- Draw Base Block Sides ---
-        glColor4f(baseSide1Color[0],baseSide1Color[1],baseSide1Color[2],baseSide1Color[3]);
-        glBegin(GL_QUADS);
-        glVertex2f(bL[0], bL[1]);   glVertex2f(bB[0], bB[1]);
-        glVertex2f(bB[0], vbB_Y);   glVertex2f(bL[0], vbL_Y);
-        glEnd();
-
-        glColor4f(baseSide2Color[0],baseSide2Color[1],baseSide2Color[2],baseSide2Color[3]);
-        glBegin(GL_QUADS);
-        glVertex2f(bB[0], bB[1]);   glVertex2f(bR[0], bR[1]);
-        glVertex2f(bR[0], vbR_Y);   glVertex2f(bB[0], vbB_Y);
-        glEnd();
-
-        // --- Draw Top of Base Block (Ground-Level Surface) ---
-        glColor4f(baseTopColor[0],baseTopColor[1],baseTopColor[2],baseTopColor[3]);
-        glBegin(GL_QUADS);
-        glVertex2f(bL[0], bL[1]); glVertex2f(bT[0], bT[1]);
-        glVertex2f(bR[0], bR[1]); glVertex2f(bB[0], bB[1]);
-        glEnd();
-
-        // --- Elevated Top Face and Sides ---
-        float topDiamondCenterX_render = gc_x; // For grass/detail placement
-        float topDiamondCenterY_render = gc_y;
-
-        if(!isWater && elevation > 0){
-            // tc_x, tc_y is the CENTER of the elevated top face
-            float[] fT = {tc_x, tc_y - halfHeightFBleed};
-            float[] fL = {tc_x - halfWidthFBleed, tc_y};
-            float[] fR = {tc_x + halfWidthFBleed, tc_y};
-            float[] fB = {tc_x, tc_y + halfHeightFBleed};
-
-            glColor4f(side1Color[0],side1Color[1],side1Color[2],side1Color[3]);
-            glBegin(GL_QUADS);
-            glVertex2f(bL[0], bL[1]); glVertex2f(bB[0], bB[1]); // Ground diamond points
-            glVertex2f(fB[0], fB[1]); glVertex2f(fL[0], fL[1]); // Face diamond points
-            glEnd();
-
-            glColor4f(side2Color[0],side2Color[1],side2Color[2],side2Color[3]);
-            glBegin(GL_QUADS);
-            glVertex2f(bB[0], bB[1]); glVertex2f(bR[0], bR[1]); // Ground diamond points
-            glVertex2f(fR[0], fR[1]); glVertex2f(fB[0], fB[1]); // Face diamond points
-            glEnd();
-
-            glColor4f(topColor[0],topColor[1],topColor[2],topColor[3]);
-            glBegin(GL_QUADS);
-            glVertex2f(fL[0], fL[1]); glVertex2f(fT[0], fT[1]);
-            glVertex2f(fR[0], fR[1]); glVertex2f(fB[0], fB[1]);
-            glEnd();
-
-            topDiamondCenterX_render = tc_x;
-            topDiamondCenterY_render = tc_y;
-        } else if (!isWater) { // Land at elevation 0
-            glColor4f(topColor[0],topColor[1],topColor[2],topColor[3]);
-            glBegin(GL_QUADS);
-            glVertex2f(bL[0], bL[1]); glVertex2f(bT[0], bT[1]);
-            glVertex2f(bR[0], bR[1]); glVertex2f(bB[0], bB[1]);
-            glEnd();
-        } else { // isWater
-            glColor4f(topColor[0],topColor[1],topColor[2],topColor[3]);
-            glBegin(GL_QUADS);
-            glVertex2f(bL[0], bL[1]); glVertex2f(bT[0], bT[1]);
-            glVertex2f(bR[0], bR[1]); glVertex2f(bB[0], bB[1]);
-            glEnd();
+            currentTileMinX = Math.min(currentTileMinX, fLx_world);
+            currentTileMaxX = Math.max(currentTileMaxX, fRx_world);
+            currentTileMinY = Math.min(currentTileMinY, fTy_world);
+            currentTileMaxY = Math.max(currentTileMaxY, fBy_world);
         }
 
-        // --- Details like Grass ---
-        // The grass rendering should use the NON-BLED dimensions for its area
-        // and be anchored to the NON-BLED center (gc_x/gc_y or tc_x/tc_y before bleed adjustment)
-        // topDiamondCenterX_render and topDiamondCenterY_render are the correct *centers*.
-        // For the width/height of the grass area, use the original float dimensions.
-        if(!isWater && type == Tile.TileType.GRASS){
-            long seed=(long)tileR*map.getWidth()+tileC;
-            this.tileDetailRandom.setSeed(seed); // Assuming tileDetailRandom is a Renderer member
-            Grass.renderThickGrassTufts(this.tileDetailRandom,
-                    topDiamondCenterX_render, // This is the correct logical center
-                    topDiamondCenterY_render, // This is the correct logical center
-                    TILE_WIDTH * currentZoom,  // Original float width for grass area
-                    TILE_HEIGHT * currentZoom, // Original float height for grass area
-                    15,
-                    (isSelected && type == Tile.TileType.GRASS) ? 0.1f : topColor[0]*0.75f,
-                    (isSelected && type == Tile.TileType.GRASS) ? 0.45f : topColor[1]*0.85f,
-                    (isSelected && type == Tile.TileType.GRASS) ? 0.1f : topColor[2]*0.7f,
-                    currentZoom);
+        if (verticesAdded > 0) {
+            chunkBoundsMinMax[0] = Math.min(chunkBoundsMinMax[0], currentTileMinX);
+            chunkBoundsMinMax[1] = Math.min(chunkBoundsMinMax[1], currentTileMinY);
+            chunkBoundsMinMax[2] = Math.max(chunkBoundsMinMax[2], currentTileMaxX);
+            chunkBoundsMinMax[3] = Math.max(chunkBoundsMinMax[3], currentTileMaxY);
         }
+        return verticesAdded;
+    }
+
+    public int addGrassVerticesForTile_WorldSpace_ForChunk(
+            int tileR, int tileC, Tile tile, FloatBuffer buffer, float[] chunkBoundsMinMax) {
+        this.tileDetailRandom.setSeed((long)tileR * (map != null ? map.getWidth() : CHUNK_SIZE_TILES) + tileC); // Added null check for map
+        int elevation = tile.getElevation();
+        float halfW_unit = TILE_WIDTH / 2.0f; float halfH_unit = TILE_HEIGHT / 2.0f;
+        float elevThick_unit = TILE_THICKNESS;
+        float world_tile_center_x = (tileC - tileR) * halfW_unit;
+        float world_tile_center_y_plane = (tileC + tileR) * halfH_unit;
+        float world_tile_top_face_center_y = world_tile_center_y_plane - (elevation * elevThick_unit);
+        float[] grassBaseColor = {0.10f,0.45f,0.10f,1.0f};
+        if (inputHandler != null && tileR == inputHandler.getSelectedRow() && tileC == inputHandler.getSelectedCol()) {
+            grassBaseColor = new float[]{0.1f,0.6f,0.1f,1.0f};
+        }
+        // TODO: Implement Grass.getThickGrassTuftsVertices_WorldSpace
+        return 0;
+    }
+
+    private int addPlayerVerticesToBuffer_ScreenSpace(PlayerModel p, FloatBuffer buffer) {
+        if (playerTexture == null || playerTexture.getId() == 0) return 0; float r=1f,g=1f,b=1f,a=1f;
+        Tile cT=map.getTile(p.getTileRow(),p.getTileCol()); int elev=(cT!=null)?cT.getElevation():0;
+        int[] sC=camera.mapToScreenCoordsForPicking(p.getMapCol(),p.getMapRow(),elev); float sX=sC[0],sY=sC[1];
+        float cz=camera.getZoom(); float sW=PlayerModel.FRAME_WIDTH*cz;float sH=PlayerModel.FRAME_HEIGHT*cz;
+        float dX=sX-sW/2f;float dY=sY-sH; if(p.isLevitating())dY-=(Math.sin(p.getLevitateTimer())*8*cz);
+        float u0,v0,u1,v1t; int afc=p.getVisualFrameIndex();int afr=p.getAnimationRow();
+        float tsX=afc*PlayerModel.FRAME_WIDTH;float tsY=afr*PlayerModel.FRAME_HEIGHT;
+        u0=tsX/playerTexture.getWidth();v0=tsY/playerTexture.getHeight();u1=(tsX+PlayerModel.FRAME_WIDTH)/playerTexture.getWidth();v1t=(tsY+PlayerModel.FRAME_HEIGHT)/playerTexture.getHeight();
+        return putTexturedQuadVerticesAsTriangles(buffer,dX,dY,dX+sW,dY,dX+sW,dY+sH,dX,dY+sH,new float[]{r,g,b,a},u0,v0,u1,v0,u1,v1t,u0,v1t);
+    }
+
+    private int addTreeVerticesToBuffer_ScreenSpace(TreeData tree, FloatBuffer buffer) {
+        if(treeTexture==null||treeTexture.getId()==0||tree.treeVisualType==Tile.TreeVisualType.NONE)return 0; float r=1f,g=1f,b=1f,a=1f;
+        float u0=0,v0=0,u1t=0,v1t=0,fw=0,fh=0,aoyp=0;
+        switch(tree.treeVisualType){case APPLE_TREE_FRUITING:fw=90;fh=130;u0=0f/treeTexture.getWidth();v0=0f/treeTexture.getHeight();u1t=90f/treeTexture.getWidth();v1t=130f/treeTexture.getHeight();aoyp=110;break;
+            case PINE_TREE_SMALL:fw=90;fh=180;u0=90f/treeTexture.getWidth();v0=0f/treeTexture.getHeight();u1t=(90f+90f)/treeTexture.getWidth();v1t=180f/treeTexture.getHeight();aoyp=165;break; default:return 0;}
+        float cz=camera.getZoom(); float sW=fw*cz,sH=fh*cz;
+        float tasX=tree.topDiamondCenterX_screen; float tasY=tree.topDiamondCenterY_screen;
+        float saoY=(fh-aoyp)*cz; float dX=tasX-sW/2f; float dY=tasY-(sH-saoY);
+        return putTexturedQuadVerticesAsTriangles(buffer,dX,dY,dX+sW,dY,dX+sW,dY+sH,dX,dY+sH,new float[]{r,g,b,a},u0,v0,u1t,v0,u1t,v1t,u0,v1t);
+    }
+
+    private int putTexturedQuadVerticesAsTriangles(FloatBuffer b,float x0,float y0,float x1,float y1,float x2,float y2,float x3,float y3,float[]c,float u0,float v0,float u1,float v1_tex,float u2_tex,float v2_tex,float u3_tex,float v3_tex){
+        b.put(x0).put(y0).put(c[0]).put(c[1]).put(c[2]).put(c[3]).put(u0).put(v0);b.put(x3).put(y3).put(c[0]).put(c[1]).put(c[2]).put(c[3]).put(u3_tex).put(v3_tex);b.put(x1).put(y1).put(c[0]).put(c[1]).put(c[2]).put(c[3]).put(u1).put(v1_tex);
+        b.put(x1).put(y1).put(c[0]).put(c[1]).put(c[2]).put(c[3]).put(u1).put(v1_tex);b.put(x3).put(y3).put(c[0]).put(c[1]).put(c[2]).put(c[3]).put(u3_tex).put(v3_tex);b.put(x2).put(y2).put(c[0]).put(c[1]).put(c[2]).put(c[3]).put(u2_tex).put(v2_tex);return 6;
+    }
+    private int putColoredQuadVerticesAsTriangles(FloatBuffer b,float xTL,float yTL,float xTR,float yTR,float xBR,float yBR,float xBL,float yBL,float[]c){
+        b.put(xTL).put(yTL).put(c[0]).put(c[1]).put(c[2]).put(c[3]); b.put(xBL).put(yBL).put(c[0]).put(c[1]).put(c[2]).put(c[3]); b.put(xTR).put(yTR).put(c[0]).put(c[1]).put(c[2]).put(c[3]);
+        b.put(xTR).put(yTR).put(c[0]).put(c[1]).put(c[2]).put(c[3]); b.put(xBL).put(yBL).put(c[0]).put(c[1]).put(c[2]).put(c[3]); b.put(xBR).put(yBR).put(c[0]).put(c[1]).put(c[2]).put(c[3]); return 6;
     }
 
     private void renderUI() {
-        glMatrixMode(GL_PROJECTION);
-        glPushMatrix();
-        glLoadIdentity();
-        glOrtho(0, camera.getScreenWidth(), camera.getScreenHeight(), 0, -1, 1);
-
-        glMatrixMode(GL_MODELVIEW);
-        glPushMatrix();
-        glLoadIdentity();
+        defaultShader.setUniform("uModelViewMatrix", modelViewMatrixForSprites);
+        defaultShader.setUniform("uIsFont", 1); // Tell shader this is a font
 
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         int yP=20,yI=18;
-        Tile selT=map.getTile(inputHandler.getSelectedRow(),inputHandler.getSelectedCol());String selI="Selected: ("+inputHandler.getSelectedRow()+", "+inputHandler.getSelectedCol()+")";
+        Tile selT = (map != null) ? map.getTile(inputHandler.getSelectedRow(),inputHandler.getSelectedCol()) : null; // Added null check for map
+        String selI="Selected: ("+inputHandler.getSelectedRow()+", "+inputHandler.getSelectedCol()+")";
         if(selT!=null){selI+=" Elev: "+selT.getElevation()+" Type: "+selT.getType();}
-        drawText(10,yP,"Player: ("+player.getTileRow()+", "+player.getTileCol()+") Act: "+player.getCurrentAction()+" Dir: "+player.getCurrentDirection()+" F:"+player.getVisualFrameIndex());yP+=yI;
-        drawText(10,yP,selI);yP+=yI;drawText(10,yP,String.format("Camera: (%.1f, %.1f) Zoom: %.2f",camera.getCameraX(),camera.getCameraY(),camera.getZoom()));yP+=yI;
-        drawText(10,yP,"Move: Click | Sel: Mouse | Elev Sel +/-: Q/E | Dig: J");yP+=yI;
-        drawText(10,yP,"Levitate: F | Center Cam: C | Regen Map: G");yP+=yI;yP+=yI;drawText(10,yP,"Inventory:");yP+=yI;
-        java.util.Map<String,Integer> inv=player.getInventory();
-        if(inv.isEmpty()){drawText(20,yP,"- Empty -");}else{for(java.util.Map.Entry<String,Integer>e:inv.entrySet()){drawText(20,yP,"- "+e.getKey()+": "+e.getValue());yP+=yI;}}
 
-        glMatrixMode(GL_MODELVIEW);
-        glPopMatrix();
-        glMatrixMode(GL_PROJECTION);
-        glPopMatrix();
-        glMatrixMode(GL_MODELVIEW);
-    }
-
-    private void drawText(int x, int y, String text) {
-        if(uiFont!=null){
-            uiFont.drawText((float)x,(float)y,text);
+        if (uiFont != null && uiFont.isInitialized()) {
+            // System.out.println("[Renderer DEBUG] Attempting to draw UI text..."); // Already in your log
+            uiFont.drawText(10f, (float)yP, "Player: ("+player.getTileRow()+", "+player.getTileCol()+") Act: "+player.getCurrentAction()+" Dir: "+player.getCurrentDirection()+" F:"+player.getVisualFrameIndex()); yP+=yI;
+            uiFont.drawText(10f, (float)yP, selI); yP+=yI;
+            uiFont.drawText(10f, (float)yP, String.format("Camera: (%.1f, %.1f) Zoom: %.2f",camera.getCameraX(),camera.getCameraY(),camera.getZoom())); yP+=yI;
+            uiFont.drawText(10f, (float)yP, "Move: Click | Elev Sel +/-: Q/E | Dig: J"); yP+=yI;
+            uiFont.drawText(10f, (float)yP, "Levitate: F | Center Cam: C | Regen Map: G"); yP+=yI; yP+=yI;
+            uiFont.drawText(10f, (float)yP, "Inventory:");yP+=yI;
+            java.util.Map<String,Integer> inv=player.getInventory();
+            if(inv.isEmpty()){
+                uiFont.drawText(20f, (float)yP, "- Empty -"); yP+=yI; // Added yP increment
+            } else {
+                for(java.util.Map.Entry<String,Integer>e:inv.entrySet()){
+                    uiFont.drawText(20f, (float)yP, "- "+e.getKey()+": "+e.getValue()); yP+=yI;
+                }
+            }
+            // System.out.println("[Renderer DEBUG] Finished attempting to draw UI text."); // Already in your log
         } else {
-            glDisable(GL_TEXTURE_2D);
-            glColor4f(0.1f,0.1f,0.1f,0.6f);glBegin(GL_QUADS);glVertex2f(x-2,y-2);glVertex2f(x-2+text.length()*8+4,y-2);glVertex2f(x-2+text.length()*8+4,y+15+2);glVertex2f(x-2,y+15+2);glEnd();
-            glColor4f(1.0f,1.0f,1.0f,0.8f);glBegin(GL_LINES);glVertex2f(x,y+15/2.0f);glVertex2f(x+text.length()*8,y+15/2.0f);glEnd();
+            if (uiFont == null) System.err.println("[Renderer WARNING] renderUI: uiFont object is null.");
+            else System.err.println("[Renderer WARNING] renderUI: uiFont is not initialized. Skipping text rendering.");
         }
+        // glDisable(GL_BLEND); // Consider if subsequent rendering needs blend disabled
+        checkError("Renderer: renderUI - after drawing text");
     }
-    // Add a flag to toggle debug drawin
-// ... inside your main render() method, AFTER renderMapBaseGeometry() and AFTER
-// the main loop for rendering sortableItems, but BEFORE renderUI():
-// Or, more effectively, modify renderMapBaseGeometry to also draw these debug outlines.
-
 
     public void cleanup() {
         if(playerTexture!=null)playerTexture.delete();
         if(treeTexture!=null)treeTexture.delete();
         if(uiFont!=null)uiFont.cleanup();
+        if(defaultShader!=null)defaultShader.cleanup();
+        if (mapChunks != null) { for (Chunk chunk : mapChunks) { chunk.cleanup(); } mapChunks.clear(); }
+        if (spriteVaoId != 0) glDeleteVertexArrays(spriteVaoId);
+        if (spriteVboId != 0) glDeleteBuffers(spriteVboId);
+        if (spriteVertexBuffer != null) MemoryUtil.memFree(spriteVertexBuffer);
+        System.out.println("Renderer: cleanup complete.");
+        checkError("Renderer: cleanup");
+    }
+
+    private void checkError(String stage) {
+        int error = glGetError();
+        if (error != GL_NO_ERROR) {
+            String errorMsg = "UNKNOWN GL ERROR (" + String.format("0x%X", error) + ")";
+            switch (error) {
+                case GL_INVALID_ENUM: errorMsg = "GL_INVALID_ENUM"; break;
+                case GL_INVALID_VALUE: errorMsg = "GL_INVALID_VALUE"; break;
+                case GL_INVALID_OPERATION: errorMsg = "GL_INVALID_OPERATION"; break;
+                // case GL_STACK_OVERFLOW: errorMsg = "GL_STACK_OVERFLOW"; break; // If using older GL profile
+                // case GL_STACK_UNDERFLOW: errorMsg = "GL_STACK_UNDERFLOW"; break; // If using older GL profile
+                case GL_OUT_OF_MEMORY: errorMsg = "GL_OUT_OF_MEMORY"; break;
+            }
+            System.err.println("Renderer: OpenGL Error at stage '" + stage + "': " + errorMsg);
+        }
     }
 }
