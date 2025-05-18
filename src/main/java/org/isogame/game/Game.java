@@ -13,6 +13,7 @@ import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
 
 public class Game {
+    private double lastFrameTime; // <--- FIRST DECLARATION (Correct, as a class field)
 
     private final long window;
     private InputHandler inputHandler;
@@ -22,7 +23,12 @@ public class Game {
     private final Map map;
     private final PlayerModel player;
 
-    private double lastFrameTime;
+    // ... existing fields ...
+    private double pseudoTimeOfDay = 0.0; // 0.0 to 1.0, represents a full cycle
+    private final double PSEUDO_DAY_CYCLE_SPEED = 0.005; // Adjust for speed (smaller is slower)
+    // You might want this much smaller for a slow visual change
+    // e.g., 0.0005 for a cycle every ~33 seconds at 60fps
+// ...
 
     public Game(long window, int initialFramebufferWidth, int initialFramebufferHeight) {
         this.window = window;
@@ -57,11 +63,12 @@ public class Game {
 
     private void initOpenGL() {
         System.out.println("Game.initOpenGL() - OpenGL version from context: " + glGetString(GL_VERSION));
-        glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
+        // Initial clear color can be set here, or just rely on renderGame()
+        // glClearColor(0.1f, 0.2f, 0.3f, 1.0f); // Default dark blueish
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        // glEnable(GL_DEPTH_TEST); // Enable if needed for complex 3D overlaps
     }
+
 
     public void gameLoop() {
         initOpenGL();
@@ -83,8 +90,6 @@ public class Game {
     }
 
     private void updateGameLogic(double deltaTime) {
-        // The call to inputHandler.handleContinuousInput(deltaTime) should be here
-        // Ensure that method exists and is public in your InputHandler class
         if (inputHandler != null) {
             inputHandler.handleContinuousInput(deltaTime);
         }
@@ -94,10 +99,54 @@ public class Game {
         if (cameraManager != null) {
             cameraManager.update(deltaTime);
         }
+
+        // Update pseudo time of day
+        pseudoTimeOfDay += deltaTime * PSEUDO_DAY_CYCLE_SPEED;
+        if (pseudoTimeOfDay >= 1.0) {
+            pseudoTimeOfDay -= 1.0; // Loop back
+        }
     }
 
     private void renderGame() {
+        // Calculate sky color based on pseudoTimeOfDay
+        float r, g, b;
+
+        if (pseudoTimeOfDay < 0.25) { // Night (0.0 - 0.25) -> Dark Blue to Black
+            float phase = (float) (pseudoTimeOfDay / 0.25); // 0 to 1
+            r = 0.0f + 0.1f * (1.0f - phase); // From 0.1 (dark blue) to 0.0 (black)
+            g = 0.0f + 0.1f * (1.0f - phase);
+            b = 0.1f + 0.2f * (1.0f - phase); // From 0.3 (dark blue) to 0.1 (darker)
+        } else if (pseudoTimeOfDay < 0.5) { // Dawn/Morning (0.25 - 0.5) -> Dark Blue to Light Blue/Orange
+            float phase = (float) ((pseudoTimeOfDay - 0.25) / 0.25); // 0 to 1
+            // Transition from night blue (0.0, 0.0, 0.1) to a morning sky blue (0.5, 0.7, 1.0)
+            r = 0.0f + 0.5f * phase;
+            g = 0.0f + 0.7f * phase;
+            b = 0.1f + 0.9f * phase;
+            // Optional: Add a hint of orange for sunrise
+            // r += 0.3f * phase * (1.0f - phase); // peaks in middle of sunrise
+        } else if (pseudoTimeOfDay < 0.75) { // Day (0.5 - 0.75) -> Light Blue
+            float phase = (float) ((pseudoTimeOfDay - 0.5) / 0.25); // 0 to 1
+            // Transition from morning sky blue (0.5, 0.7, 1.0) to a slightly different day blue (0.4, 0.6, 0.9)
+            r = 0.5f - 0.1f * phase;
+            g = 0.7f - 0.1f * phase;
+            b = 1.0f - 0.1f * phase;
+        } else { // Dusk/Evening (0.75 - 1.0) -> Light Blue to Orange/Dark Blue
+            float phase = (float) ((pseudoTimeOfDay - 0.75) / 0.25); // 0 to 1
+            // Transition from day blue (0.4, 0.6, 0.9) to night blue (0.0, 0.0, 0.1)
+            // Add some orange/red for sunset
+            r = 0.4f * (1.0f - phase) + 0.6f * phase * (1.0f - phase); // Day blue fades, orange hint
+            g = 0.6f * (1.0f - phase) + 0.2f * phase * (1.0f - phase); // Day blue fades, orange hint
+            b = 0.9f * (1.0f - phase) + 0.1f * (1.0f-phase); // Day blue fades towards darker blue
+        }
+
+        // Clamp colors
+        r = Math.max(0.0f, Math.min(1.0f, r));
+        g = Math.max(0.0f, Math.min(1.0f, g));
+        b = Math.max(0.0f, Math.min(1.0f, b));
+
+        glClearColor(r, g, b, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT); // Add | GL_DEPTH_BUFFER_BIT if depth test enabled
+
         if (renderer != null) {
             renderer.render();
         }

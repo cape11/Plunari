@@ -47,6 +47,7 @@ public class Texture {
         ByteBuffer imageBuffer = null;
         int width = 0, height = 0;
         InputStream sourceStream = null; // Use a different name to avoid conflict if 'source' is used elsewhere or for clarity
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT); // <<< MUST BE GL_REPEAT
 
         System.out.println("Attempting to load texture from classpath: " + resourcePath);
 
@@ -153,6 +154,8 @@ public class Texture {
 
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);    // <<< CRUCIAL FOR VERTICAL SIDE TILING
+
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); // Or GL_LINEAR for smoother scaling
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); // Or GL_LINEAR
 
