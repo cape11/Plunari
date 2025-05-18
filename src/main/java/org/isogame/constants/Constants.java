@@ -4,7 +4,7 @@ public class Constants {
     // Tile dimensions (visual size on screen before zoom)
     public static final int TILE_WIDTH = 64;
     public static final int TILE_HEIGHT = 32; // TILE_WIDTH / 2 for standard isometric
-    public static final int TILE_THICKNESS = 6; // Visual thickness per elevation unit
+    public static final int TILE_THICKNESS = 12; // Visual thickness per elevation unit
     public static final int BASE_THICKNESS = 10; // Visual thickness of the base under lowest land
 
     // Map dimensions
@@ -12,13 +12,13 @@ public class Constants {
     public static final int MAP_HEIGHT = 500;
 
     //  Map generation parameters
-    public static final double NOISE_SCALE = 0.050 ; // Controls "zoom" level of noise pattern
-    public static final int ALTURA_MAXIMA = 33; // Max possible elevation units
+    public static final double NOISE_SCALE = 0.040 ; // Controls "zoom" level of noise pattern
+    public static final int ALTURA_MAXIMA = 35; // Max possible elevation units
     public static final int CHUNK_SIZE_TILES = 32;
 
     // Terrain thresholds (elevation units)
     public static final int NIVEL_MAR = 9;   // Below this is water
-    public static final int NIVEL_ARENA = 11; // Below this is sand
+    public static final int NIVEL_ARENA = 10; // Below this is sand
     public static final int NIVEL_ROCA = 30; // Below this is grass/dirt
     public static final int NIVEL_NIEVE = 33; // Below this is rock/stone, above is snow
 
