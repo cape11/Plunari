@@ -22,25 +22,27 @@ public class CameraManager {
     private final Matrix4f viewMatrix;
     private boolean viewMatrixDirty = true; // Flag to rebuild view matrix when camera state changes
 
+    private final Matrix4f projectionMatrixForCulling = new Matrix4f(); // Store projection matrix from Renderer
+    private final FrustumIntersection frustumIntersection = new FrustumIntersection();
+
+
     public CameraManager(int initialScreenWidthPx, int initialScreenHeightPx, int mapTotalWidthTiles, int mapTotalHeightTiles) {
         this.screenWidthPx = initialScreenWidthPx;
         this.screenHeightPx = initialScreenHeightPx;
 
-        // Initial camera position (center of the map in TILE coordinates)
         this.cameraX = mapTotalWidthTiles / 2.0f;
         this.cameraY = mapTotalHeightTiles / 2.0f;
         this.targetX = this.cameraX;
         this.targetY = this.cameraY;
 
         this.viewMatrix = new Matrix4f();
-        forceUpdateViewMatrix(); // Calculate initial view matrix
+        forceUpdateViewMatrix();
     }
 
     public void update(double deltaTime) {
         boolean needsViewMatrixUpdate = false;
-        // Adjust smoothing factor based on deltaTime
-        float smoothFactor = (float) (CAMERA_SMOOTH_FACTOR * deltaTime * 60.0); // Assuming factor tuned for 60fps
-        smoothFactor = Math.min(1.0f, smoothFactor); // Clamp
+        float smoothFactor = (float) (CAMERA_SMOOTH_FACTOR * deltaTime * 60.0);
+        smoothFactor = Math.min(1.0f, smoothFactor);
 
         if (Math.abs(targetX - cameraX) > 0.01f) {
             cameraX += (targetX - cameraX) * smoothFactor;
@@ -53,10 +55,10 @@ public class CameraManager {
             needsViewMatrixUpdate = true;
         }
 
-        if (Math.abs(targetZoom - zoom) > 0.001f) { // Smaller threshold for zoom
+        if (Math.abs(targetZoom - zoom) > 0.001f) {
             zoom += (targetZoom - zoom) * smoothFactor;
             if (Math.abs(targetZoom - zoom) < 0.001f) zoom = targetZoom;
-            zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.zoom)); // Clamp zoom
+            zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.zoom));
             needsViewMatrixUpdate = true;
         }
 
@@ -68,35 +70,28 @@ public class CameraManager {
     private void updateViewMatrix() {
         viewMatrix.identity();
 
-        // The view matrix effectively does the following:
-        // 1. Translates the "world" so that the point (cameraX_world, cameraY_world) is at the origin.
-        // 2. Applies the isometric projection (to skew the world).
-        // 3. Scales the result by zoom.
-        // 4. Translates the result so the origin (which is now the camera's focus) is at the screen center.
-
-        // Center the final view on screen
+        // This is the original view matrix logic that worked with a screen-space ortho projection.
+        // 1. Translate to screen center. This is where the camera's focus will appear.
         viewMatrix.translate(screenWidthPx / 2.0f, screenHeightPx / 2.0f, 0);
 
-        // Apply zoom (scales everything around the current screen center)
+        // 2. Apply zoom around this screen center.
         viewMatrix.scale(this.zoom);
 
-        // Convert camera's map tile coordinates (cameraX, cameraY) to its corresponding
-        // "world" coordinate if the map origin (0,0) was at world origin (0,0).
-        // This is the point in the world that we want to be at the center of our zoomed view.
+        // 3. Convert camera's map tile coordinates (cameraX, cameraY) to its corresponding
+        //    "world" coordinate (which are already isometric due to how tile vertices are generated).
         float camWorldX = (this.cameraX - this.cameraY) * (TILE_WIDTH / 2.0f);
         float camWorldY = (this.cameraX + this.cameraY) * (TILE_HEIGHT / 2.0f);
 
-        // Translate the world so that camWorldX, camWorldY is now at the origin of the current scaled view.
-        // This makes camWorldX, camWorldY the "center" of what's being viewed before it's shifted to screen center.
+        // 4. Translate the world so that camWorldX, camWorldY (the camera's focus in the world)
+        //    is now at the origin of the current scaled view (which will then be shifted to screen center by step 1).
         viewMatrix.translate(-camWorldX, -camWorldY, 0);
 
         viewMatrixDirty = false;
-        // System.out.println("ViewMatrix updated: cam(" + cameraX + "," + cameraY + "), zoom " + zoom);
     }
 
-    public void forceUpdateViewMatrix() { // Call this after screen resize or explicit camera set
+    public void forceUpdateViewMatrix() {
         viewMatrixDirty = true;
-        getViewMatrix(); // Ensure it's updated immediately
+        getViewMatrix();
     }
 
     public Matrix4f getViewMatrix() {
@@ -106,19 +101,16 @@ public class CameraManager {
         return this.viewMatrix;
     }
 
-    // --- Getters ---
     public float getCameraX() { return cameraX; }
     public float getCameraY() { return cameraY; }
     public float getZoom() { return zoom; }
     public int getScreenWidth() { return screenWidthPx; }
     public int getScreenHeight() { return screenHeightPx; }
 
-    // Effective dimensions for sprites (which are scaled directly, not via view matrix yet)
     public float getEffectiveTileWidth() { return TILE_WIDTH * zoom; }
     public float getEffectiveTileHeight() { return TILE_HEIGHT * zoom; }
     public float getEffectiveTileThickness() { return TILE_THICKNESS * zoom; }
 
-    // --- Setters for camera control ---
     public void setTargetPositionInstantly(float mapX, float mapY) {
         this.targetX = mapX; this.targetY = mapY;
         this.cameraX = mapX; this.cameraY = mapY;
@@ -134,27 +126,33 @@ public class CameraManager {
         if (this.screenWidthPx != widthPx || this.screenHeightPx != heightPx) {
             this.screenWidthPx = widthPx;
             this.screenHeightPx = heightPx;
-            viewMatrixDirty = true; // View matrix depends on screen center
+            viewMatrixDirty = true;
         }
     }
 
-    // --- Coordinate Transformation for Mouse Picking (CPU-side) ---
-    // This calculates the final screen position of a tile considering current camera state.
     public int[] mapToScreenCoordsForPicking(float mapCol, float mapRow, int elevation) {
-        float currentZoom = this.zoom;
+        // This calculation assumes the view matrix transforms world to screen-like coordinates
+        // (scaled by zoom and centered).
+        float currentZoom = this.zoom; // Use the actual current zoom
         float effTileScreenWidth = TILE_WIDTH * currentZoom;
         float effTileScreenHeight = TILE_HEIGHT * currentZoom;
         float effTileThicknessPerElevationUnit = TILE_THICKNESS * currentZoom;
 
+        // Relative world coordinates from camera's focus point
         float worldRelCol = mapCol - this.cameraX;
         float worldRelRow = mapRow - this.cameraY;
 
+        // Isometric projection part (same as before, but now relative to camera focus)
         float screenIsoX = (worldRelCol - worldRelRow) * (effTileScreenWidth / 2.0f);
         float screenIsoY = (worldRelCol + worldRelRow) * (effTileScreenHeight / 2.0f);
+
+        // Elevation offset (screen space)
         float elevationScreenOffset = elevation * effTileThicknessPerElevationUnit;
 
+        // Final screen coordinates: start from screen center, add iso coords, subtract elevation offset
         int finalScreenX = this.screenWidthPx / 2 + (int) screenIsoX;
         int finalScreenY = this.screenHeightPx / 2 + (int) screenIsoY - (int) elevationScreenOffset;
+
         return new int[]{finalScreenX, finalScreenY};
     }
 
@@ -176,6 +174,8 @@ public class CameraManager {
         int mapW = gameMap.getWidth(); int mapH = gameMap.getHeight();
         int pickedC = -1, pickedR = -1;
 
+        // This picking logic might need adjustment if the view matrix changes significantly,
+        // but mapToScreenCoordsForPicking is now consistent with the restored view matrix.
         for (int sum = 0; sum <= mapW + mapH - 2; sum++) {
             for (int r = 0; r <= sum; r++) {
                 int c = sum - r;
@@ -201,41 +201,23 @@ public class CameraManager {
         float dMapCol = (d_mc_minus_mr + d_mc_plus_mr) / 2.0f;
         float dMapRow = (d_mc_plus_mr - d_mc_minus_mr) / 2.0f;
         return new float[]{dMapCol, dMapRow};
-
     }
-    private final Matrix4f projectionMatrixForCulling = new Matrix4f(); // Store projection matrix from Renderer
-    private final FrustumIntersection frustumIntersection = new FrustumIntersection();
 
     public void setProjectionMatrixForCulling(Matrix4f projMatrix) {
         this.projectionMatrixForCulling.set(projMatrix);
     }
 
     public boolean isAABBVisible(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
-        // Update frustum culler with current combined projection-view matrix
-        // The view matrix is already inverted (camera transform).
-        // The projection matrix is set by onResize in Renderer.
-        // Renderer.getProjectionMatrix() * this.getViewMatrix()
         Matrix4f projViewMatrix = new Matrix4f(projectionMatrixForCulling).mul(getViewMatrix());
         frustumIntersection.set(projViewMatrix);
-
-        // Test AABB (Axis-Aligned Bounding Box)
-        // For 2.5D isometric, Z might be tricky or simplified.
-        // Let's assume minZ and maxZ define the "depth" or height range in world units.
-        // For simple flat culling based on X,Y footprint:
-        // return frustumIntersection.testAab(minX, minY, -1.0f, maxX, maxY, 1.0f); // Assuming Z is not critical for culling chunks on a plane
-
-        // If your TILE_THICKNESS and BASE_THICKNESS translate to world depth:
-        // minZ could be -MAX_ELEVATION * TILE_THICKNESS - BASE_THICKNESS (lowest point)
-        // maxZ could be 0 (highest point if elevation is negative Y offset)
-        // This needs careful definition of your world coordinate Z.
-        // For now, let's use a generic Z range that should encompass your geometry.
-        return frustumIntersection.testAab(minX, minY, -ALTURA_MAXIMA * TILE_THICKNESS * 2.0f,
-                maxX, maxY, TILE_HEIGHT); // A generous Z range
+        return frustumIntersection.testAab(minX, minY, minZ, maxX, maxY, maxZ); // Use provided Z
     }
 
     public boolean isChunkVisible(Chunk.BoundingBox chunkBounds) {
-        if (chunkBounds == null) return true; // Failsafe, or handle error
-        return isAABBVisible(chunkBounds.minX, chunkBounds.minY, -ALTURA_MAXIMA * TILE_THICKNESS - BASE_THICKNESS,
-                chunkBounds.maxX, chunkBounds.maxY, TILE_HEIGHT); // Use a Z range based on constants
+        if (chunkBounds == null) return true;
+        // The Z values for chunk culling should now align with the world Y values (our current Z for terrain)
+        // and the projection matrix's zNear/zFar.
+        return isAABBVisible(chunkBounds.minX, chunkBounds.minY, MIN_WORLD_Z_DEPTH, // Use consistent Z range
+                chunkBounds.maxX, chunkBounds.maxY, MAX_WORLD_Z_DEPTH);
     }
 }

@@ -32,6 +32,18 @@ public class Constants {
 
     // Player
     public static final float PLAYER_MOVE_SPEED = 5.0f; // Tiles per second
+    // Estimated Z-depth range of the world (based on world Y-coordinates)
+    // These are rough estimates and might need tuning based on your world's actual Y extents.
+    // Assuming positive Y goes "down" the screen (further into the map for Z).
+    // And negative Y goes "up" the screen (closer for Z).
+    public static final float WORLD_Y_MAX_EXTENT_FOR_Z = (MAP_HEIGHT * TILE_HEIGHT + BASE_THICKNESS) * 2.0f; // Max positive Y
+    public static final float WORLD_Y_MIN_EXTENT_FOR_Z = -(MAP_HEIGHT * TILE_HEIGHT + ALTURA_MAXIMA * TILE_THICKNESS + BASE_THICKNESS) * 2.0f; // Max negative Y (min Y value)
+
+    // zNear and zFar for projection and culling. zNear should be < zFar.
+    // If world Y is directly used as Z for depth, then zNear maps to min_world_y and zFar to max_world_y.
+    public static final float MIN_WORLD_Z_DEPTH = WORLD_Y_MIN_EXTENT_FOR_Z;
+    public static final float MAX_WORLD_Z_DEPTH = WORLD_Y_MAX_EXTENT_FOR_Z;
+
 
     // Camera
     public static final float CAMERA_PAN_SPEED = 300.0f; // Pixels per second for keyboard pan

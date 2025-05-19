@@ -1,6 +1,6 @@
 package org.isogame.render;
 
-import org.isogame.camera.CameraManager; // Required if TreeData screen anchors were calculated here
+import org.isogame.camera.CameraManager;
 import org.isogame.input.InputHandler;
 import org.isogame.map.Map;
 import org.isogame.tile.Tile;
@@ -23,7 +23,7 @@ public class Chunk {
     private int vertexCount = 0;
 
     private BoundingBox boundingBox;
-    private List<Renderer.TreeData> treesInChunk = new ArrayList<>(); // Store TreeData specific to this chunk
+    private List<Renderer.TreeData> treesInChunk = new ArrayList<>();
 
     public Chunk(int chunkGridX, int chunkGridY, int chunkSizeInTiles) {
         this.chunkGridX = chunkGridX;
@@ -46,25 +46,21 @@ public class Chunk {
         int endTileR = Math.min(startTileR + TILE_SIZE_IN_CHUNK, fullMap.getHeight());
         int endTileC = Math.min(startTileC + TILE_SIZE_IN_CHUNK, fullMap.getWidth());
 
-        treesInChunk.clear(); // Clear previous tree data for this chunk
+        treesInChunk.clear();
 
         int maxTilesInThisChunk = TILE_SIZE_IN_CHUNK * TILE_SIZE_IN_CHUNK;
         int vertsForPedestal = 12;
         int vertsForTopFace = 6;
         int vertsForMaxElevatedSides = ALTURA_MAXIMA * 12;
         int estimatedMaxVertsPerTile_Updated = vertsForPedestal + vertsForTopFace + vertsForMaxElevatedSides;
-        int estimatedMaxGrassDetailVertsPerTile = 0;
-        int bufferCapacityFloats = maxTilesInThisChunk *
-                (estimatedMaxVertsPerTile_Updated + estimatedMaxGrassDetailVertsPerTile) *
-                Renderer.FLOATS_PER_VERTEX_TEXTURED;
-        bufferCapacityFloats = (int) (bufferCapacityFloats * 1.1);
+        int bufferCapacityFloats = maxTilesInThisChunk * estimatedMaxVertsPerTile_Updated * Renderer.FLOATS_PER_VERTEX_TEXTURED;
+        bufferCapacityFloats = (int) (bufferCapacityFloats * 1.2);
 
         FloatBuffer chunkData = null;
         try {
             chunkData = MemoryUtil.memAllocFloat(bufferCapacityFloats);
         } catch (OutOfMemoryError e) {
-            System.err.println("Chunk: CRITICAL - OutOfMemoryError allocating FloatBuffer for chunk ("+chunkGridX+","+chunkGridY+") with capacity: " + bufferCapacityFloats + " floats.");
-            System.err.println("Max tiles: " + maxTilesInThisChunk + ", Est. verts/tile: " + estimatedMaxVertsPerTile_Updated);
+            System.err.println("Chunk OOM: " + bufferCapacityFloats);
             throw e;
         }
 
@@ -79,24 +75,13 @@ public class Chunk {
                 if (fullMap.isValid(actualR, actualC)) {
                     Tile tile = fullMap.getTile(actualR, actualC);
                     if (tile != null) {
-                        int vertsAddedThisTile = rendererInstance.addSingleTileVerticesToBuffer_WorldSpace_ForChunk(
+                        this.vertexCount += rendererInstance.addSingleTileVerticesToBuffer_WorldSpace_ForChunk(
                                 actualR, actualC, tile,
                                 (inputHandler != null && actualR == inputHandler.getSelectedRow() && actualC == inputHandler.getSelectedCol()),
-                                chunkData,
-                                currentChunkBounds
-                        );
-                        this.vertexCount += vertsAddedThisTile;
+                                chunkData, currentChunkBounds);
 
-                        // Collect TreeData for this chunk
                         if (tile.getTreeType() != Tile.TreeVisualType.NONE && tile.getType() != Tile.TileType.WATER) {
-                            // TreeData now only stores model data (type, map coords, elevation)
                             treesInChunk.add(new Renderer.TreeData(tile.getTreeType(), (float)actualC, (float)actualR, tile.getElevation()));
-                        }
-
-                        if (tile.getType() == Tile.TileType.GRASS && tile.getTreeType() == Tile.TreeVisualType.NONE) {
-                            this.vertexCount += rendererInstance.addGrassVerticesForTile_WorldSpace_ForChunk(
-                                    actualR, actualC, tile, chunkData,
-                                    currentChunkBounds);
                         }
                     }
                 }
@@ -104,19 +89,18 @@ public class Chunk {
         }
 
         this.boundingBox = new BoundingBox(currentChunkBounds[0], currentChunkBounds[1], currentChunkBounds[2], currentChunkBounds[3]);
-
         chunkData.flip();
+
         if (this.vertexCount > 0) {
             glBindVertexArray(vaoId);
             glBindBuffer(GL_ARRAY_BUFFER, vboId);
             glBufferData(GL_ARRAY_BUFFER, chunkData, GL_STATIC_DRAW);
 
-            int stride = Renderer.FLOATS_PER_VERTEX_TEXTURED * Float.BYTES;
-            glVertexAttribPointer(0, 2, GL_FLOAT, false, stride, 0L);
+            glVertexAttribPointer(0, Renderer.POSITION_COMPONENT_COUNT, GL_FLOAT, false, Renderer.STRIDE_TEXTURED, Renderer.POSITION_OFFSET);
             glEnableVertexAttribArray(0);
-            glVertexAttribPointer(1, 4, GL_FLOAT, false, stride, 2 * Float.BYTES);
+            glVertexAttribPointer(1, Renderer.COLOR_COMPONENT_COUNT, GL_FLOAT, false, Renderer.STRIDE_TEXTURED, Renderer.COLOR_OFFSET);
             glEnableVertexAttribArray(1);
-            glVertexAttribPointer(2, 2, GL_FLOAT, false, stride, (2 + 4) * Float.BYTES);
+            glVertexAttribPointer(2, Renderer.TEXCOORD_COMPONENT_COUNT, GL_FLOAT, false, Renderer.STRIDE_TEXTURED, Renderer.TEXCOORD_OFFSET);
             glEnableVertexAttribArray(2);
 
             glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -130,45 +114,22 @@ public class Chunk {
     }
 
     public void render() {
-        if (vaoId != 0 && vertexCount > 0) {
-            glBindVertexArray(vaoId);
-            glDrawArrays(GL_TRIANGLES, 0, vertexCount);
-        }
+        if (vaoId != 0 && vertexCount > 0) { glBindVertexArray(vaoId); glDrawArrays(GL_TRIANGLES, 0, vertexCount); }
     }
-
     public void cleanup() {
-        if (vaoId != 0) {
-            glDeleteVertexArrays(vaoId);
-            vaoId = 0;
-        }
-        if (vboId != 0) {
-            glDeleteBuffers(vboId);
-            vboId = 0;
-        }
-        vertexCount = 0;
-        treesInChunk.clear();
+        if (vaoId != 0) glDeleteVertexArrays(vaoId); if (vboId != 0) glDeleteBuffers(vboId);
+        vaoId = 0; vboId = 0; vertexCount = 0; treesInChunk.clear();
     }
-
     public static class BoundingBox {
         public float minX, minY, maxX, maxY;
-        public BoundingBox(float minX, float minY, float maxX, float maxY) {
-            this.minX = minX; this.minY = minY; this.maxX = maxX; this.maxY = maxY;
-        }
+        public BoundingBox(float minX, float minY, float maxX, float maxY) { this.minX = minX; this.minY = minY; this.maxX = maxX; this.maxY = maxY; }
     }
-
     public BoundingBox getBoundingBox() {
-        if (this.boundingBox != null && this.vertexCount > 0) {
-            return this.boundingBox;
-        }
-        float worldChunkOriginX = (chunkGridX * TILE_SIZE_IN_CHUNK - chunkGridY * TILE_SIZE_IN_CHUNK) * (TILE_WIDTH / 2.0f);
-        float worldChunkOriginY = (chunkGridX * TILE_SIZE_IN_CHUNK + chunkGridY * TILE_SIZE_IN_CHUNK) * (TILE_HEIGHT / 2.0f);
+        if (this.boundingBox != null && this.vertexCount > 0) return this.boundingBox;
+        float worldChunkOriginX = (chunkGridX*TILE_SIZE_IN_CHUNK - chunkGridY*TILE_SIZE_IN_CHUNK) * (TILE_WIDTH/2.0f);
+        float worldChunkOriginY = (chunkGridX*TILE_SIZE_IN_CHUNK + chunkGridY*TILE_SIZE_IN_CHUNK) * (TILE_HEIGHT/2.0f);
         float chunkSpanX = TILE_SIZE_IN_CHUNK * TILE_WIDTH;
         float chunkSpanY = TILE_SIZE_IN_CHUNK * TILE_HEIGHT + ALTURA_MAXIMA * TILE_THICKNESS;
-        return new BoundingBox(
-                worldChunkOriginX - chunkSpanX / 2,
-                worldChunkOriginY - chunkSpanY,
-                worldChunkOriginX + chunkSpanX / 2,
-                worldChunkOriginY
-        );
+        return new BoundingBox(worldChunkOriginX - chunkSpanX/2, worldChunkOriginY - chunkSpanY, worldChunkOriginX + chunkSpanX/2, worldChunkOriginY);
     }
 }
