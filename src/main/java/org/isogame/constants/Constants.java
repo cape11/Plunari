@@ -6,7 +6,9 @@ public class Constants {
     public static final int TILE_HEIGHT = 32; // TILE_WIDTH / 2 for standard isometric
     public static final int TILE_THICKNESS = 12; // Visual thickness per elevation unit
     public static final int BASE_THICKNESS = 10; // Visual thickness of the base under lowest land
-
+    // In Constants.java
+    public static final float PLAYER_WORLD_RENDER_WIDTH = TILE_WIDTH * 0.75f; // Example: 75% of a tile width
+    public static final float PLAYER_WORLD_RENDER_HEIGHT = TILE_HEIGHT * 1.25f; // Example: Taller than a tile height
     // Map dimensions
     public static final int MAP_WIDTH = 500; // Reduced size for faster generation/rendering initially
     public static final int MAP_HEIGHT = 500;
@@ -25,6 +27,9 @@ public class Constants {
     // Window size
     public static final int WIDTH = 1280; // Slightly larger default window
     public static final int HEIGHT = 720;
+
+
+    public static final float DEPTH_SORT_FACTOR = 0.1f; // Adjust as needed
 
     // Game Loop
     public static final double TARGET_FPS = 60.0;

@@ -49,15 +49,17 @@ public class Chunk {
         treesInChunk.clear(); // Clear previous tree data for this chunk
 
         int maxTilesInThisChunk = TILE_SIZE_IN_CHUNK * TILE_SIZE_IN_CHUNK;
-        int vertsForPedestal = 12;
-        int vertsForTopFace = 6;
-        int vertsForMaxElevatedSides = ALTURA_MAXIMA * 12;
+        int vertsForPedestal = 12; // 2 sides * 2 triangles/side * 3 verts/triangle
+        int vertsForTopFace = 6;   // 1 diamond top * 2 triangles/diamond * 3 verts/triangle
+        int vertsForMaxElevatedSides = ALTURA_MAXIMA * 12; // Max elevation * 2 sides/elev * 2 triangles/side * 3 verts/triangle
         int estimatedMaxVertsPerTile_Updated = vertsForPedestal + vertsForTopFace + vertsForMaxElevatedSides;
-        int estimatedMaxGrassDetailVertsPerTile = 0;
+        int estimatedMaxGrassDetailVertsPerTile = 0; // Assuming no grass detail for now
+
+        // Use Renderer.FLOATS_PER_VERTEX_TERRAIN_TEXTURED for terrain chunks
         int bufferCapacityFloats = maxTilesInThisChunk *
                 (estimatedMaxVertsPerTile_Updated + estimatedMaxGrassDetailVertsPerTile) *
-                Renderer.FLOATS_PER_VERTEX_TEXTURED;
-        bufferCapacityFloats = (int) (bufferCapacityFloats * 1.1);
+                Renderer.FLOATS_PER_VERTEX_TERRAIN_TEXTURED; // Corrected constant
+        bufferCapacityFloats = (int) (bufferCapacityFloats * 1.1); // Add some slack
 
         FloatBuffer chunkData = null;
         try {
@@ -69,7 +71,7 @@ public class Chunk {
         }
 
         this.vertexCount = 0;
-        float[] currentChunkBounds = new float[]{Float.MAX_VALUE, Float.MAX_VALUE, Float.MIN_VALUE, Float.MIN_VALUE};
+        float[] currentChunkBounds = new float[]{Float.MAX_VALUE, Float.MAX_VALUE, Float.MIN_VALUE, Float.MIN_VALUE}; // minX, minY, maxX, maxY
 
         for (int r_local = 0; r_local < (endTileR - startTileR); r_local++) {
             for (int c_local = 0; c_local < (endTileC - startTileC); c_local++) {
@@ -89,10 +91,10 @@ public class Chunk {
 
                         // Collect TreeData for this chunk
                         if (tile.getTreeType() != Tile.TreeVisualType.NONE && tile.getType() != Tile.TileType.WATER) {
-                            // TreeData now only stores model data (type, map coords, elevation)
                             treesInChunk.add(new Renderer.TreeData(tile.getTreeType(), (float)actualC, (float)actualR, tile.getElevation()));
                         }
 
+                        // Grass detail rendering (currently placeholder in Renderer)
                         if (tile.getType() == Tile.TileType.GRASS && tile.getTreeType() == Tile.TreeVisualType.NONE) {
                             this.vertexCount += rendererInstance.addGrassVerticesForTile_WorldSpace_ForChunk(
                                     actualR, actualC, tile, chunkData,
@@ -111,17 +113,25 @@ public class Chunk {
             glBindBuffer(GL_ARRAY_BUFFER, vboId);
             glBufferData(GL_ARRAY_BUFFER, chunkData, GL_STATIC_DRAW);
 
-            int stride = Renderer.FLOATS_PER_VERTEX_TEXTURED * Float.BYTES;
-            glVertexAttribPointer(0, 2, GL_FLOAT, false, stride, 0L);
+            // Stride for terrain vertices (pos3, color4, uv2)
+            int stride = Renderer.FLOATS_PER_VERTEX_TERRAIN_TEXTURED * Float.BYTES;
+
+            // Position attribute (vec3: worldX, worldY, worldZ)
+            glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, 0L);
             glEnableVertexAttribArray(0);
-            glVertexAttribPointer(1, 4, GL_FLOAT, false, stride, 2 * Float.BYTES);
+
+            // Color attribute (vec4: r,g,b,a) - offset after 3 position floats
+            glVertexAttribPointer(1, 4, GL_FLOAT, false, stride, 3 * Float.BYTES);
             glEnableVertexAttribArray(1);
-            glVertexAttribPointer(2, 2, GL_FLOAT, false, stride, (2 + 4) * Float.BYTES);
+
+            // Texture coordinate attribute (vec2: u,v) - offset after 3 pos + 4 color floats
+            glVertexAttribPointer(2, 2, GL_FLOAT, false, stride, (3 + 4) * Float.BYTES);
             glEnableVertexAttribArray(2);
 
             glBindBuffer(GL_ARRAY_BUFFER, 0);
             glBindVertexArray(0);
         } else {
+            // If no vertices, still set buffer data to 0 to clear previous data if any
             glBindBuffer(GL_ARRAY_BUFFER, vboId);
             glBufferData(GL_ARRAY_BUFFER, 0, GL_STATIC_DRAW);
             glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -157,18 +167,22 @@ public class Chunk {
     }
 
     public BoundingBox getBoundingBox() {
+        // Return the calculated bounding box if available and valid
         if (this.boundingBox != null && this.vertexCount > 0) {
             return this.boundingBox;
         }
+        // Fallback: rough estimate if detailed bounds not calculated (e.g., empty chunk)
+        // This might happen if uploadGeometry resulted in 0 vertices.
         float worldChunkOriginX = (chunkGridX * TILE_SIZE_IN_CHUNK - chunkGridY * TILE_SIZE_IN_CHUNK) * (TILE_WIDTH / 2.0f);
         float worldChunkOriginY = (chunkGridX * TILE_SIZE_IN_CHUNK + chunkGridY * TILE_SIZE_IN_CHUNK) * (TILE_HEIGHT / 2.0f);
-        float chunkSpanX = TILE_SIZE_IN_CHUNK * TILE_WIDTH;
-        float chunkSpanY = TILE_SIZE_IN_CHUNK * TILE_HEIGHT + ALTURA_MAXIMA * TILE_THICKNESS;
+        // A very rough estimate of the chunk's span in world coordinates
+        float chunkSpanX = TILE_SIZE_IN_CHUNK * TILE_WIDTH; // Max width if all tiles aligned
+        float chunkSpanY = TILE_SIZE_IN_CHUNK * TILE_HEIGHT + ALTURA_MAXIMA * TILE_THICKNESS; // Max height
         return new BoundingBox(
-                worldChunkOriginX - chunkSpanX / 2,
+                worldChunkOriginX - chunkSpanX, // More generous bounds for fallback
                 worldChunkOriginY - chunkSpanY,
-                worldChunkOriginX + chunkSpanX / 2,
-                worldChunkOriginY
+                worldChunkOriginX + chunkSpanX,
+                worldChunkOriginY + chunkSpanY
         );
     }
 }
