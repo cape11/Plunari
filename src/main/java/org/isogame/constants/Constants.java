@@ -1,35 +1,33 @@
 package org.isogame.constants;
 
 public class Constants {
-    // Tile dimensions (visual size on screen before zoom)
+    // Tile dimensions
     public static final int TILE_WIDTH = 64;
-    public static final int TILE_HEIGHT = 32; // TILE_WIDTH / 2 for standard isometric
-    public static final int TILE_THICKNESS = 12; // Visual thickness per elevation unit
-    public static final int BASE_THICKNESS = 10; // Visual thickness of the base under lowest land
-    // In Constants.java
-    public static final float PLAYER_WORLD_RENDER_WIDTH = TILE_WIDTH * 0.75f; // Example: 75% of a tile width
-    public static final float PLAYER_WORLD_RENDER_HEIGHT = TILE_HEIGHT * 1.25f; // Example: Taller than a tile height
+    public static final int TILE_HEIGHT = 32;
+    public static final int TILE_THICKNESS = 12;
+    public static final int BASE_THICKNESS = 10;
+    public static final float PLAYER_WORLD_RENDER_WIDTH = TILE_WIDTH * 0.75f;
+    public static final float PLAYER_WORLD_RENDER_HEIGHT = TILE_HEIGHT * 1.25f;
+
     // Map dimensions
-    public static final int MAP_WIDTH = 500; // Reduced size for faster generation/rendering initially
-    public static final int MAP_HEIGHT = 500;
+    public static final int MAP_WIDTH = 100; // Adjusted for potentially faster light calcs during dev
+    public static final int MAP_HEIGHT = 100; // Adjusted
+    public static final int CHUNK_SIZE_TILES = 16; // Adjusted for more granular updates
 
-    //  Map generation parameters
-    public static final double NOISE_SCALE = 0.020 ; // Controls "zoom" level of noise pattern
-    public static final int ALTURA_MAXIMA = 35; // Max possible elevation units
-    public static final int CHUNK_SIZE_TILES = 32;
-
-    // Terrain thresholds (elevation units)
-    public static final int NIVEL_MAR = 9;   // Below this is water
-    public static final int NIVEL_ARENA = 10; // Below this is sand
-    public static final int NIVEL_ROCA = 30; // Below this is grass/dirt
-    public static final int NIVEL_NIEVE = 33; // Below this is rock/stone, above is snow
+    // Map generation
+    public static final double NOISE_SCALE = 0.01;
+    public static final int ALTURA_MAXIMA = 35;
+    public static final int NIVEL_MAR = 9;
+    public static final int NIVEL_ARENA = 10;
+    public static final int NIVEL_ROCA = 30;
+    public static final int NIVEL_NIEVE = 33;
 
     // Window size
-    public static final int WIDTH = 1280; // Slightly larger default window
+    public static final int WIDTH = 1280;
     public static final int HEIGHT = 720;
 
-
-    public static final float DEPTH_SORT_FACTOR = 0.1f; // Adjust as needed
+    // Rendering
+    public static final float DEPTH_SORT_FACTOR = 0.1f;
 
     // Game Loop
     public static final double TARGET_FPS = 60.0;
@@ -39,18 +37,26 @@ public class Constants {
     public static final float PLAYER_MOVE_SPEED = 5.0f; // Tiles per second
 
     // Camera
-    public static final float CAMERA_PAN_SPEED = 300.0f; // Pixels per second for keyboard pan
-    public static final float CAMERA_ZOOM_SPEED = 0.1f; // Amount per scroll tick
-    public static final float MIN_ZOOM = 0.5f;
-    public static final float MAX_ZOOM = 3.0f;
-    public static final float CAMERA_SMOOTH_FACTOR = 0.15f; // For smooth following/movement (0-1)
+    public static final float CAMERA_PAN_SPEED = 300.0f;
+    public static final float CAMERA_ZOOM_SPEED = 0.1f;
+    public static final float MIN_ZOOM = 0.25f; // Allow more zoom out
+    public static final float MAX_ZOOM = 4.0f;  // Allow more zoom in
+    public static final float CAMERA_SMOOTH_FACTOR = 0.15f;
 
-    // Resource Types
+    // Resources
     public static final String RESOURCE_DIRT = "Dirt";
     public static final String RESOURCE_STONE = "Stone";
-    public static final String RESOURCE_SAND = "Sand"; // If you want to collect sand
+    public static final String RESOURCE_SAND = "Sand";
 
     // Interaction
-    public static final int MAX_INTERACTION_DISTANCE = 1; // How many tiles away player can interact
+    public static final int MAX_INTERACTION_DISTANCE = 1;
 
+    // --- Lighting Constants ---
+    public static final int MAX_LIGHT_LEVEL = 15;       // Max possible light value
+    public static final int TORCH_LIGHT_LEVEL = 14;     // Light emitted by a torch
+    public static final int SKY_LIGHT_DAY = 15;         // Sky light level during the day
+    public static final int SKY_LIGHT_NIGHT = 4;        // Sky light level at night (moonlight)
+    public static final int LIGHT_PROPAGATION_COST = 1; // How much light decreases per tile
+    public static final float MIN_AMBIENT_LIGHT_FACTOR = 0.2f; // Minimum light in shader even at light level 0
+    // to prevent pure black.
 }

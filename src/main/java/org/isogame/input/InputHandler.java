@@ -1,4 +1,3 @@
-// InputHandler.java
 package org.isogame.input;
 
 import org.isogame.camera.CameraManager;
@@ -8,7 +7,7 @@ import org.isogame.map.Map;
 import org.isogame.tile.Tile;
 
 import static org.lwjgl.glfw.GLFW.*;
-import static org.isogame.constants.Constants.*; // Ensure this line imports all static fields from Constants
+import static org.isogame.constants.Constants.*;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -19,7 +18,7 @@ public class InputHandler {
     private final CameraManager cameraManager;
     private final Map map;
     private final PlayerModel player;
-    private final Game gameInstance;
+    private final Game gameInstance; // To call game methods like requestTileRenderUpdate
 
     public int selectedRow = 0;
     public int selectedCol = 0;
@@ -30,17 +29,15 @@ public class InputHandler {
         this.cameraManager = cameraManager;
         this.map = map;
         this.player = player;
+        this.gameInstance = gameInstance; // Store Game instance
         if (player != null) {
             this.selectedRow = player.getTileRow();
             this.selectedCol = player.getTileCol();
-        } else {
-            this.selectedRow = 0;
-            this.selectedCol = 0;
         }
-        this.gameInstance = gameInstance;
     }
 
-    public void registerCallbacks(Runnable onGenerateMap) {
+    // The Runnable onGenerateMap is now requestFullMapRegeneration in Game
+    public void registerCallbacks(Runnable requestFullMapRegenerationCallback) {
         glfwSetKeyCallback(window, (win, key, scancode, action, mods) -> {
             if (key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE) {
                 glfwSetWindowShouldClose(window, true);
@@ -48,40 +45,45 @@ public class InputHandler {
             }
             if (action == GLFW_PRESS) {
                 keysDown.add(key);
-                handleSingleKeyPress(key, onGenerateMap);
+                handleSingleKeyPress(key, requestFullMapRegenerationCallback);
             } else if (action == GLFW_RELEASE) {
                 keysDown.remove(key);
             }
         });
     }
 
-    private void handleSingleKeyPress(int key, Runnable onGenerateMap) {
+    private void handleSingleKeyPress(int key, Runnable requestFullMapRegenerationCallback) {
         switch (key) {
-            case GLFW_KEY_G:
-                if (onGenerateMap != null) {
-                    onGenerateMap.run();
+            case GLFW_KEY_G: // Regenerate map
+                if (requestFullMapRegenerationCallback != null) {
+                    requestFullMapRegenerationCallback.run();
                 }
                 break;
-            case GLFW_KEY_F:
+            case GLFW_KEY_F: // Player levitate
                 if (player != null) player.toggleLevitate();
                 break;
-            case GLFW_KEY_C:
+            case GLFW_KEY_C: // Center camera on player
                 if (player != null && cameraManager != null) {
                     cameraManager.setTargetPosition(player.getMapCol(), player.getMapRow());
                 }
                 break;
-            case GLFW_KEY_Q:
+            case GLFW_KEY_Q: // Modify selected tile elevation down
                 modifySelectedTileElevation(-1);
                 break;
-            case GLFW_KEY_E:
+            case GLFW_KEY_E: // Modify selected tile elevation up
                 modifySelectedTileElevation(1);
                 break;
-            case GLFW_KEY_J:
+            case GLFW_KEY_J: // Perform dig action
                 performDigAction();
                 break;
-            case GLFW_KEY_F5: // New case for F5
+            case GLFW_KEY_L: // Toggle torch at selected tile
+                if (map != null) {
+                    map.toggleTorch(selectedRow, selectedCol);
+                    // LightManager will mark chunks dirty, Game loop will handle renderer update
+                }
+                break;
+            case GLFW_KEY_F5:
                 if (gameInstance != null) {
-                    // Assuming gameInstance is your Game class instance
                     gameInstance.toggleShowDebugOverlay();
                 }
                 break;
@@ -90,58 +92,49 @@ public class InputHandler {
 
     public void handleContinuousInput(double deltaTime) {
         if (cameraManager == null) return;
-
         float camPanSpeed = CAMERA_PAN_SPEED * (float) deltaTime;
-        float effectiveTileHeight = cameraManager.getEffectiveTileHeight();
-        float effectiveTileWidth = cameraManager.getEffectiveTileWidth();
-
-        if (keysDown.contains(GLFW_KEY_UP)) {
-            cameraManager.moveTargetPosition(0, -camPanSpeed / (effectiveTileHeight != 0 ? effectiveTileHeight : TILE_HEIGHT));
-        }
-        if (keysDown.contains(GLFW_KEY_DOWN)) {
-            cameraManager.moveTargetPosition(0, camPanSpeed / (effectiveTileHeight != 0 ? effectiveTileHeight : TILE_HEIGHT));
-        }
-        if (keysDown.contains(GLFW_KEY_LEFT)) {
-            cameraManager.moveTargetPosition(-camPanSpeed / (effectiveTileWidth != 0 ? effectiveTileWidth : TILE_WIDTH), 0);
-        }
-        if (keysDown.contains(GLFW_KEY_RIGHT)) {
-            cameraManager.moveTargetPosition(camPanSpeed / (effectiveTileWidth != 0 ? effectiveTileWidth : TILE_WIDTH), 0);
-        }
+        // Using screenVectorToMapVector for panning for more intuitive control relative to view
+        if (keysDown.contains(GLFW_KEY_UP)) cameraManager.moveTargetPosition(cameraManager.screenVectorToMapVector(0, -camPanSpeed)[0], cameraManager.screenVectorToMapVector(0, -camPanSpeed)[1]);
+        if (keysDown.contains(GLFW_KEY_DOWN)) cameraManager.moveTargetPosition(cameraManager.screenVectorToMapVector(0, camPanSpeed)[0], cameraManager.screenVectorToMapVector(0, camPanSpeed)[1]);
+        if (keysDown.contains(GLFW_KEY_LEFT)) cameraManager.moveTargetPosition(cameraManager.screenVectorToMapVector(-camPanSpeed, 0)[0], cameraManager.screenVectorToMapVector(-camPanSpeed, 0)[1]);
+        if (keysDown.contains(GLFW_KEY_RIGHT)) cameraManager.moveTargetPosition(cameraManager.screenVectorToMapVector(camPanSpeed, 0)[0], cameraManager.screenVectorToMapVector(camPanSpeed, 0)[1]);
     }
 
     private void performDigAction() {
         if (player == null || map == null || gameInstance == null) return;
-
         int playerR = player.getTileRow();
         int playerC = player.getTileCol();
         PlayerModel.Direction facingDir = player.getCurrentDirection();
-        int targetR = playerR;
-        int targetC = playerC;
+        int targetR = playerR, targetC = playerC;
 
         switch (facingDir) {
-            case NORTH: targetR -= MAX_INTERACTION_DISTANCE; break;
-            case SOUTH: targetR += MAX_INTERACTION_DISTANCE; break;
-            case WEST:  targetC -= MAX_INTERACTION_DISTANCE; break;
-            case EAST:  targetC += MAX_INTERACTION_DISTANCE; break;
+            case NORTH: targetR--; break;
+            case SOUTH: targetR++; break;
+            case WEST:  targetC--; break;
+            case EAST:  targetC++; break;
         }
+
+        if (Math.abs(targetR - playerR) + Math.abs(targetC - playerC) > MAX_INTERACTION_DISTANCE) return;
+
 
         if (map.isValid(targetR, targetC)) {
             Tile targetTile = map.getTile(targetR, targetC);
-            if (targetTile != null && targetTile.getElevation() >= NIVEL_MAR) {
+            if (targetTile != null && targetTile.getElevation() >= NIVEL_MAR) { // Can only dig land
                 Tile.TileType originalType = targetTile.getType();
                 int originalElevation = targetTile.getElevation();
-                int newElevation = originalElevation - 1;
-                if (newElevation < 0) newElevation = 0;
+                int newElevation = Math.max(0, originalElevation - 1); // Dig one level down, not below 0
 
                 if (originalElevation != newElevation) {
-                    map.setTileElevation(targetR, targetC, newElevation);
-                    this.gameInstance.requestTileRenderUpdate(targetR, targetC);
+                    map.setTileElevation(targetR, targetC, newElevation); // This now triggers light updates via Map/LightManager
 
+                    // Add resource based on original type
                     switch (originalType) {
                         case GRASS: player.addResource(RESOURCE_DIRT, 1); break;
                         case SAND: player.addResource(RESOURCE_SAND, 1); break;
                         case ROCK: player.addResource(RESOURCE_STONE, 1); break;
+                        // No resources from SNOW or WATER when digging
                     }
+                    // Game loop handles dirty chunk updates from LightManager
                 }
             }
         }
@@ -149,57 +142,35 @@ public class InputHandler {
 
     private void modifySelectedTileElevation(int amount) {
         if (map == null || gameInstance == null) return;
-
         Tile tile = map.getTile(selectedRow, selectedCol);
         if (tile != null) {
             int currentElevation = tile.getElevation();
             int newElevation = Math.max(0, Math.min(ALTURA_MAXIMA, currentElevation + amount));
-
             if (newElevation != currentElevation) {
-                map.setTileElevation(selectedRow, selectedCol, newElevation);
-                this.gameInstance.requestTileRenderUpdate(selectedRow, selectedCol);
+                map.setTileElevation(selectedRow, selectedCol, newElevation); // Triggers light updates
+                // Game loop handles dirty chunk updates from LightManager
             }
         }
     }
 
     public void setSelectedTile(int col, int row) {
-        if (map == null || !map.isValid(row, col)) {
-            return;
-        }
+        if (map == null || !map.isValid(row, col)) return;
 
         int oldSelectedRow = this.selectedRow;
         int oldSelectedCol = this.selectedCol;
-
-        boolean selectionActuallyChanged = (this.selectedRow != row || this.selectedCol != col);
-
         this.selectedRow = row;
         this.selectedCol = col;
 
-        if (selectionActuallyChanged && this.gameInstance != null) {
-            // Determine chunk coordinates for old and new selections
-            // *** CHUNK_SIZE_TILES is used here ***
-            int oldChunkR = oldSelectedRow / CHUNK_SIZE_TILES; // Make sure CHUNK_SIZE_TILES is imported from Constants
-            int oldChunkC = oldSelectedCol / CHUNK_SIZE_TILES; // Make sure CHUNK_SIZE_TILES is imported from Constants
-            int newChunkR = this.selectedRow / CHUNK_SIZE_TILES; // Make sure CHUNK_SIZE_TILES is imported from Constants
-            int newChunkC = this.selectedCol / CHUNK_SIZE_TILES; // Make sure CHUNK_SIZE_TILES is imported from Constants
-
+        // Request render updates for old and new selected tiles if they changed,
+        // primarily for the selection highlight itself. Lighting updates are handled by LightManager.
+        if (gameInstance != null) {
             if (map.isValid(oldSelectedRow, oldSelectedCol)) {
-                System.out.println("InputHandler: Requesting update for previously selected tile's chunk: R" + oldSelectedRow + ", C" + oldSelectedCol);
-                this.gameInstance.requestTileRenderUpdate(oldSelectedRow, oldSelectedCol);
+                gameInstance.requestTileRenderUpdate(oldSelectedRow, oldSelectedCol);
             }
-
-            if (oldChunkR != newChunkR || oldChunkC != newChunkC || (oldSelectedRow != this.selectedRow || oldSelectedCol != this.selectedCol)) {
-                System.out.println("InputHandler: Requesting update for newly selected tile's chunk: R" + this.selectedRow + ", C" + this.selectedCol);
-                this.gameInstance.requestTileRenderUpdate(this.selectedRow, this.selectedCol);
-            }
+            gameInstance.requestTileRenderUpdate(this.selectedRow, this.selectedCol);
         }
     }
 
-    public int getSelectedRow() {
-        return selectedRow;
-    }
-
-    public int getSelectedCol() {
-        return selectedCol;
-    }
+    public int getSelectedRow() { return selectedRow; }
+    public int getSelectedCol() { return selectedCol; }
 }
