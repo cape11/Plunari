@@ -15,7 +15,7 @@ public class Constants {
     public static final int CHUNK_SIZE_TILES = 16; // Adjusted for more granular updates
 
     // Map generation
-    public static final double NOISE_SCALE = 0.01;
+    public static final double NOISE_SCALE = 0.04;
     public static final int ALTURA_MAXIMA = 35;
     public static final int NIVEL_MAR = 9;
     public static final int NIVEL_ARENA = 10;
@@ -51,11 +51,15 @@ public class Constants {
     // Interaction
     public static final int MAX_INTERACTION_DISTANCE = 1;
 
+
+
+
     // --- Lighting Constants ---
+
     public static final int MAX_LIGHT_LEVEL = 15;       // Max possible light value
     public static final int TORCH_LIGHT_LEVEL = 14;     // Light emitted by a torch
     public static final int SKY_LIGHT_DAY = 15;         // Sky light level during the day
-    public static final int SKY_LIGHT_NIGHT = 4;        // Sky light level at night (moonlight)
+    public static final int SKY_LIGHT_NIGHT = 3;        // Sky light level at night (moonlight)
     public static final int LIGHT_PROPAGATION_COST = 1; // How much light decreases per tile
     public static final float MIN_AMBIENT_LIGHT_FACTOR = 0.2f; // Minimum light in shader even at light level 0
     // to prevent pure black.

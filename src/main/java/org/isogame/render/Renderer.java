@@ -43,6 +43,7 @@ public class Renderer {
     public static final int FLOATS_PER_VERTEX_TERRAIN_TEXTURED = 10;
     public static final int FLOATS_PER_VERTEX_SPRITE_TEXTURED = 10;
 
+    // Atlas and Color constants
     private static final float ATLAS_TOTAL_WIDTH = 128.0f, ATLAS_TOTAL_HEIGHT = 128.0f;
     private static final float SUB_TEX_WIDTH = 64.0f, SUB_TEX_HEIGHT = 64.0f;
     private static final float GRASS_ATLAS_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, GRASS_ATLAS_V0 = (0*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
@@ -59,7 +60,6 @@ public class Renderer {
     private static final float SNOW_SIDE_ATLAS_U1 = ROCK_ATLAS_U1, SNOW_SIDE_ATLAS_V1 = ROCK_ATLAS_V1;
     private static final float SIDE_TEXTURE_DENSITY_FACTOR = 1.0f;
     private static final float DUMMY_U = 0.0f, DUMMY_V = 0.0f;
-
     private static final float[] SELECTED_TINT = {1.0f, 0.8f, 0.0f, 0.8f};
     private static final float[] WATER_TOP_COLOR = {0.05f, 0.25f, 0.5f, 0.85f};
     private static final float[] SAND_TOP_COLOR = {0.82f,0.7f,0.55f,1f};
@@ -68,6 +68,14 @@ public class Renderer {
     private static final float[] SNOW_TOP_COLOR = {0.95f,0.95f,1.0f,1f};
     private static final float[] DEFAULT_TOP_COLOR = {1f,0f,1f,1f};
     private static final float[] WHITE_TINT = {1.0f, 1.0f, 1.0f, 1.0f};
+
+    // Z-depth offsets (smaller Z values are closer to the camera)
+    private static final float Z_OFFSET_SPRITE_PLAYER = 0.1f;
+    private static final float Z_OFFSET_SPRITE_TREE = 0.1f;
+    private static final float Z_OFFSET_TILE_TOP_SURFACE = 0.0f;
+    private static final float Z_OFFSET_TILE_SIDES = 0.01f;
+    private static final float Z_OFFSET_TILE_PEDESTAL = 0.02f;
+
 
     public static class TreeData {
         Tile.TreeVisualType treeVisualType;
@@ -220,8 +228,9 @@ public class Renderer {
 
         final float tileGridPlaneCenterX = (tileC - tileR) * tileHalfWidth;
         final float tileGridPlaneCenterY = (tileC + tileR) * tileHalfHeight;
-        // Z for tile surfaces: base on row/col, add small elevation component
-        final float currentTileWorldZ = (tileR + tileC) * DEPTH_SORT_FACTOR + (currentTileElevation * 0.001f); // Smaller factor for elevation Z offset
+
+        final float tileBaseZ = (tileR + tileC) * DEPTH_SORT_FACTOR + (currentTileElevation * 0.005f);
+        final float tileTopSurfaceZ = tileBaseZ + Z_OFFSET_TILE_TOP_SURFACE;
 
         final float diamondTopOffsetY = -tileHalfHeight;
         final float diamondLeftOffsetX = -tileHalfWidth;
@@ -236,9 +245,8 @@ public class Renderer {
         float normalizedLightValue = tile.getFinalLightLevel() / (float) MAX_LIGHT_LEVEL;
 
         if (currentTileTopSurfaceType != Tile.TileType.WATER) {
-            // Pedestal Z slightly behind the main tile surface
             verticesAdded += addPedestalSidesToBuffer(
-                    buffer, tileGridPlaneCenterX, tileGridPlaneCenterY, currentTileWorldZ + 0.02f,
+                    buffer, tileGridPlaneCenterX, tileGridPlaneCenterY, tileBaseZ + Z_OFFSET_TILE_PEDESTAL,
                     diamondLeftOffsetX, diamondSideOffsetY, diamondRightOffsetX, diamondBottomOffsetY,
                     sideTintToUse, normalizedLightValue);
         }
@@ -249,15 +257,14 @@ public class Renderer {
         }
         verticesAdded += addTopSurfaceToBuffer(
                 buffer, currentTileTopSurfaceType, isSelected,
-                tileGridPlaneCenterX, currentTileTopSurfaceActualY, currentTileWorldZ,
+                tileGridPlaneCenterX, currentTileTopSurfaceActualY, tileTopSurfaceZ,
                 diamondLeftOffsetX, diamondSideOffsetY, diamondRightOffsetX, diamondTopOffsetY, diamondBottomOffsetY,
                 topSurfaceColor, WHITE_TINT, normalizedLightValue);
 
         if (currentTileElevation > 0 && currentTileTopSurfaceType != Tile.TileType.WATER) {
-            // Elevated sides also use the main tile's Z, or slightly behind its top surface
             verticesAdded += addStratifiedElevatedSidesToBuffer(
                     buffer, currentTileElevation,
-                    tileGridPlaneCenterX, tileGridPlaneCenterY, currentTileWorldZ + 0.01f, // Sides slightly behind top
+                    tileGridPlaneCenterX, tileGridPlaneCenterY, tileBaseZ + Z_OFFSET_TILE_SIDES,
                     diamondLeftOffsetX, diamondSideOffsetY, diamondRightOffsetX, diamondBottomOffsetY,
                     elevationSliceHeight,
                     sideTintToUse, normalizedLightValue);
@@ -343,7 +350,6 @@ public class Renderer {
         }
         return vCount;
     }
-
     private Tile.TileType getMaterialTypeForElevationSlice(int elevationLevel) {
         if (elevationLevel < NIVEL_MAR) return Tile.TileType.WATER;
         if (elevationLevel < NIVEL_ARENA) return Tile.TileType.SAND;
@@ -351,7 +357,6 @@ public class Renderer {
         if (elevationLevel < NIVEL_NIEVE) return Tile.TileType.ROCK;
         return Tile.TileType.SNOW;
     }
-
     private int addStratifiedElevatedSidesToBuffer(FloatBuffer buffer, int totalElev,
                                                    float tileCenterX, float gridPlaneY, float worldZ,
                                                    float dLeftX, float dSideY, float dRightX, float dBottomY,
@@ -393,7 +398,6 @@ public class Renderer {
         }
         return vCount;
     }
-
     private void updateChunkBounds(float[] chunkBounds, float tileCenterX, float tileCenterY, int elev, float elevSliceH, float dLX, float dRX, float dTY, float dBY) {
         float minX = tileCenterX + dLX;
         float maxX = tileCenterX + dRX;
@@ -402,7 +406,6 @@ public class Renderer {
         chunkBounds[0] = Math.min(chunkBounds[0], minX); chunkBounds[1] = Math.min(chunkBounds[1], minY);
         chunkBounds[2] = Math.max(chunkBounds[2], maxX); chunkBounds[3] = Math.max(chunkBounds[3], maxY);
     }
-
     public int addGrassVerticesForTile_WorldSpace_ForChunk(int r,int c,Tile t,FloatBuffer b,float[] bounds){return 0;}
 
     private void collectWorldEntities() {
@@ -418,17 +421,18 @@ public class Renderer {
     }
 
     private int addPlayerVerticesToBuffer_WorldSpace(PlayerModel p, FloatBuffer buffer) {
-        if (playerTexture == null || camera == null || map == null) return 0;
+        if (playerTexture == null || camera == null || map == null || playerTexture.getWidth() == 0) return 0;
         float pR=p.getMapRow(), pC=p.getMapCol();
         Tile tile = map.getTile(p.getTileRow(), p.getTileCol());
         int elev = (tile!=null) ? tile.getElevation() : 0;
         float lightVal = (tile!=null) ? tile.getFinalLightLevel()/(float)MAX_LIGHT_LEVEL : 1.0f;
 
-        float pIsoX=(pC-pR)*(TILE_WIDTH/2.0f); float pIsoY=(pC+pR)*(TILE_HEIGHT/2.0f)-(elev*TILE_THICKNESS);
+        float pIsoX=(pC-pR)*(TILE_WIDTH/2.0f);
+        float pIsoY=(pC+pR)*(TILE_HEIGHT/2.0f)-(elev*TILE_THICKNESS);
 
-        // Adjusted Z calculation for player
-        float tileSurfaceZ = (pR + pC) * DEPTH_SORT_FACTOR + (elev * 0.001f); // Z of the tile surface
-        float playerWorldZ = tileSurfaceZ - 0.1f; // Player is 0.1 units in front of its tile surface
+        // Z for player: based on tile's logical Z, then offset to be in front
+        float tileLogicalZ = (pR + pC) * DEPTH_SORT_FACTOR + (elev * 0.005f);
+        float playerWorldZ = tileLogicalZ + Z_OFFSET_SPRITE_PLAYER;
 
         if(p.isLevitating()) pIsoY -= (Math.sin(p.getLevitateTimer()*5f)*8);
 
@@ -452,27 +456,62 @@ public class Renderer {
     }
 
     private int addTreeVerticesToBuffer_WorldSpace(TreeData tree, FloatBuffer buffer) {
-        if (treeTexture == null || tree.treeVisualType == Tile.TreeVisualType.NONE || camera == null || map == null) return 0;
-        float tR=tree.mapRow, tC=tree.mapCol; int elev=tree.elevation;
-        Tile tile = map.getTile((int)tR, (int)tC);
+        if (treeTexture == null || tree.treeVisualType == Tile.TreeVisualType.NONE || camera == null || map == null || treeTexture.getWidth() == 0) return 0;
+
+        float tR=tree.mapRow, tC=tree.mapCol;
+        int elev=tree.elevation;
+        Tile tile = map.getTile(Math.round(tR), Math.round(tC));
         float lightVal = (tile!=null) ? tile.getFinalLightLevel()/(float)MAX_LIGHT_LEVEL : 1.0f;
 
-        float tIsoX=(tC-tR)*(TILE_WIDTH/2.0f); float tIsoY=(tC+tR)*(TILE_HEIGHT/2.0f)-(elev*TILE_THICKNESS);
-        // Adjusted Z calculation for trees
-        float tileSurfaceZ = (tR + tC) * DEPTH_SORT_FACTOR + (elev * 0.001f); // Z of the tile surface
-        float treeWorldZ = tileSurfaceZ - 0.05f; // Tree is 0.05 units in front of its tile surface
+        float tBaseIsoX=(tC-tR)*(TILE_WIDTH/2.0f);
+        float tBaseIsoY=(tC+tR)*(TILE_HEIGHT/2.0f)-(elev*TILE_THICKNESS);
+
+        float tileLogicalZ = (tR + tC) * DEPTH_SORT_FACTOR + (elev * 0.005f);
+        float treeWorldZ = tileLogicalZ + Z_OFFSET_SPRITE_TREE;
 
         float frameW=0,frameH=0,atlasU0=0,atlasV0=0,rendW,rendH,anchorYOff;
+        float visualIsoOffsetX = 0, visualIsoOffsetY = 0;
+
         switch(tree.treeVisualType){
-            case APPLE_TREE_FRUITING: frameW=90;frameH=130;atlasU0=0;atlasV0=0;rendW=TILE_WIDTH*1.2f;rendH=rendW*(frameH/frameW);anchorYOff=TILE_HEIGHT*0.15f; break;
-            case PINE_TREE_SMALL: frameW=90;frameH=180;atlasU0=90;atlasV0=0;rendW=TILE_WIDTH*1.0f;rendH=rendW*(frameH/frameW);anchorYOff=TILE_HEIGHT*0.1f; break;
-            default: return 0;
+            case APPLE_TREE_FRUITING: // Assuming this is "tree1"
+                frameW=90;frameH=130;atlasU0=0;atlasV0=0;
+                rendW=TILE_WIDTH*1.0f;rendH=rendW*(frameH/frameW);
+                anchorYOff=TILE_HEIGHT*0.15f;
+                break;
+            case PINE_TREE_SMALL: // Another example of "tree1" if you have multiple
+                frameW=90;frameH=130;atlasU0=90;atlasV0=0;
+                rendW=TILE_WIDTH*1.0f;rendH=rendW*(frameH/frameW);
+                anchorYOff=TILE_HEIGHT*0.1f;
+                break;
+            // case PALM_TREE: // Replace PALM_TREE with your actual enum name for the palm
+            //     frameW = 70; frameH = 100; // Example values, replace with your palm's atlas data
+            //     atlasU0 = 190; atlasV0 = 0;  // Example UVs in your treeTexture atlas
+            //     rendW = TILE_WIDTH * 1.0f;
+            //     rendH = rendW * (frameH/frameW);
+            //     anchorYOff = TILE_HEIGHT * 0.45f; // Palm trees often have a taller visual base or trunk bottom
+
+            //     // --- Adjust these offsets by trial and error for PALM_TREE ---
+            //     // If "one up in diagonal" means it appears visually shifted towards smaller screen Y and some X direction:
+            //     // To shift it visually "down" (larger screen Y) and adjust X:
+            //     // visualIsoOffsetY = TILE_HEIGHT * 0.5f; // Roughly one tile step down on Y screen axis
+            //     // visualIsoOffsetX = -TILE_WIDTH * 0.25f; // Example: nudge slightly left on screen
+            //     // System.out.println("Applying custom offset for PALM_TREE");
+            //     break;
+            default:
+                // If you have other tree types that work fine, add their cases or handle them here.
+                // If it's an unknown type, log an error and don't render.
+                // System.err.println("Undefined or unhandled TreeVisualType in Renderer: " + tree.treeVisualType);
+                return 0;
         }
+
+        float tFinalIsoX = tBaseIsoX + visualIsoOffsetX;
+        float tFinalIsoY = tBaseIsoY + visualIsoOffsetY;
+
         float texU0=atlasU0/treeTexture.getWidth(),texV0=atlasV0/treeTexture.getHeight();
         float texU1=(atlasU0+frameW)/treeTexture.getWidth(),texV1=(atlasV0+frameH)/treeTexture.getHeight();
-        float hTW=rendW/2.0f; float yTop=tIsoY-(rendH-anchorYOff),yBot=tIsoY+anchorYOff;
-        float xBL=tIsoX-hTW,yBL=yBot; float xTL=tIsoX-hTW,yTL=yTop;
-        float xTR=tIsoX+hTW,yTR=yTop; float xBR=tIsoX+hTW,yBR=yBot;
+        float hTW=rendW/2.0f; float yTop=tFinalIsoY-(rendH-anchorYOff),yBot=tFinalIsoY+anchorYOff;
+        float xBL=tFinalIsoX-hTW,yBL=yBot; float xTL=tFinalIsoX-hTW,yTL=yTop;
+        float xTR=tFinalIsoX+hTW,yTR=yTop; float xBR=tFinalIsoX+hTW,yBR=yBot;
 
         buffer.put(xTL).put(yTL).put(treeWorldZ).put(WHITE_TINT[0]).put(WHITE_TINT[1]).put(WHITE_TINT[2]).put(WHITE_TINT[3]).put(texU0).put(texV0).put(lightVal);
         buffer.put(xBL).put(yBL).put(treeWorldZ).put(WHITE_TINT[0]).put(WHITE_TINT[1]).put(WHITE_TINT[2]).put(WHITE_TINT[3]).put(texU0).put(texV1).put(lightVal);
@@ -525,7 +564,7 @@ public class Renderer {
                     textureForEntity = playerTexture;
                 } else if (entity instanceof TreeData && treeTexture != null) {
                     verticesAdded = addTreeVerticesToBuffer_WorldSpace((TreeData)entity, spriteVertexBuffer);
-                    textureForEntity = treeTexture;
+                    textureForEntity = treeTexture; // Assuming treeTexture atlas contains all tree sprites
                 }
 
                 if (verticesAdded > 0 && textureForEntity != null) {
@@ -564,7 +603,6 @@ public class Renderer {
         }
         defaultShader.unbind();
     }
-
     public void renderDebugOverlay(float panelX, float panelY, float panelWidth, float panelHeight, List<String> lines) {
         if (uiFont == null || !uiFont.isInitialized()) return;
         glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -573,7 +611,7 @@ public class Renderer {
         defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
         defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
 
-        float[] bgColor = {0.1f, 0.1f, 0.1f, 0.8f}; float z = 0.1f;
+        float[] bgColor = {0.1f, 0.1f, 0.1f, 0.8f}; float z = -1.0f;
         glBindVertexArray(spriteVaoId); glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
         spriteVertexBuffer.clear();
         spriteVertexBuffer.put(panelX).put(panelY).put(z).put(bgColor[0]).put(bgColor[1]).put(bgColor[2]).put(bgColor[3]).put(0f).put(0f).put(1f);
@@ -596,7 +634,6 @@ public class Renderer {
         }
         glEnable(GL_DEPTH_TEST);
     }
-
     public void cleanup() {
         if(playerTexture!=null)playerTexture.delete();
         if(treeTexture!=null)treeTexture.delete();

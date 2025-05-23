@@ -30,7 +30,7 @@ public class Game {
     private final LightManager lightManager; // Added
 
     private double pseudoTimeOfDay = 0.25; // Start in daytime (0.0 to 0.5 is day, 0.5 to 1.0 is night)
-    private final double DAY_NIGHT_CYCLE_SPEED = 0.1; // Slower cycle for testing
+    private final double DAY_NIGHT_CYCLE_SPEED = 0.05; // Slower cycle for testing
     private byte currentGlobalSkyLight;
 
 
