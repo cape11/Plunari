@@ -181,6 +181,7 @@ public class Renderer {
             defaultShader.createUniform("uTextureSampler");
             defaultShader.createUniform("uHasTexture");
             defaultShader.createUniform("uIsFont");
+
         } catch (IOException e) {
             System.err.println("Renderer CRITICAL: Error initializing shaders: " + e.getMessage());
             e.printStackTrace();
@@ -289,8 +290,23 @@ public class Renderer {
     }
 
     private float[] determineTopSurfaceColor(Tile.TileType surfaceType, boolean isSelected) {
-        if (isSelected) return SELECTED_TINT;
-        switch (surfaceType) {
+        if (isSelected) {
+            // Calculate a pulse factor (oscillates between 0.0 and 1.0)
+            // glfwGetTime() gives a continuously increasing time in seconds.
+            // Math.sin creates a wave. We scale and shift it to the 0.0-1.0 range.
+            // The '* 5.0' inside sin() controls the speed of the pulse. Adjust as you like.
+            float pulseFactor = (float) (Math.sin(org.lwjgl.glfw.GLFW.glfwGetTime() * 5.0) + 1.0) / 2.0f;
+
+            // Define how much the alpha should pulse.
+            // Example: Pulse between 60% of original alpha and full original alpha
+            float baseAlpha = SELECTED_TINT[3]; // Original alpha from SELECTED_TINT (e.g., 0.8f)
+            float minPulseAlpha = baseAlpha * 0.6f; // e.g., 0.8f * 0.6f = 0.48f
+            float animatedAlpha = minPulseAlpha + (baseAlpha - minPulseAlpha) * pulseFactor;
+
+            // Return a new color array with the animated alpha.
+            // IMPORTANT: We create a new array here because SELECTED_TINT is static final.
+            return new float[]{SELECTED_TINT[0], SELECTED_TINT[1], SELECTED_TINT[2], animatedAlpha};
+        }        switch (surfaceType) {
             case WATER: return WATER_TOP_COLOR;
             case SAND:  return SAND_TOP_COLOR;
             case GRASS: return GRASS_TOP_COLOR;
@@ -324,7 +340,6 @@ public class Renderer {
 
         float[] topSurfaceColor = determineTopSurfaceColor(currentTileTopSurfaceType, isSelected);
         float[] sideTintToUse = isSelected ? topSurfaceColor : WHITE_TINT;
-
         int verticesAdded = 0;
 
         if (currentTileTopSurfaceType != Tile.TileType.WATER) {

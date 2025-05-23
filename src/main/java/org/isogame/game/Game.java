@@ -175,7 +175,7 @@ public class Game {
                 // Define panel properties (adjust as needed)
                 float panelX = 10f;
                 float panelY = 10f;
-                float estimatedLineHeight = 20f; // Based on current Renderer.renderUI()
+                float estimatedLineHeight = 22f; // Based on current Renderer.renderUI()
                 float textPadding = 5f;
                 float panelWidth = 900f; // Increased width for potentially longer lines
                 float panelHeight = (debugLines.size() * estimatedLineHeight) + (2 * textPadding);
