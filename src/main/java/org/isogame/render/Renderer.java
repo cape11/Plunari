@@ -579,10 +579,14 @@ public class Renderer {
         float playerBaseIsoX = (playerMapC - playerMapR) * (TILE_WIDTH / 2.0f);
         float playerBaseIsoY = (playerMapC + playerMapR) * (TILE_HEIGHT / 2.0f) - (playerElevationOnTile * TILE_THICKNESS);
         // Corrected Z: positive for further objects
-        float playerWorldZ = (playerMapR + playerMapC) * DEPTH_SORT_FACTOR;
+        // Corrected Z: positive for further objects, ensure player is slightly in front of its tile
+        float tileZ = (playerMapR + playerMapC) * DEPTH_SORT_FACTOR; // Z of the tile the player is on
+            float playerWorldZ = tileZ - -0.05f; // Apply a small negative offset to bring player forward
 
         if (p.isLevitating()) {
             playerBaseIsoY -= (Math.sin(p.getLevitateTimer()) * 8);
+            // If you want levitating players to be even further in front, you could adjust playerWorldZ more here:
+            // playerWorldZ = tileZ - 0.05f; // Example: larger offset when levitating
         }
 
         float halfPlayerWorldWidth = PLAYER_WORLD_RENDER_WIDTH / 2.0f;
@@ -633,12 +637,16 @@ public class Renderer {
         switch (tree.treeVisualType) {
             case APPLE_TREE_FRUITING:
                 frameW = 90; frameH = 130; atlasU0 = 0; atlasV0 = 0;
-                treeRenderWidth = TILE_WIDTH * 1.2f; treeRenderHeight = TILE_HEIGHT * 2.5f;
+                treeRenderWidth = TILE_WIDTH * 1.2f; // Current width: 64 * 1.2 = 76.8
+                // Calculate height based on width and source aspect ratio
+                treeRenderHeight = treeRenderWidth * (frameH / frameW); // New: 76.8 * (130/90) = 110.93
                 treeAnchorOffsetFromBottomY = TILE_HEIGHT * 0.15f;
                 break;
             case PINE_TREE_SMALL:
                 frameW = 90; frameH = 180; atlasU0 = 90; atlasV0 = 0;
-                treeRenderWidth = TILE_WIDTH * 1.0f; treeRenderHeight = TILE_HEIGHT * 3.0f;
+                treeRenderWidth = TILE_WIDTH * 1.0f; // Current width: 64 * 1.0 = 64.0
+                // Calculate height based on width and source aspect ratio
+                treeRenderHeight = treeRenderWidth * (frameH / frameW); // New: 64.0 * (180/90) = 128.0
                 treeAnchorOffsetFromBottomY = TILE_HEIGHT * 0.1f;
                 break;
             default: return 0;
@@ -788,33 +796,96 @@ public class Renderer {
             glBindVertexArray(0);
         }
 
-        // --- 3. Render UI ---
-        if (uiFont != null && uiFont.isInitialized()) {
-            renderUI();
-        }
+
         defaultShader.unbind();
     }
 
 
-    private void renderUI() {
-        if (uiFont == null || !uiFont.isInitialized() || player == null || camera == null || inputHandler == null || map == null) return;
+    public void renderDebugOverlay(float panelX, float panelY, float panelWidth, float panelHeight, List<String> lines) {
+        if (uiFont == null || !uiFont.isInitialized()) { //
+            System.err.println("Renderer.renderDebugOverlay: uiFont not initialized. Cannot render debug text.");
+            return;
+        }
 
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        // --- Setup OpenGL State for UI ---
+        glEnable(GL_BLEND); //
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); //
+        glDisable(GL_DEPTH_TEST); // UI should always be on top
 
-        int yPos = 20; final int yIncrement = 18;
-        uiFont.drawText(10f, (float)yPos, "Player: ("+player.getTileRow()+", "+player.getTileCol()+") Act: "+player.getCurrentAction()+" Dir: "+player.getCurrentDirection()+" F:"+player.getVisualFrameIndex()); yPos+=yIncrement;
-        Tile selectedTile = map.getTile(inputHandler.getSelectedRow(),inputHandler.getSelectedCol());
-        String selectedInfo="Selected: ("+inputHandler.getSelectedRow()+", "+inputHandler.getSelectedCol()+")";
-        if(selectedTile!=null){selectedInfo+=" Elev: "+selectedTile.getElevation()+" Type: "+selectedTile.getType();}
-        uiFont.drawText(10f, (float)yPos, selectedInfo); yPos+=yIncrement;
-        uiFont.drawText(10f, (float)yPos, String.format("Camera: (%.1f, %.1f) Zoom: %.2f",camera.getCameraX(),camera.getCameraY(),camera.getZoom())); yPos+=yIncrement;
-        uiFont.drawText(10f, (float)yPos, "Move: Click | Elev Sel +/-: Q/E | Dig: J"); yPos+=yIncrement;
-        uiFont.drawText(10f, (float)yPos, "Levitate: F | Center Cam: C | Regen Map: G"); yPos+=yIncrement; yPos+=yIncrement;
-        uiFont.drawText(10f, (float)yPos, "Inventory:");yPos+=yIncrement;
-        java.util.Map<String,Integer> inventory=player.getInventory();
-        if(inventory.isEmpty()){ uiFont.drawText(20f, (float)yPos, "- Empty -");}
-        else { for(java.util.Map.Entry<String,Integer> entry : inventory.entrySet()){ uiFont.drawText(20f, (float)yPos, "- "+entry.getKey()+": "+entry.getValue()); yPos+=yIncrement;}}
+        defaultShader.bind(); //
+        defaultShader.setUniform("uProjectionMatrix", projectionMatrix); //
+
+        // For 2D UI, ModelView is usually identity or a simple 2D translation if needed
+        Matrix4f uiModelViewMatrix = new Matrix4f().identity();
+        // If panelX, panelY are already top-left screen coords, no further translation needed in matrix
+        // If you want to treat panelX, panelY as offsets from an origin, you might translate uiModelViewMatrix here.
+        defaultShader.setUniform("uModelViewMatrix", uiModelViewMatrix); //
+
+
+        // --- 1. Draw Transparent Grey Background ---
+        float[] bgColor = {0.2f, 0.2f, 0.2f, 0.75f}; // Dark grey, 75% opacity
+        float z = 0.0f; // UI elements are typically at z=0 in screen space
+
+        glBindVertexArray(spriteVaoId); //
+        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId); //
+        spriteVertexBuffer.clear(); //
+
+        // Quad: TL, BL, TR, TR, BL, BR
+        // Top-Left
+        spriteVertexBuffer.put(panelX).put(panelY).put(z)
+                .put(bgColor[0]).put(bgColor[1]).put(bgColor[2]).put(bgColor[3])
+                .put(0f).put(0f); // Dummy UVs
+        // Bottom-Left
+        spriteVertexBuffer.put(panelX).put(panelY + panelHeight).put(z)
+                .put(bgColor[0]).put(bgColor[1]).put(bgColor[2]).put(bgColor[3])
+                .put(0f).put(0f);
+        // Top-Right
+        spriteVertexBuffer.put(panelX + panelWidth).put(panelY).put(z)
+                .put(bgColor[0]).put(bgColor[1]).put(bgColor[2]).put(bgColor[3])
+                .put(0f).put(0f);
+        // Top-Right
+        spriteVertexBuffer.put(panelX + panelWidth).put(panelY).put(z)
+                .put(bgColor[0]).put(bgColor[1]).put(bgColor[2]).put(bgColor[3])
+                .put(0f).put(0f);
+        // Bottom-Left
+        spriteVertexBuffer.put(panelX).put(panelY + panelHeight).put(z)
+                .put(bgColor[0]).put(bgColor[1]).put(bgColor[2]).put(bgColor[3])
+                .put(0f).put(0f);
+        // Bottom-Right
+        spriteVertexBuffer.put(panelX + panelWidth).put(panelY + panelHeight).put(z)
+                .put(bgColor[0]).put(bgColor[1]).put(bgColor[2]).put(bgColor[3])
+                .put(0f).put(0f);
+
+        spriteVertexBuffer.flip(); //
+        glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer); //
+
+        defaultShader.setUniform("uHasTexture", 0); // No texture for the background quad
+        defaultShader.setUniform("uIsFont", 0);     // Not rendering font for the background
+        glDrawArrays(GL_TRIANGLES, 0, 6); //
+
+        // Unbind VBO after drawing background, VAO is still bound for text or will be rebound by font.
+        // Actually, Font.drawText manages its own VAO/VBO bindings. So, unbind here.
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+
+
+        // --- 2. Draw White Text Lines ---
+        float textRenderX = panelX + 5f; // Padding inside the panel
+        float currentTextY = panelY + 5f;  // Start Y, font drawing handles ascent
+        if (uiFont.getAscent() > 0) { // Add ascent if available for better alignment from top
+            currentTextY += uiFont.getAscent();
+        }
+
+
+        // The uiFont.drawText method already sets uIsFont, uHasTexture, binds texture, etc.
+        for (String line : lines) {
+            uiFont.drawText(textRenderX, currentTextY, line, 1.0f, 1.0f, 1.0f); // Draw white text
+            currentTextY += 18f; // Adjust line height as needed, or get from font metrics
+        }
+
+        // --- Restore OpenGL State ---
+        glEnable(GL_DEPTH_TEST); // Re-enable depth testing if you disabled it
+        // defaultShader.unbind(); // The main render loop in Renderer.java should handle the final unbind
     }
 
     public void cleanup() {

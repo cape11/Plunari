@@ -7,6 +7,10 @@ import org.isogame.camera.CameraManager;
 import org.isogame.map.Map;
 import org.isogame.render.Renderer;
 import org.isogame.entitiy.PlayerModel;
+import org.isogame.tile.Tile;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.isogame.constants.Constants.*;
 import static org.lwjgl.glfw.GLFW.*;
@@ -109,20 +113,28 @@ public class Game {
         float r, g, b;
         if (pseudoTimeOfDay < 0.25) {
             float phase = (float) (pseudoTimeOfDay / 0.25);
-            r = 0.0f + 0.1f * (1.0f - phase); g = 0.0f + 0.1f * (1.0f - phase); b = 0.1f + 0.2f * (1.0f - phase);
+            r = 0.0f + 0.1f * (1.0f - phase);
+            g = 0.0f + 0.1f * (1.0f - phase);
+            b = 0.1f + 0.2f * (1.0f - phase);
         } else if (pseudoTimeOfDay < 0.5) {
             float phase = (float) ((pseudoTimeOfDay - 0.25) / 0.25);
-            r = 0.0f + 0.5f * phase; g = 0.0f + 0.7f * phase; b = 0.1f + 0.9f * phase;
+            r = 0.0f + 0.5f * phase;
+            g = 0.0f + 0.7f * phase;
+            b = 0.1f + 0.9f * phase;
         } else if (pseudoTimeOfDay < 0.75) {
             float phase = (float) ((pseudoTimeOfDay - 0.5) / 0.25);
-            r = 0.5f - 0.1f * phase; g = 0.7f - 0.1f * phase; b = 1.0f - 0.1f * phase;
+            r = 0.5f - 0.1f * phase;
+            g = 0.7f - 0.1f * phase;
+            b = 1.0f - 0.1f * phase;
         } else {
             float phase = (float) ((pseudoTimeOfDay - 0.75) / 0.25);
             r = 0.4f * (1.0f - phase) + 0.6f * phase * (1.0f - phase);
             g = 0.6f * (1.0f - phase) + 0.2f * phase * (1.0f - phase);
-            b = 0.9f * (1.0f - phase) + 0.1f * (1.0f-phase);
+            b = 0.9f * (1.0f - phase) + 0.1f * (1.0f - phase);
         }
-        r = Math.max(0.0f, Math.min(1.0f, r)); g = Math.max(0.0f, Math.min(1.0f, g)); b = Math.max(0.0f, Math.min(1.0f, b));
+        r = Math.max(0.0f, Math.min(1.0f, r));
+        g = Math.max(0.0f, Math.min(1.0f, g));
+        b = Math.max(0.0f, Math.min(1.0f, b));
 
         glClearColor(r, g, b, 1.0f);
         // --- Clear both Color and Depth buffers ---
@@ -130,8 +142,50 @@ public class Game {
 
         if (renderer != null) {
             renderer.render();
+
+            if (this.showDebugOverlay) { // Check if the overlay should be shown
+                List<String> debugLines = new ArrayList<>();
+                // Collect all your debug information into the list
+                if (player != null && cameraManager != null && inputHandler != null && map != null) {
+                    debugLines.add("Player: (" + player.getTileRow() + ", " + player.getTileCol() + ") Act: " + player.getCurrentAction() + " Dir: " + player.getCurrentDirection() + " F:" + player.getVisualFrameIndex()); //
+                    Tile selectedTile = map.getTile(inputHandler.getSelectedRow(), inputHandler.getSelectedCol()); //
+                    String selectedInfo = "Selected: (" + inputHandler.getSelectedRow() + ", " + inputHandler.getSelectedCol() + ")"; //
+                    if (selectedTile != null) {
+                        selectedInfo += " Elev: " + selectedTile.getElevation() + " Type: " + selectedTile.getType(); //
+                    }
+                    debugLines.add(selectedInfo);
+                    debugLines.add(String.format("Camera: (%.1f, %.1f) Zoom: %.2f", cameraManager.getCameraX(), cameraManager.getCameraY(), cameraManager.getZoom())); //
+                    debugLines.add("Move: Click | Elev Sel +/-: Q/E | Dig: J"); //
+                    debugLines.add("Levitate: F | Center Cam: C | Regen Map: G | Debug: F5"); // Updated help text
+                    debugLines.add(""); // Spacer
+
+                    debugLines.add("Inventory:"); //
+                    java.util.Map<String, Integer> inventory = player.getInventory(); //
+                    if (inventory.isEmpty()) { //
+                        debugLines.add("  - Empty -"); //
+                    } else {
+                        for (java.util.Map.Entry<String, Integer> entry : inventory.entrySet()) { //
+                            debugLines.add("  - " + entry.getKey() + ": " + entry.getValue()); //
+                        }
+                    }
+                } else {
+                    debugLines.add("Debug info unavailable: one or more components are null.");
+                }
+
+                // Define panel properties (adjust as needed)
+                float panelX = 10f;
+                float panelY = 10f;
+                float estimatedLineHeight = 20f; // Based on current Renderer.renderUI()
+                float textPadding = 5f;
+                float panelWidth = 900f; // Increased width for potentially longer lines
+                float panelHeight = (debugLines.size() * estimatedLineHeight) + (2 * textPadding);
+
+                // Call the new method in Renderer
+                renderer.renderDebugOverlay(panelX, panelY, panelWidth, panelHeight, debugLines);
+            }
         }
     }
+
 
     public void requestMapGeometryUpdate() {
         if (map != null) {
@@ -158,6 +212,17 @@ public class Game {
             System.out.println("Game: Requesting render update for tile: (" + row + ", " + col + ")");
             renderer.updateChunkContainingTile(row, col);
         }
+    }
+
+    private boolean showDebugOverlay = false; // Set to true if you want it on by default
+
+    public void toggleShowDebugOverlay() {
+        this.showDebugOverlay = !this.showDebugOverlay;
+        System.out.println("Debug Overlay: " + (this.showDebugOverlay ? "ON" : "OFF"));
+    }
+
+    public boolean isDebugOverlayVisible() {
+        return this.showDebugOverlay;
     }
 
     private void cleanup() {

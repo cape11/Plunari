@@ -79,6 +79,12 @@ public class InputHandler {
             case GLFW_KEY_J:
                 performDigAction();
                 break;
+            case GLFW_KEY_F5: // New case for F5
+                if (gameInstance != null) {
+                    // Assuming gameInstance is your Game class instance
+                    gameInstance.toggleShowDebugOverlay();
+                }
+                break;
         }
     }
 

@@ -14,7 +14,7 @@ public class Constants {
     public static final int MAP_HEIGHT = 500;
 
     //  Map generation parameters
-    public static final double NOISE_SCALE = 0.040 ; // Controls "zoom" level of noise pattern
+    public static final double NOISE_SCALE = 0.020 ; // Controls "zoom" level of noise pattern
     public static final int ALTURA_MAXIMA = 35; // Max possible elevation units
     public static final int CHUNK_SIZE_TILES = 32;
 
