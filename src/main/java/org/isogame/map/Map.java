@@ -1,228 +1,117 @@
 package org.isogame.map;
 
 import org.isogame.tile.Tile;
-import java.util.Random;
-
 import static org.isogame.constants.Constants.*;
 
 public class Map {
 
-    private final Tile[][] tiles;
-    private final int width;
-    private final int height;
-    private SimplexNoise noiseGenerator;
-    private final Random random = new Random();
+    private final ChunkManager chunkManager;
+    private final LightManager lightManager;
+
     private int characterSpawnRow;
     private int characterSpawnCol;
 
-    private final LightManager lightManager;
+    public Map() {
+        this.chunkManager = new ChunkManager();
+        this.lightManager = new LightManager(this, this.chunkManager);
 
-    public Map(int width, int height) {
-        this.width = width;
-        this.height = height;
-        this.tiles = new Tile[height][width];
-        this.lightManager = new LightManager(this);
-
-        for (int r = 0; r < height; r++) {
-            for (int c = 0; c < width; c++) {
-                tiles[r][c] = new Tile(Tile.TileType.WATER, 0);
-            }
-        }
-        generateMap();
-    }
-
-    public void generateMap() {
-        System.out.println("Map: Generating map terrain...");
-        this.noiseGenerator = new SimplexNoise(random.nextInt(10000));
-        int[][] rawElevations = new int[height][width];
-
-        for (int r = 0; r < height; r++) {
-            for (int c = 0; c < width; c++) {
-                double noiseValue = calculateCombinedNoise((double) c, (double) r);
-                int elevation = (int) (((noiseValue + 1.0) / 2.0) * (ALTURA_MAXIMA + 1)) - 1;
-                rawElevations[r][c] = Math.max(0, Math.min(ALTURA_MAXIMA, elevation));
-            }
-        }
-        smoothTerrain(rawElevations, 1);
-
-        for (int r = 0; r < height; r++) {
-            for (int c = 0; c < width; c++) {
-                int elevation = rawElevations[r][c];
-                Tile.TileType type = determineTileTypeFromElevation(elevation);
-                Tile currentTile = tiles[r][c];
-                currentTile.setElevation(elevation);
-                currentTile.setType(type);
-                currentTile.setSkyLightLevel((byte) 0);
-                currentTile.setBlockLightLevel((byte) 0);
-                currentTile.setHasTorch(false);
-
-                if (type == Tile.TileType.GRASS && elevation >= NIVEL_ARENA && elevation < NIVEL_ROCA) {
-                    if (random.nextFloat() < 0.08) {
-                        currentTile.setTreeType(random.nextBoolean() ? Tile.TreeVisualType.APPLE_TREE_FRUITING : Tile.TreeVisualType.PINE_TREE_SMALL);
-                    } else {
-                        currentTile.setTreeType(Tile.TreeVisualType.NONE);
-                    }
-                } else {
-                    currentTile.setTreeType(Tile.TreeVisualType.NONE);
-                }
-            }
-        }
         findSuitableCharacterPosition();
-        System.out.println("Map: Terrain generation finished. Initializing lighting...");
-
-        for (int r = 0; r < height; r+=CHUNK_SIZE_TILES) {
-            for (int c = 0; c < width; c+=CHUNK_SIZE_TILES) {
-                lightManager.markChunkDirty(r,c);
-            }
-        }
-        if (height % CHUNK_SIZE_TILES != 0) {
-            for (int c = 0; c < width; c+=CHUNK_SIZE_TILES) lightManager.markChunkDirty(height -1 ,c);
-        }
-        if (width % CHUNK_SIZE_TILES != 0) {
-            for (int r = 0; r < height; r+=CHUNK_SIZE_TILES) lightManager.markChunkDirty(r ,width -1);
-        }
-        if (height % CHUNK_SIZE_TILES != 0 && width % CHUNK_SIZE_TILES != 0) {
-            lightManager.markChunkDirty(height-1, width-1);
-        }
-
-        System.out.println("Map: Initial lighting will be processed by Game loop. Spawn: (" + characterSpawnRow + ", " + characterSpawnCol + ")");
-    }
-
-    private double calculateCombinedNoise(double x, double y) {
-        double baseFrequency = NOISE_SCALE * 0.05;
-        double mountainFrequency = NOISE_SCALE * 0.2;
-        double roughnessFrequency = NOISE_SCALE * 0.8;
-        double baseNoise = noiseGenerator.octaveNoise(x * baseFrequency, y * baseFrequency, 4, 0.6);
-        double mountainNoise = noiseGenerator.noise(x * mountainFrequency, y * mountainFrequency) * 0.40;
-        double roughnessNoise = noiseGenerator.noise(x * roughnessFrequency, y * roughnessFrequency) * 0.15;
-        double combined = baseNoise + mountainNoise + roughnessNoise;
-        return Math.max(-1.0, Math.min(1.0, combined));
-    }
-
-    private Tile.TileType determineTileTypeFromElevation(int elevation) {
-        if (elevation < NIVEL_MAR) return Tile.TileType.WATER;
-        if (elevation < NIVEL_ARENA) return Tile.TileType.SAND;
-        if (elevation < NIVEL_ROCA) return Tile.TileType.GRASS;
-        if (elevation < NIVEL_NIEVE) return Tile.TileType.ROCK;
-        return Tile.TileType.SNOW;
-    }
-
-    private void smoothTerrain(int[][] elevations, int passes) {
-        if (passes <= 0) return;
-        int currentHeight = elevations.length;
-        int currentWidth = elevations[0].length;
-        int[][] tempAlturas = new int[currentHeight][currentWidth];
-        for (int pass = 0; pass < passes; pass++) {
-            for (int r = 0; r < currentHeight; r++) {
-                System.arraycopy(elevations[r], 0, tempAlturas[r], 0, currentWidth);
-            }
-            for (int r = 0; r < currentHeight; r++) {
-                for (int c = 0; c < currentWidth; c++) {
-                    int sum = 0;
-                    int count = 0;
-                    for (int i = -1; i <= 1; i++) {
-                        for (int j = -1; j <= 1; j++) {
-                            int nr = r + i;
-                            int nc = c + j;
-                            if (nr >= 0 && nr < currentHeight && nc >= 0 && nc < currentWidth) {
-                                sum += tempAlturas[nr][nc];
-                                count++;
-                            }
-                        }
-                    }
-                    if (count > 0) elevations[r][c] = sum / count;
-                }
-            }
-        }
+        System.out.println("Map (Chunked World) Initialized. Spawn: (" + characterSpawnRow + "," + characterSpawnCol + ")");
     }
 
     private void findSuitableCharacterPosition() {
-        int centerRow = height / 2;
-        int centerCol = width / 2;
-        for (int radius = 0; radius < Math.max(width, height) / 2; radius++) {
-            for (int rOffset = -radius; rOffset <= radius; rOffset++) {
-                for (int cOffset = -radius; cOffset <= radius; cOffset++) {
-                    if (Math.abs(rOffset) == radius || Math.abs(cOffset) == radius) {
-                        int r = centerRow + rOffset;
-                        int c = centerCol + cOffset;
-                        if (isValid(r, c) && tiles[r][c].getType() != Tile.TileType.WATER && tiles[r][c].getElevation() >= NIVEL_MAR) {
-                            characterSpawnRow = r;
-                            characterSpawnCol = c;
-                            return;
-                        }
-                    }
+        int searchRadiusTiles = 50;
+        for (int r = -searchRadiusTiles / 2; r < searchRadiusTiles / 2; r++) {
+            for (int c = -searchRadiusTiles / 2; c < searchRadiusTiles / 2; c++) {
+                Tile tile = getTile(r,c);
+                if (tile != null && tile.getType() != Tile.TileType.WATER && tile.getElevation() >= NIVEL_MAR) {
+                    characterSpawnRow = r;
+                    characterSpawnCol = c;
+                    System.out.println("Found spawn at: " + r + "," + c);
+                    return;
                 }
             }
         }
-        characterSpawnRow = centerRow;
-        characterSpawnCol = centerCol;
+        characterSpawnRow = 0;
+        characterSpawnCol = 0;
+        System.out.println("Warning: No ideal spawn found near origin, defaulting to 0,0. Ensure chunk (0,0) generates land.");
+        getTile(0,0);
     }
 
-    public Tile getTile(int row, int col) {
-        if (isValid(row, col)) return tiles[row][col];
+    public Tile getTile(int worldRow, int worldCol) {
+        int chunkX = worldToChunkCoord(worldCol);
+        int chunkY = worldToChunkCoord(worldRow);
+        ChunkData chunk = chunkManager.getChunk(chunkX, chunkY);
+
+        if (chunk != null) {
+            int localX = ChunkData.worldToLocalTile(worldCol);
+            int localY = ChunkData.worldToLocalTile(worldRow);
+            return chunk.getTile(localX, localY);
+        }
         return null;
     }
 
-    public boolean isValid(int row, int col) {
-        return row >= 0 && row < height && col >= 0 && col < width;
+    public boolean isValid(int worldRow, int worldCol) {
+        return true;
     }
 
-    public int getWidth() { return width; }
-    public int getHeight() { return height; }
     public int getCharacterSpawnRow() { return characterSpawnRow; }
     public int getCharacterSpawnCol() { return characterSpawnCol; }
     public LightManager getLightManager() { return lightManager; }
+    public ChunkManager getChunkManager() { return chunkManager; }
 
+    public void setTileElevation(int worldRow, int worldCol, int elevation) {
+        int chunkX = worldToChunkCoord(worldCol);
+        int chunkY = worldToChunkCoord(worldRow);
+        ChunkData chunkData = chunkManager.getLoadedChunk(chunkX, chunkY);
 
-    public void setTileElevation(int row, int col, int elevation) {
-        if (isValid(row, col)) {
-            Tile tile = tiles[row][col];
-            int oldElevation = tile.getElevation();
-            Tile.TileType oldType = tile.getType();
+        if (chunkData != null) {
+            Tile tile = getTile(worldRow, worldCol);
+            if (tile != null) {
+                int oldElevation = tile.getElevation();
+                Tile.TileType oldType = tile.getType();
 
-            int clampedElevation = Math.max(0, Math.min(ALTURA_MAXIMA, elevation));
-            tile.setElevation(clampedElevation);
-            tile.setType(determineTileTypeFromElevation(clampedElevation));
+                int clampedElevation = Math.max(0, Math.min(ALTURA_MAXIMA, elevation));
+                tile.setElevation(clampedElevation);
+                tile.setType(chunkManager.determineTileTypeFromElevation(clampedElevation));
 
-            if (tile.getTreeType() != Tile.TreeVisualType.NONE) {
-                tile.setTreeType(Tile.TreeVisualType.NONE);
-            }
-
-            if (oldElevation != clampedElevation || oldType != tile.getType()) {
-                System.out.println("Map.setTileElevation: Marking chunks dirty around (" + row + "," + col + ") due to elevation/type change.");
-                for(int dr = -1; dr <= 1; dr++) {
-                    for(int dc = -1; dc <= 1; dc++) {
-                        if(isValid(row + dr, col + dc)) {
-                            lightManager.markChunkDirty(row + dr, col + dc);
-                        }
-                    }
+                if (tile.getTreeType() != Tile.TreeVisualType.NONE && tile.getType() == Tile.TileType.WATER) {
+                    tile.setTreeType(Tile.TreeVisualType.NONE);
                 }
-                if (tile.hasTorch()) {
-                    lightManager.removeLightSource(row, col);
-                    lightManager.addLightSource(row, col, (byte) TORCH_LIGHT_LEVEL);
+
+                if (oldElevation != clampedElevation || oldType != tile.getType()) {
+                    lightManager.markChunkDirty(chunkX, chunkY);
+
+                    if (tile.hasTorch()) {
+                        lightManager.removeLightSource(worldRow, worldCol);
+                        lightManager.addLightSource(worldRow, worldCol, (byte) TORCH_LIGHT_LEVEL);
+                    }
+                    lightManager.enqueueSkyLightRecalculationForChunk(chunkX, chunkY);
                 }
             }
         }
     }
 
-    public void toggleTorch(int r, int c) {
-        Tile tile = getTile(r,c);
+    public void toggleTorch(int worldRow, int worldCol) {
+        Tile tile = getTile(worldRow, worldCol);
         if (tile != null && tile.getType() != Tile.TileType.WATER) {
             if (tile.hasTorch()) {
-                lightManager.removeLightSource(r, c);
-                System.out.println("Map: Torch removed at (" + r + "," + c + ")");
+                lightManager.removeLightSource(worldRow, worldCol);
             } else {
-                lightManager.addLightSource(r, c, (byte) TORCH_LIGHT_LEVEL);
-                System.out.println("Map: Torch added at (" + r + "," + c + ")");
+                lightManager.addLightSource(worldRow, worldCol, (byte) TORCH_LIGHT_LEVEL);
             }
         }
     }
 
-    public boolean isTileOpaque(int r, int c) {
-        Tile tile = getTile(r, c);
+    public boolean isTileOpaque(int worldRow, int worldCol) {
+        Tile tile = getTile(worldRow, worldCol);
         if (tile == null) {
             return true;
         }
         return !tile.isTransparentToLight();
+    }
+
+    public static int worldToChunkCoord(int tileCoord) {
+        return (int) Math.floor((double) tileCoord / CHUNK_SIZE_TILES);
     }
 }

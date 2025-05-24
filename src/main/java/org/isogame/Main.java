@@ -5,7 +5,7 @@ import org.lwjgl.glfw.*;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.system.*;
-import org.lwjgl.PointerBuffer; // Keep this if glfwGetError needs it, though modern LWJGL often uses direct string returns.
+import org.lwjgl.PointerBuffer;
 import org.lwjgl.opengl.GL20; // For GL_SHADING_LANGUAGE_VERSION
 
 import java.nio.*;
@@ -63,7 +63,7 @@ public class Main {
 
 
         // Create the window
-        window = glfwCreateWindow(WIDTH, HEIGHT, "LWJGL Isometric Game (VBO/VAO)", NULL, NULL);
+        window = glfwCreateWindow(WIDTH, HEIGHT, "LWJGL Isometric Game", NULL, NULL);
         if (window == NULL) {
             // Log detailed error if window creation fails
             try (MemoryStack stack = stackPush()) {

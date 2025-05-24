@@ -1,10 +1,12 @@
 package org.isogame.render;
 
 import org.isogame.camera.CameraManager;
-import org.isogame.constants.Constants;
 import org.isogame.entitiy.PlayerModel;
 import org.isogame.input.InputHandler;
 import org.isogame.map.Map;
+import org.isogame.map.ChunkManager;
+import org.isogame.map.ChunkCoordinate;
+import org.isogame.map.ChunkData;
 import org.isogame.tile.Tile;
 import org.joml.Matrix4f;
 import org.lwjgl.system.MemoryUtil;
@@ -12,8 +14,10 @@ import org.lwjgl.system.MemoryUtil;
 import java.io.IOException;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Random;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.isogame.constants.Constants.*;
 import static org.lwjgl.opengl.GL11.*;
@@ -28,22 +32,23 @@ public class Renderer {
     private final Map map;
     private final PlayerModel player;
     private final InputHandler inputHandler;
+    private final ChunkManager chunkManager;
 
     private Texture playerTexture;
     private Texture treeTexture;
+    private Texture tileAtlasTexture;
     private Font uiFont;
-    private Random tileDetailRandom;
-    private List<Chunk> mapChunks;
+
+    private final java.util.Map<ChunkCoordinate, Chunk> activeRenderChunks = new HashMap<>();
     private Shader defaultShader;
     private Matrix4f projectionMatrix;
+
     private int spriteVaoId, spriteVboId;
     private FloatBuffer spriteVertexBuffer;
-    private Texture tileAtlasTexture;
 
     public static final int FLOATS_PER_VERTEX_TERRAIN_TEXTURED = 10;
     public static final int FLOATS_PER_VERTEX_SPRITE_TEXTURED = 10;
 
-    // Atlas and Color constants
     private static final float ATLAS_TOTAL_WIDTH = 128.0f, ATLAS_TOTAL_HEIGHT = 128.0f;
     private static final float SUB_TEX_WIDTH = 64.0f, SUB_TEX_HEIGHT = 64.0f;
     private static final float GRASS_ATLAS_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, GRASS_ATLAS_V0 = (0*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
@@ -60,6 +65,7 @@ public class Renderer {
     private static final float SNOW_SIDE_ATLAS_U1 = ROCK_ATLAS_U1, SNOW_SIDE_ATLAS_V1 = ROCK_ATLAS_V1;
     private static final float SIDE_TEXTURE_DENSITY_FACTOR = 1.0f;
     private static final float DUMMY_U = 0.0f, DUMMY_V = 0.0f;
+
     private static final float[] SELECTED_TINT = {1.0f, 0.8f, 0.0f, 0.8f};
     private static final float[] WATER_TOP_COLOR = {0.05f, 0.25f, 0.5f, 0.85f};
     private static final float[] SAND_TOP_COLOR = {0.82f,0.7f,0.55f,1f};
@@ -69,13 +75,11 @@ public class Renderer {
     private static final float[] DEFAULT_TOP_COLOR = {1f,0f,1f,1f};
     private static final float[] WHITE_TINT = {1.0f, 1.0f, 1.0f, 1.0f};
 
-    // Z-depth offsets (smaller Z values are closer to the camera)
-    private static final float Z_OFFSET_SPRITE_PLAYER = 0.1f;
-    private static final float Z_OFFSET_SPRITE_TREE = 0.1f;
+    private static final float Z_OFFSET_SPRITE_PLAYER = -0.1f;
+    private static final float Z_OFFSET_SPRITE_TREE = -0.09f;
     private static final float Z_OFFSET_TILE_TOP_SURFACE = 0.0f;
     private static final float Z_OFFSET_TILE_SIDES = 0.01f;
     private static final float Z_OFFSET_TILE_PEDESTAL = 0.02f;
-
 
     public static class TreeData {
         Tile.TreeVisualType treeVisualType;
@@ -85,20 +89,18 @@ public class Renderer {
             this.treeVisualType = type; this.mapCol = tc; this.mapRow = tr; this.elevation = te;
         }
     }
-    private List<Object> worldEntities = new ArrayList<>();
+    private final List<Object> worldEntities = new ArrayList<>();
 
-
-    public Renderer(CameraManager camera, Map map, PlayerModel player, InputHandler inputHandler) {
+    public Renderer(CameraManager camera, Map map, PlayerModel player, InputHandler inputHandler, ChunkManager chunkManager) {
         this.camera = camera;
         this.map = map;
         this.player = player;
         this.inputHandler = inputHandler;
-        this.tileDetailRandom = new Random();
+        this.chunkManager = chunkManager;
         this.projectionMatrix = new Matrix4f();
         loadAssets();
         initShaders();
-        initRenderObjects();
-        uploadTileMapGeometry();
+        initSpriteRenderObjects();
     }
 
     private void loadAssets() {
@@ -132,26 +134,13 @@ public class Renderer {
 
     public Shader getDefaultShader() { return defaultShader; }
 
-    private void initRenderObjects() {
-        mapChunks = new ArrayList<>();
-        if (map != null && CHUNK_SIZE_TILES > 0) {
-            int numChunksX = (int) Math.ceil((double) map.getWidth() / CHUNK_SIZE_TILES);
-            int numChunksY = (int) Math.ceil((double) map.getHeight() / CHUNK_SIZE_TILES);
-            for (int cy = 0; cy < numChunksY; cy++) {
-                for (int cx = 0; cx < numChunksX; cx++) {
-                    Chunk chunk = new Chunk(cx, cy, CHUNK_SIZE_TILES);
-                    chunk.setupGLResources();
-                    mapChunks.add(chunk);
-                }
-            }
-        }
-
+    private void initSpriteRenderObjects() {
         spriteVaoId = glGenVertexArrays();
         glBindVertexArray(spriteVaoId);
         spriteVboId = glGenBuffers();
         glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
-        spriteVertexBuffer = MemoryUtil.memAllocFloat(200 * 6 * FLOATS_PER_VERTEX_SPRITE_TEXTURED);
-        glBufferData(GL_ARRAY_BUFFER, (long) spriteVertexBuffer.capacity() * Float.BYTES, GL_DYNAMIC_DRAW);
+        spriteVertexBuffer = MemoryUtil.memAllocFloat(500 * 6 * FLOATS_PER_VERTEX_SPRITE_TEXTURED);
+        glBufferData(GL_ARRAY_BUFFER, (long)spriteVertexBuffer.capacity() * Float.BYTES, GL_DYNAMIC_DRAW);
 
         int spriteStride = FLOATS_PER_VERTEX_SPRITE_TEXTURED * Float.BYTES;
         glVertexAttribPointer(0, 3, GL_FLOAT, false, spriteStride, 0L);
@@ -167,26 +156,36 @@ public class Renderer {
         glBindVertexArray(0);
     }
 
-    public void uploadTileMapGeometry() {
-        if (mapChunks == null || map == null || camera == null) return;
-        System.out.println("Renderer: Uploading full tile map geometry for " + mapChunks.size() + " chunks.");
-        for (Chunk chunk : mapChunks) {
-            chunk.uploadGeometry(map, inputHandler, this, camera);
+    public void addRenderChunk(ChunkCoordinate coord, ChunkData chunkData) {
+        if (activeRenderChunks.containsKey(coord)) {
+            updateRenderChunk(coord, chunkData);
+        } else {
+            Chunk renderChunk = new Chunk(coord.chunkX, coord.chunkY, CHUNK_SIZE_TILES);
+            renderChunk.setupGLResources();
+            renderChunk.uploadGeometry(map, inputHandler, this, camera, chunkData);
+            activeRenderChunks.put(coord, renderChunk);
         }
     }
 
-    public void updateChunkContainingTile(int tileRow, int tileCol) {
-        updateChunkByGridCoords(tileCol / CHUNK_SIZE_TILES, tileRow / CHUNK_SIZE_TILES);
+    public void removeRenderChunk(ChunkCoordinate coord) {
+        Chunk renderChunk = activeRenderChunks.remove(coord);
+        if (renderChunk != null) {
+            renderChunk.cleanup();
+        }
     }
 
-    public void updateChunkByGridCoords(int chunkGridX, int chunkGridY) {
-        if (map == null || mapChunks == null || CHUNK_SIZE_TILES <= 0 || camera == null) return;
-        mapChunks.stream()
-                .filter(c -> c.chunkGridX == chunkGridX && c.chunkGridY == chunkGridY)
-                .findFirst()
-                .ifPresent(chunk -> {
-                    chunk.uploadGeometry(this.map, this.inputHandler, this, camera);
-                });
+    public void updateRenderChunk(ChunkCoordinate coord) {
+        ChunkData chunkData = chunkManager.getLoadedChunk(coord.chunkX, coord.chunkY);
+        if (chunkData != null) {
+            updateRenderChunk(coord, chunkData);
+        }
+    }
+
+    public void updateRenderChunk(ChunkCoordinate coord, ChunkData chunkData) {
+        Chunk renderChunk = activeRenderChunks.get(coord);
+        if (renderChunk != null && chunkData != null) {
+            renderChunk.uploadGeometry(map, inputHandler, this, camera, chunkData);
+        }
     }
 
     public void onResize(int fbW, int fbH) {
@@ -218,7 +217,10 @@ public class Renderer {
     }
 
     public int addSingleTileVerticesToBuffer_WorldSpace_ForChunk(
-            int tileR, int tileC, Tile tile, boolean isSelected, FloatBuffer buffer, float[] chunkBoundsMinMax) {
+            int worldTileR, int worldTileC, Tile tile, boolean isSelected,
+            FloatBuffer buffer, float[] chunkBoundsMinMax) {
+
+        if (tile == null) return 0;
 
         int currentTileElevation = tile.getElevation();
         Tile.TileType currentTileTopSurfaceType = tile.getType();
@@ -226,10 +228,10 @@ public class Renderer {
         final float tileHalfHeight = TILE_HEIGHT / 2.0f;
         final float elevationSliceHeight = TILE_THICKNESS;
 
-        final float tileGridPlaneCenterX = (tileC - tileR) * tileHalfWidth;
-        final float tileGridPlaneCenterY = (tileC + tileR) * tileHalfHeight;
+        final float tileGridPlaneCenterX = (worldTileC - worldTileR) * tileHalfWidth;
+        final float tileGridPlaneCenterY = (worldTileC + worldTileR) * tileHalfHeight;
 
-        final float tileBaseZ = (tileR + tileC) * DEPTH_SORT_FACTOR + (currentTileElevation * 0.005f);
+        final float tileBaseZ = (worldTileR + worldTileC) * DEPTH_SORT_FACTOR + (currentTileElevation * 0.005f);
         final float tileTopSurfaceZ = tileBaseZ + Z_OFFSET_TILE_TOP_SURFACE;
 
         final float diamondTopOffsetY = -tileHalfHeight;
@@ -350,13 +352,15 @@ public class Renderer {
         }
         return vCount;
     }
+
     private Tile.TileType getMaterialTypeForElevationSlice(int elevationLevel) {
-        if (elevationLevel < NIVEL_MAR) return Tile.TileType.WATER;
+        if (elevationLevel < NIVEL_MAR) return Tile.TileType.SAND;
         if (elevationLevel < NIVEL_ARENA) return Tile.TileType.SAND;
-        if (elevationLevel < NIVEL_ROCA) return Tile.TileType.GRASS;
+        if (elevationLevel < NIVEL_ROCA) return Tile.TileType.ROCK;
         if (elevationLevel < NIVEL_NIEVE) return Tile.TileType.ROCK;
-        return Tile.TileType.SNOW;
+        return Tile.TileType.ROCK;
     }
+
     private int addStratifiedElevatedSidesToBuffer(FloatBuffer buffer, int totalElev,
                                                    float tileCenterX, float gridPlaneY, float worldZ,
                                                    float dLeftX, float dSideY, float dRightX, float dBottomY,
@@ -366,10 +370,10 @@ public class Renderer {
             Tile.TileType sideMatType = getMaterialTypeForElevationSlice(elevStep - 1);
             float u0,v0,u1,v1Atlas,vSpanAtlas;
             switch(sideMatType){
-                case GRASS: u0=DEFAULT_SIDE_U0;v0=DEFAULT_SIDE_V0;u1=DEFAULT_SIDE_U1;v1Atlas=DEFAULT_SIDE_V1;break;
                 case SAND:  u0=SAND_ATLAS_U0;v0=SAND_ATLAS_V0;u1=SAND_ATLAS_U1;v1Atlas=SAND_ATLAS_V1;break;
                 case ROCK:  u0=ROCK_ATLAS_U0;v0=ROCK_ATLAS_V0;u1=ROCK_ATLAS_U1;v1Atlas=ROCK_ATLAS_V1;break;
-                case SNOW:  u0=SNOW_SIDE_ATLAS_U0;v0=SNOW_SIDE_ATLAS_V0;u1=SNOW_SIDE_ATLAS_U1;v1Atlas=SNOW_SIDE_ATLAS_V1;break;
+                case GRASS:
+                case SNOW:
                 default:    u0=DEFAULT_SIDE_U0;v0=DEFAULT_SIDE_V0;u1=DEFAULT_SIDE_U1;v1Atlas=DEFAULT_SIDE_V1;break;
             }
             vSpanAtlas = v1Atlas - v0;
@@ -398,6 +402,7 @@ public class Renderer {
         }
         return vCount;
     }
+
     private void updateChunkBounds(float[] chunkBounds, float tileCenterX, float tileCenterY, int elev, float elevSliceH, float dLX, float dRX, float dTY, float dBY) {
         float minX = tileCenterX + dLX;
         float maxX = tileCenterX + dRX;
@@ -406,15 +411,15 @@ public class Renderer {
         chunkBounds[0] = Math.min(chunkBounds[0], minX); chunkBounds[1] = Math.min(chunkBounds[1], minY);
         chunkBounds[2] = Math.max(chunkBounds[2], maxX); chunkBounds[3] = Math.max(chunkBounds[3], maxY);
     }
-    public int addGrassVerticesForTile_WorldSpace_ForChunk(int r,int c,Tile t,FloatBuffer b,float[] bounds){return 0;}
 
     private void collectWorldEntities() {
         worldEntities.clear();
         if (player != null) worldEntities.add(player);
-        if (mapChunks != null && camera != null) {
-            for (Chunk chunk : mapChunks) {
-                if (camera.isChunkVisible(chunk.getBoundingBox())) {
-                    worldEntities.addAll(chunk.getTreesInChunk());
+
+        if (camera != null) {
+            for (Chunk renderChunk : activeRenderChunks.values()) {
+                if (camera.isChunkVisible(renderChunk.getBoundingBox())) {
+                    worldEntities.addAll(renderChunk.getTreesInChunk());
                 }
             }
         }
@@ -430,7 +435,6 @@ public class Renderer {
         float pIsoX=(pC-pR)*(TILE_WIDTH/2.0f);
         float pIsoY=(pC+pR)*(TILE_HEIGHT/2.0f)-(elev*TILE_THICKNESS);
 
-        // Z for player: based on tile's logical Z, then offset to be in front
         float tileLogicalZ = (pR + pC) * DEPTH_SORT_FACTOR + (elev * 0.005f);
         float playerWorldZ = tileLogicalZ + Z_OFFSET_SPRITE_PLAYER;
 
@@ -470,55 +474,34 @@ public class Renderer {
         float treeWorldZ = tileLogicalZ + Z_OFFSET_SPRITE_TREE;
 
         float frameW=0,frameH=0,atlasU0=0,atlasV0=0,rendW,rendH,anchorYOff;
-        float visualIsoOffsetX = 0, visualIsoOffsetY = 0;
 
         switch(tree.treeVisualType){
-            case APPLE_TREE_FRUITING: // Assuming this is "tree1"
+            case APPLE_TREE_FRUITING:
                 frameW=90;frameH=130;atlasU0=0;atlasV0=0;
                 rendW=TILE_WIDTH*1.0f;rendH=rendW*(frameH/frameW);
                 anchorYOff=TILE_HEIGHT*0.15f;
                 break;
-            case PINE_TREE_SMALL: // Another example of "tree1" if you have multiple
+            case PINE_TREE_SMALL:
                 frameW=90;frameH=130;atlasU0=90;atlasV0=0;
                 rendW=TILE_WIDTH*1.0f;rendH=rendW*(frameH/frameW);
                 anchorYOff=TILE_HEIGHT*0.1f;
                 break;
-            // case PALM_TREE: // Replace PALM_TREE with your actual enum name for the palm
-            //     frameW = 70; frameH = 100; // Example values, replace with your palm's atlas data
-            //     atlasU0 = 190; atlasV0 = 0;  // Example UVs in your treeTexture atlas
-            //     rendW = TILE_WIDTH * 1.0f;
-            //     rendH = rendW * (frameH/frameW);
-            //     anchorYOff = TILE_HEIGHT * 0.45f; // Palm trees often have a taller visual base or trunk bottom
-
-            //     // --- Adjust these offsets by trial and error for PALM_TREE ---
-            //     // If "one up in diagonal" means it appears visually shifted towards smaller screen Y and some X direction:
-            //     // To shift it visually "down" (larger screen Y) and adjust X:
-            //     // visualIsoOffsetY = TILE_HEIGHT * 0.5f; // Roughly one tile step down on Y screen axis
-            //     // visualIsoOffsetX = -TILE_WIDTH * 0.25f; // Example: nudge slightly left on screen
-            //     // System.out.println("Applying custom offset for PALM_TREE");
-            //     break;
             default:
-                // If you have other tree types that work fine, add their cases or handle them here.
-                // If it's an unknown type, log an error and don't render.
-                // System.err.println("Undefined or unhandled TreeVisualType in Renderer: " + tree.treeVisualType);
                 return 0;
         }
 
-        float tFinalIsoX = tBaseIsoX + visualIsoOffsetX;
-        float tFinalIsoY = tBaseIsoY + visualIsoOffsetY;
+        float texU0_norm=atlasU0/treeTexture.getWidth(),texV0_norm=atlasV0/treeTexture.getHeight();
+        float texU1_norm=(atlasU0+frameW)/treeTexture.getWidth(),texV1_norm=(atlasV0+frameH)/treeTexture.getHeight();
+        float hTW=rendW/2.0f; float yTop=tBaseIsoY-(rendH-anchorYOff),yBot=tBaseIsoY+anchorYOff;
+        float xBL=tBaseIsoX-hTW,yBL=yBot; float xTL=tBaseIsoX-hTW,yTL=yTop;
+        float xTR=tBaseIsoX+hTW,yTR=yTop; float xBR=tBaseIsoX+hTW,yBR=yBot;
 
-        float texU0=atlasU0/treeTexture.getWidth(),texV0=atlasV0/treeTexture.getHeight();
-        float texU1=(atlasU0+frameW)/treeTexture.getWidth(),texV1=(atlasV0+frameH)/treeTexture.getHeight();
-        float hTW=rendW/2.0f; float yTop=tFinalIsoY-(rendH-anchorYOff),yBot=tFinalIsoY+anchorYOff;
-        float xBL=tFinalIsoX-hTW,yBL=yBot; float xTL=tFinalIsoX-hTW,yTL=yTop;
-        float xTR=tFinalIsoX+hTW,yTR=yTop; float xBR=tFinalIsoX+hTW,yBR=yBot;
-
-        buffer.put(xTL).put(yTL).put(treeWorldZ).put(WHITE_TINT[0]).put(WHITE_TINT[1]).put(WHITE_TINT[2]).put(WHITE_TINT[3]).put(texU0).put(texV0).put(lightVal);
-        buffer.put(xBL).put(yBL).put(treeWorldZ).put(WHITE_TINT[0]).put(WHITE_TINT[1]).put(WHITE_TINT[2]).put(WHITE_TINT[3]).put(texU0).put(texV1).put(lightVal);
-        buffer.put(xTR).put(yTR).put(treeWorldZ).put(WHITE_TINT[0]).put(WHITE_TINT[1]).put(WHITE_TINT[2]).put(WHITE_TINT[3]).put(texU1).put(texV0).put(lightVal);
-        buffer.put(xTR).put(yTR).put(treeWorldZ).put(WHITE_TINT[0]).put(WHITE_TINT[1]).put(WHITE_TINT[2]).put(WHITE_TINT[3]).put(texU1).put(texV0).put(lightVal);
-        buffer.put(xBL).put(yBL).put(treeWorldZ).put(WHITE_TINT[0]).put(WHITE_TINT[1]).put(WHITE_TINT[2]).put(WHITE_TINT[3]).put(texU0).put(texV1).put(lightVal);
-        buffer.put(xBR).put(yBR).put(treeWorldZ).put(WHITE_TINT[0]).put(WHITE_TINT[1]).put(WHITE_TINT[2]).put(WHITE_TINT[3]).put(texU1).put(texV1).put(lightVal);
+        buffer.put(xTL).put(yTL).put(treeWorldZ).put(WHITE_TINT[0]).put(WHITE_TINT[1]).put(WHITE_TINT[2]).put(WHITE_TINT[3]).put(texU0_norm).put(texV0_norm).put(lightVal);
+        buffer.put(xBL).put(yBL).put(treeWorldZ).put(WHITE_TINT[0]).put(WHITE_TINT[1]).put(WHITE_TINT[2]).put(WHITE_TINT[3]).put(texU0_norm).put(texV1_norm).put(lightVal);
+        buffer.put(xTR).put(yTR).put(treeWorldZ).put(WHITE_TINT[0]).put(WHITE_TINT[1]).put(WHITE_TINT[2]).put(WHITE_TINT[3]).put(texU1_norm).put(texV0_norm).put(lightVal);
+        buffer.put(xTR).put(yTR).put(treeWorldZ).put(WHITE_TINT[0]).put(WHITE_TINT[1]).put(WHITE_TINT[2]).put(WHITE_TINT[3]).put(texU1_norm).put(texV0_norm).put(lightVal);
+        buffer.put(xBL).put(yBL).put(treeWorldZ).put(WHITE_TINT[0]).put(WHITE_TINT[1]).put(WHITE_TINT[2]).put(WHITE_TINT[3]).put(texU0_norm).put(texV1_norm).put(lightVal);
+        buffer.put(xBR).put(yBR).put(treeWorldZ).put(WHITE_TINT[0]).put(WHITE_TINT[1]).put(WHITE_TINT[2]).put(WHITE_TINT[3]).put(texU1_norm).put(texV1_norm).put(lightVal);
         return 6;
     }
 
@@ -536,13 +519,13 @@ public class Renderer {
         } else {
             defaultShader.setUniform("uHasTexture", 0);
         }
-        if (mapChunks != null) {
-            for (Chunk chunk : mapChunks) {
-                if (camera.isChunkVisible(chunk.getBoundingBox())) {
-                    chunk.render();
-                }
+
+        for (Chunk renderChunk : activeRenderChunks.values()) {
+            if (camera.isChunkVisible(renderChunk.getBoundingBox())) {
+                renderChunk.render();
             }
         }
+
         if (tileAtlasTexture != null) glBindTexture(GL_TEXTURE_2D, 0);
 
         collectWorldEntities();
@@ -564,12 +547,13 @@ public class Renderer {
                     textureForEntity = playerTexture;
                 } else if (entity instanceof TreeData && treeTexture != null) {
                     verticesAdded = addTreeVerticesToBuffer_WorldSpace((TreeData)entity, spriteVertexBuffer);
-                    textureForEntity = treeTexture; // Assuming treeTexture atlas contains all tree sprites
+                    textureForEntity = treeTexture;
                 }
 
                 if (verticesAdded > 0 && textureForEntity != null) {
-                    if (currentSpriteTexture == null) currentSpriteTexture = textureForEntity;
-                    else if (currentSpriteTexture.getId() != textureForEntity.getId()) {
+                    if (currentSpriteTexture == null) {
+                        currentSpriteTexture = textureForEntity;
+                    } else if (currentSpriteTexture.getId() != textureForEntity.getId()) {
                         if (verticesInBatch > 0) {
                             spriteVertexBuffer.flip();
                             glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
@@ -580,7 +564,7 @@ public class Renderer {
                         currentSpriteTexture = textureForEntity;
                     }
                     verticesInBatch += verticesAdded;
-                    if (spriteVertexBuffer.position() >= spriteVertexBuffer.capacity() - (6 * FLOATS_PER_VERTEX_SPRITE_TEXTURED)) {
+                    if (spriteVertexBuffer.remaining() < (6 * FLOATS_PER_VERTEX_SPRITE_TEXTURED)) {
                         if (verticesInBatch > 0 && currentSpriteTexture != null) {
                             spriteVertexBuffer.flip();
                             glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
@@ -603,6 +587,7 @@ public class Renderer {
         }
         defaultShader.unbind();
     }
+
     public void renderDebugOverlay(float panelX, float panelY, float panelWidth, float panelHeight, List<String> lines) {
         if (uiFont == null || !uiFont.isInitialized()) return;
         glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -617,32 +602,51 @@ public class Renderer {
         spriteVertexBuffer.put(panelX).put(panelY).put(z).put(bgColor[0]).put(bgColor[1]).put(bgColor[2]).put(bgColor[3]).put(0f).put(0f).put(1f);
         spriteVertexBuffer.put(panelX).put(panelY+panelHeight).put(z).put(bgColor[0]).put(bgColor[1]).put(bgColor[2]).put(bgColor[3]).put(0f).put(0f).put(1f);
         spriteVertexBuffer.put(panelX+panelWidth).put(panelY).put(z).put(bgColor[0]).put(bgColor[1]).put(bgColor[2]).put(bgColor[3]).put(0f).put(0f).put(1f);
+
         spriteVertexBuffer.put(panelX+panelWidth).put(panelY).put(z).put(bgColor[0]).put(bgColor[1]).put(bgColor[2]).put(bgColor[3]).put(0f).put(0f).put(1f);
         spriteVertexBuffer.put(panelX).put(panelY+panelHeight).put(z).put(bgColor[0]).put(bgColor[1]).put(bgColor[2]).put(bgColor[3]).put(0f).put(0f).put(1f);
         spriteVertexBuffer.put(panelX+panelWidth).put(panelY+panelHeight).put(z).put(bgColor[0]).put(bgColor[1]).put(bgColor[2]).put(bgColor[3]).put(0f).put(0f).put(1f);
         spriteVertexBuffer.flip();
         glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
-        defaultShader.setUniform("uHasTexture", 0); defaultShader.setUniform("uIsFont", 0);
+        defaultShader.setUniform("uHasTexture", 0);
+        defaultShader.setUniform("uIsFont", 0);
         glDrawArrays(GL_TRIANGLES, 0, 6);
-        glBindBuffer(GL_ARRAY_BUFFER, 0); glBindVertexArray(0);
 
-        float textX = panelX + 5f, textY = panelY + 5f;
-        if (uiFont.getAscent() > 0) textY += uiFont.getAscent();
+        float textX = panelX + 5f;
+        float textY = panelY + 5f;
+        if (uiFont.getAscent() > 0) {
+            textY += uiFont.getAscent();
+        }
+
         for (String line : lines) {
             uiFont.drawText(textX, textY, line, 0.9f, 0.9f, 0.9f);
             textY += 18f;
         }
         glEnable(GL_DEPTH_TEST);
+        defaultShader.unbind();
     }
+
     public void cleanup() {
         if(playerTexture!=null)playerTexture.delete();
         if(treeTexture!=null)treeTexture.delete();
         if(tileAtlasTexture!=null)tileAtlasTexture.delete();
         if(uiFont!=null)uiFont.cleanup();
         if(defaultShader!=null)defaultShader.cleanup();
-        if(mapChunks!=null){for(Chunk ch:mapChunks)ch.cleanup();mapChunks.clear();}
+
+        for (Chunk chunk : activeRenderChunks.values()) {
+            chunk.cleanup();
+        }
+        activeRenderChunks.clear();
+
         if(spriteVaoId!=0){glDeleteVertexArrays(spriteVaoId);spriteVaoId=0;}
         if(spriteVboId!=0){glDeleteBuffers(spriteVboId);spriteVboId=0;}
         if(spriteVertexBuffer!=null){MemoryUtil.memFree(spriteVertexBuffer);spriteVertexBuffer=null;}
+    }
+
+    public Set<ChunkCoordinate> getRenderedChunkCoordinates() {
+        return new HashSet<>(activeRenderChunks.keySet());
+    }
+    public int getRenderedChunkCount() {
+        return activeRenderChunks.size();
     }
 }
