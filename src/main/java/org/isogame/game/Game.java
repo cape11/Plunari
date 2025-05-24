@@ -18,7 +18,7 @@ import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
 
 public class Game {
-    private double lastFrameTime;
+    private double lastFrameTime; // Single declaration of lastFrameTime
 
     private final long window;
     private InputHandler inputHandler;
@@ -27,25 +27,33 @@ public class Game {
     private final Renderer renderer;
     private final Map map;
     private final PlayerModel player;
-    private final LightManager lightManager; // Added
+    private final LightManager lightManager;
 
-    private double pseudoTimeOfDay = 0.25; // Start in daytime (0.0 to 0.5 is day, 0.5 to 1.0 is night)
-    private final double DAY_NIGHT_CYCLE_SPEED = 0.05; // Slower cycle for testing
+    private double pseudoTimeOfDay = 0.0005;
+    private final double DAY_NIGHT_CYCLE_SPEED = 0.05;
     private byte currentGlobalSkyLight;
 
+    private byte lastUpdatedSkyLightValue;
+    private static final int SKY_LIGHT_UPDATE_THRESHOLD = 2;
 
-    public Game(long window, int initialFramebufferWidth, int initialFramebufferHeight) {
+    // --- FPS Counter Variables ---
+    private int framesRenderedThisSecond = 0;
+    private double timeAccumulatorForFps = 0.0;
+    private double displayedFps = 0.0;
+    // --- End FPS Counter Variables ---
+
+
+    public Game(long window, int initialFramebufferWidth, int initialScreenHeight) { // Corrected parameter name
         this.window = window;
 
-        map = new Map(MAP_WIDTH, MAP_HEIGHT); // Map initializes its own LightManager
-        lightManager = map.getLightManager(); // Get the LightManager from the map
+        map = new Map(MAP_WIDTH, MAP_HEIGHT);
+        lightManager = map.getLightManager();
         player = new PlayerModel(map.getCharacterSpawnRow(), map.getCharacterSpawnCol());
-        cameraManager = new CameraManager(initialFramebufferWidth, initialFramebufferHeight, map.getWidth(), map.getHeight());
+        cameraManager = new CameraManager(initialFramebufferWidth, initialScreenHeight, map.getWidth(), map.getHeight()); // Corrected parameter name
         cameraManager.setTargetPositionInstantly(player.getMapCol(), player.getMapRow());
 
-        // Pass 'this' (Game instance) to InputHandler
         inputHandler = new InputHandler(window, cameraManager, map, player, this);
-        inputHandler.registerCallbacks(this::requestFullMapRegeneration); // Changed callback name for clarity
+        inputHandler.registerCallbacks(this::requestFullMapRegeneration);
 
         renderer = new Renderer(cameraManager, map, player, inputHandler);
         mouseHandler = new MouseHandler(window, cameraManager, map, inputHandler, player);
@@ -55,11 +63,29 @@ public class Game {
             if (renderer != null) renderer.onResize(fbW, fbH);
         });
 
-        if (renderer != null) renderer.onResize(initialFramebufferWidth, initialFramebufferHeight);
+        if (renderer != null) renderer.onResize(initialFramebufferWidth, initialScreenHeight); // Corrected parameter name
 
-        // Initial sky light update
-        updateSkyLightBasedOnTimeOfDay();
+        byte initialSkyLight = calculateSkyLightForTime(pseudoTimeOfDay);
+        currentGlobalSkyLight = initialSkyLight;
+        lastUpdatedSkyLightValue = initialSkyLight;
+        lightManager.updateGlobalSkyLight(currentGlobalSkyLight);
 
+        if (lightManager != null) {
+            for(int i=0; i < 100; i++) {
+                lightManager.processLightQueuesIncrementally();
+                Set<LightManager.ChunkCoordinate> dirtyChunks = lightManager.getDirtyChunksAndClear();
+                if (!dirtyChunks.isEmpty()) {
+                    for (LightManager.ChunkCoordinate coord : dirtyChunks) {
+                        if (renderer != null) {
+                            renderer.updateChunkByGridCoords(coord.chunkX, coord.chunkY);
+                        }
+                    }
+                } else if (i > 10) {
+                    break;
+                }
+            }
+        }
+        System.out.println("Game: Initial Sky light set to " + currentGlobalSkyLight);
         System.out.println("Game components initialized.");
     }
 
@@ -69,7 +95,7 @@ public class Game {
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glEnable(GL_DEPTH_TEST);
         glDepthFunc(GL_LEQUAL);
-        System.out.println("Game.initOpenGL() - Depth Test Enabled.");
+        System.out.println("Game.initOpenGL() - Depth Test Enabled. Depth Func: GL_LEQUAL");
     }
 
     public void gameLoop() {
@@ -80,7 +106,15 @@ public class Game {
             double currentTime = glfwGetTime();
             double deltaTime = currentTime - lastFrameTime;
             lastFrameTime = currentTime;
-            if (deltaTime > 0.1) deltaTime = 0.1; // Cap delta time
+            if (deltaTime > 0.1) deltaTime = 0.1;
+
+            timeAccumulatorForFps += deltaTime;
+            framesRenderedThisSecond++;
+            if (timeAccumulatorForFps >= 1.0) {
+                displayedFps = (double)framesRenderedThisSecond / timeAccumulatorForFps;
+                framesRenderedThisSecond = 0;
+                timeAccumulatorForFps -= 1.0;
+            }
 
             glfwPollEvents();
             updateGameLogic(deltaTime);
@@ -91,26 +125,38 @@ public class Game {
         cleanup();
     }
 
-    private void updateSkyLightBasedOnTimeOfDay() {
+    private byte calculateSkyLightForTime(double time) {
         byte newSkyLight;
-        // Example: 0.0 to 0.45 = Day, 0.45 to 0.55 = Dusk, 0.55 to 0.95 = Night, 0.95 to 1.0 = Dawn
-        if (pseudoTimeOfDay >= 0.0 && pseudoTimeOfDay < 0.45) { // Day
+        if (time >= 0.0 && time < 0.40) { // Day
             newSkyLight = SKY_LIGHT_DAY;
-        } else if (pseudoTimeOfDay >= 0.45 && pseudoTimeOfDay < 0.55) { // Dusk
-            float phase = (float) ((pseudoTimeOfDay - 0.45) / 0.10); // 0 to 1 during dusk
+        } else if (time >= 0.40 && time < 0.60) { // Dusk (now longer)
+            // Phase goes from 0.0 (start of dusk) to 1.0 (end of dusk)
+            float phase = (float) ((time - 0.40) / 0.20); // Duration of dusk is 0.20 (0.60 - 0.40)
             newSkyLight = (byte) (SKY_LIGHT_DAY - phase * (SKY_LIGHT_DAY - SKY_LIGHT_NIGHT));
-        } else if (pseudoTimeOfDay >= 0.55 && pseudoTimeOfDay < 0.95) { // Night
+        } else if (time >= 0.60 && time < 0.80) { // Night (now shorter)
             newSkyLight = SKY_LIGHT_NIGHT;
-        } else { // Dawn (pseudoTimeOfDay >= 0.95 && pseudoTimeOfDay < 1.0)
-            float phase = (float) ((pseudoTimeOfDay - 0.95) / 0.05); // 0 to 1 during dawn
+        } else { // Dawn (time >= 0.80 && time < 1.0) (now longer)
+            // Phase goes from 0.0 (start of dawn) to 1.0 (end of dawn)
+            float phase = (float) ((time - 0.80) / 0.20); // Duration of dawn is 0.20 (1.00 - 0.80)
             newSkyLight = (byte) (SKY_LIGHT_NIGHT + phase * (SKY_LIGHT_DAY - SKY_LIGHT_NIGHT));
         }
-        newSkyLight = (byte)Math.max(0, Math.min(MAX_LIGHT_LEVEL, newSkyLight));
+        return (byte)Math.max(0, Math.min(MAX_LIGHT_LEVEL, newSkyLight));
+    }
 
-        if (newSkyLight != currentGlobalSkyLight) {
-            currentGlobalSkyLight = newSkyLight;
-            lightManager.updateGlobalSkyLight(currentGlobalSkyLight);
-            System.out.println("Game: Sky light updated to " + currentGlobalSkyLight + " based on time: " + pseudoTimeOfDay);
+
+    private void updateSkyLightBasedOnTimeOfDay(double deltaTime) {
+        byte newCalculatedSkyLight = calculateSkyLightForTime(pseudoTimeOfDay);
+
+        boolean skyLightActuallyChanged = (newCalculatedSkyLight != currentGlobalSkyLight);
+        currentGlobalSkyLight = newCalculatedSkyLight;
+
+        if (Math.abs(newCalculatedSkyLight - lastUpdatedSkyLightValue) >= SKY_LIGHT_UPDATE_THRESHOLD ||
+                (skyLightActuallyChanged && newCalculatedSkyLight == SKY_LIGHT_DAY) ||
+                (skyLightActuallyChanged && newCalculatedSkyLight == SKY_LIGHT_NIGHT) ) {
+
+            lightManager.updateGlobalSkyLight(newCalculatedSkyLight);
+            lastUpdatedSkyLightValue = newCalculatedSkyLight;
+            System.out.println("Game: Sky light FULL UPDATE to " + newCalculatedSkyLight + " based on time: " + pseudoTimeOfDay);
         }
     }
 
@@ -119,19 +165,20 @@ public class Game {
         if (pseudoTimeOfDay >= 1.0) {
             pseudoTimeOfDay -= 1.0;
         }
-        updateSkyLightBasedOnTimeOfDay(); // Update sky light based on new time
+        updateSkyLightBasedOnTimeOfDay(deltaTime);
 
         if (inputHandler != null) inputHandler.handleContinuousInput(deltaTime);
         if (player != null) player.update(deltaTime);
         if (cameraManager != null) cameraManager.update(deltaTime);
 
-        // Process dirty chunks for rendering
+        if (lightManager != null) {
+            lightManager.processLightQueuesIncrementally();
+        }
+
         Set<LightManager.ChunkCoordinate> dirtyChunks = lightManager.getDirtyChunksAndClear();
         if (!dirtyChunks.isEmpty()) {
-            // System.out.println("Game: Processing " + dirtyChunks.size() + " dirty chunks for renderer update.");
             for (LightManager.ChunkCoordinate coord : dirtyChunks) {
                 if (renderer != null) {
-                    // The LightManager gives chunk grid coordinates. Convert to a tile within that chunk.
                     renderer.updateChunkByGridCoords(coord.chunkX, coord.chunkY);
                 }
             }
@@ -139,21 +186,21 @@ public class Game {
     }
 
     private void renderGame() {
-        // Background color based on time of day (can be simpler now that lighting handles darkness)
         float rSky, gSky, bSky;
-        if (currentGlobalSkyLight > SKY_LIGHT_NIGHT + (SKY_LIGHT_DAY - SKY_LIGHT_NIGHT) / 2) { // More day than night
-            rSky = 0.5f; gSky = 0.7f; bSky = 1.0f; // Light blue sky
-        } else { // More night than day
-            rSky = 0.05f; gSky = 0.05f; bSky = 0.15f; // Dark blue/purple sky
+        if (currentGlobalSkyLight > SKY_LIGHT_NIGHT + (SKY_LIGHT_DAY - SKY_LIGHT_NIGHT) / 2) {
+            rSky = 0.5f; gSky = 0.7f; bSky = 1.0f;
+        } else {
+            rSky = 0.05f; gSky = 0.05f; bSky = 0.15f;
         }
         glClearColor(rSky, gSky, bSky, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         if (renderer != null) {
-            renderer.render(); // Renderer handles its own objects
+            renderer.render();
 
             if (this.showDebugOverlay) {
-                List<String> debugLines = new ArrayList<>();
+                List<String> debugLines = new ArrayList<>(); // debugLines is defined here
+                debugLines.add(String.format("FPS: %.1f", displayedFps)); // Now this line is in scope
                 debugLines.add(String.format("Time: %.2f, SkyLight: %d", pseudoTimeOfDay, currentGlobalSkyLight));
                 if (player != null) debugLines.add("Player: (" + player.getTileRow() + ", " + player.getTileCol() + ")");
                 if (inputHandler != null) {
@@ -170,23 +217,18 @@ public class Game {
                 debugLines.add("Toggle Torch: L | Dig: J | Elev: Q/E");
                 debugLines.add("Center Cam: C | Regen Map: G | Debug: F5");
 
-                renderer.renderDebugOverlay(10f, 10f, 550f, 200f, debugLines);
+                renderer.renderDebugOverlay(10f, 10f, 900f, 170f, debugLines);
             }
         }
     }
-
-    /**
-     * Called when a full map regeneration is requested (e.g., by pressing 'G').
-     * This regenerates map terrain and reinitializes lighting.
-     */
     public void requestFullMapRegeneration() {
         System.out.println("Game: Full map regeneration requested.");
         if (map != null) {
-            map.generateMap(); // This now also re-initializes lighting via LightManager
+            map.generateMap();
         }
         if (player != null && map != null) {
             player.setPosition(map.getCharacterSpawnRow(), map.getCharacterSpawnCol());
-            player.setPath(null); // Clear any existing path
+            player.setPath(null);
             if (inputHandler != null) {
                 inputHandler.setSelectedTile(player.getTileCol(), player.getTileRow());
             }
@@ -194,42 +236,42 @@ public class Game {
                 cameraManager.setTargetPositionInstantly(player.getMapCol(), player.getMapRow());
             }
         }
+
+        byte newInitialSkyLight = calculateSkyLightForTime(pseudoTimeOfDay);
+        currentGlobalSkyLight = newInitialSkyLight;
+        lastUpdatedSkyLightValue = newInitialSkyLight;
+        lightManager.updateGlobalSkyLight(currentGlobalSkyLight);
+        if (lightManager != null) {
+            for(int i=0; i < 100; i++) {
+                lightManager.processLightQueuesIncrementally();
+                Set<LightManager.ChunkCoordinate> dirtyChunks = lightManager.getDirtyChunksAndClear();
+                if (!dirtyChunks.isEmpty()) {
+                    for (LightManager.ChunkCoordinate coord : dirtyChunks) {
+                        if (renderer != null) renderer.updateChunkByGridCoords(coord.chunkX, coord.chunkY);
+                    }
+                } else if (i > 10) break;
+            }
+        }
+        System.out.println("Game: Sky light RE-INITIALIZED to " + currentGlobalSkyLight + " after map regeneration.");
+
         if (renderer != null) {
             System.out.println("Game: Requesting FULL map geometry upload to renderer after regeneration.");
-            renderer.uploadTileMapGeometry(); // Upload all chunks
+            renderer.uploadTileMapGeometry();
         }
-        // Ensure sky light is correctly set for the current time after regeneration
-        updateSkyLightBasedOnTimeOfDay();
         System.out.println("Game: Full map regeneration processing complete.");
     }
-
-    /**
-     * Called when a single tile's properties change in a way that might affect rendering
-     * but not necessarily lighting for the entire map (e.g., selection highlight, minor texture change).
-     * If lighting is affected, LightManager will mark chunks dirty.
-     * @param row The row of the tile.
-     * @param col The column of the tile.
-     */
     public void requestTileRenderUpdate(int row, int col) {
-        // This method might be less used if LightManager handles dirty chunks directly.
-        // However, it can be kept for non-lighting related visual updates if needed.
         if (renderer != null) {
-            // System.out.println("Game: Requesting render update for tile: (" + row + ", " + col + ")");
-            renderer.updateChunkContainingTile(row, col); // This tells renderer to rebuild a specific chunk
+            renderer.updateChunkContainingTile(row, col);
         }
     }
-
-
-    private boolean showDebugOverlay = true; // Start with debug overlay on
-
+    private boolean showDebugOverlay = true;
     public void toggleShowDebugOverlay() {
         this.showDebugOverlay = !this.showDebugOverlay;
     }
-
     private void cleanup() {
         System.out.println("Game cleanup initiated...");
         if (renderer != null) renderer.cleanup();
-        // LightManager cleanup if it holds resources (not in this version)
         System.out.println("Game cleanup complete.");
     }
 }

@@ -2,7 +2,6 @@ package org.isogame.map;
 
 import org.isogame.tile.Tile;
 import java.util.Random;
-// import java.util.Set; // No longer needed here
 
 import static org.isogame.constants.Constants.*;
 
@@ -59,7 +58,6 @@ public class Map {
 
                 if (type == Tile.TileType.GRASS && elevation >= NIVEL_ARENA && elevation < NIVEL_ROCA) {
                     if (random.nextFloat() < 0.08) {
-                        // Ensure you have APPLE_TREE_FRUITING and PINE_TREE_SMALL in Tile.TreeVisualType
                         currentTile.setTreeType(random.nextBoolean() ? Tile.TreeVisualType.APPLE_TREE_FRUITING : Tile.TreeVisualType.PINE_TREE_SMALL);
                     } else {
                         currentTile.setTreeType(Tile.TreeVisualType.NONE);
@@ -71,17 +69,22 @@ public class Map {
         }
         findSuitableCharacterPosition();
         System.out.println("Map: Terrain generation finished. Initializing lighting...");
-        // Game.java will call updateSkyLightBasedOnTimeOfDay which calls lightManager.updateGlobalSkyLight
-        // So, no need to call it directly here with a fixed SKY_LIGHT_DAY if Game handles initial call.
-        // However, for the very first map generation, we might want to ensure it's lit.
-        // Let's assume Game.java's constructor will handle the first lighting pass.
-        // For safety, we can trigger a generic light update for all chunks after generation.
+
         for (int r = 0; r < height; r+=CHUNK_SIZE_TILES) {
             for (int c = 0; c < width; c+=CHUNK_SIZE_TILES) {
-                lightManager.markChunkDirty(r,c); // Mark all chunks initially dirty
+                lightManager.markChunkDirty(r,c);
             }
         }
-        // The Game loop's first call to updateSkyLightBasedOnTimeOfDay will then process these.
+        if (height % CHUNK_SIZE_TILES != 0) {
+            for (int c = 0; c < width; c+=CHUNK_SIZE_TILES) lightManager.markChunkDirty(height -1 ,c);
+        }
+        if (width % CHUNK_SIZE_TILES != 0) {
+            for (int r = 0; r < height; r+=CHUNK_SIZE_TILES) lightManager.markChunkDirty(r ,width -1);
+        }
+        if (height % CHUNK_SIZE_TILES != 0 && width % CHUNK_SIZE_TILES != 0) {
+            lightManager.markChunkDirty(height-1, width-1);
+        }
+
         System.out.println("Map: Initial lighting will be processed by Game loop. Spawn: (" + characterSpawnRow + ", " + characterSpawnCol + ")");
     }
 
@@ -186,38 +189,17 @@ public class Map {
             }
 
             if (oldElevation != clampedElevation || oldType != tile.getType()) {
-                // CRITICAL FIX: Do NOT call updateGlobalSkyLight here.
-                // Just mark chunks dirty. The Game loop's sky light update will handle it.
                 System.out.println("Map.setTileElevation: Marking chunks dirty around (" + row + "," + col + ") due to elevation/type change.");
-                for(int dr = -1; dr <= 1; dr++) { // Mark a 3x3 area of chunks around the change
+                for(int dr = -1; dr <= 1; dr++) {
                     for(int dc = -1; dc <= 1; dc++) {
-                        if(isValid(row + dr, col + dc)) { // Check if the base tile is valid before calculating chunk
+                        if(isValid(row + dr, col + dc)) {
                             lightManager.markChunkDirty(row + dr, col + dc);
                         }
                     }
                 }
-                // If the tile that changed elevation was a torch, its light needs to be re-evaluated.
                 if (tile.hasTorch()) {
                     lightManager.removeLightSource(row, col);
                     lightManager.addLightSource(row, col, (byte) TORCH_LIGHT_LEVEL);
-                }
-                // Also, explicitly re-propagate sky light for the affected tile and its direct neighbors,
-                // as their exposure to sky or ability to propagate sky light might have changed.
-                // This is a more targeted update than a full global sky light recalculation.
-                // The LightManager's updateGlobalSkyLight (called by Game) will handle the broader context.
-                // Here, we just ensure the immediate area is considered for sky light again.
-                for(int dr = -1; dr <= 1; dr++) {
-                    for(int dc = -1; dc <= 1; dc++) {
-                        if(isValid(row + dr, col + dc)) {
-                            Tile affectedTile = getTile(row + dr, col + dc);
-                            if (affectedTile != null) {
-                                // Reset its sky light so it gets re-evaluated by the next global update or propagation
-                                // This is a bit aggressive, the LightManager's main update should handle it.
-                                // For now, just marking dirty is sufficient.
-                                // affectedTile.setSkyLightLevel((byte)0); // Let LightManager handle this.
-                            }
-                        }
-                    }
                 }
             }
         }

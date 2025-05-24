@@ -11,24 +11,23 @@ public class Tile {
     public enum TreeVisualType {
         NONE,
         APPLE_TREE_FRUITING,
-        PINE_TREE_SMALL
+        PINE_TREE_SMALL,
+        PALM_TREE // Ensure you have this if you plan to use PALM_TREE case in Renderer
     }
 
     private TileType type;
     private int elevation;
     private TreeVisualType treeType;
 
-    // Lighting properties
-    private byte skyLightLevel = 0;   // Light from the sky (0-15)
-    private byte blockLightLevel = 0; // Light from torches, etc. (0-15)
-    private boolean hasTorch = false; // True if this tile itself is a torch source
+    private byte skyLightLevel = 0;
+    private byte blockLightLevel = 0;
+    private boolean hasTorch = false;
 
     public Tile(TileType type, int elevation) {
         this.type = type;
         this.elevation = elevation;
         this.treeType = TreeVisualType.NONE;
-        // Initialize light levels (sky light will be set by LightManager)
-        this.skyLightLevel = 0; // Default to dark, LightManager will illuminate
+        this.skyLightLevel = 0;
         this.blockLightLevel = 0;
     }
 
@@ -56,7 +55,6 @@ public class Tile {
         this.treeType = treeType;
     }
 
-    // --- Lighting Getters and Setters ---
     public byte getSkyLightLevel() {
         return skyLightLevel;
     }
@@ -81,25 +79,12 @@ public class Tile {
         this.hasTorch = hasTorch;
     }
 
-    /**
-     * Gets the effective light level for rendering this tile.
-     * This is the maximum of sky light and block light.
-     * @return The final light level (0-15).
-     */
     public byte getFinalLightLevel() {
         return (byte) Math.max(skyLightLevel, blockLightLevel);
     }
 
-    /**
-     * Checks if light can pass through this tile.
-     * For example, air, water (to some extent), and glass would be transparent.
-     * Solid blocks like GRASS, ROCK, SAND, SNOW are generally not.
-     * @return true if light can pass, false otherwise.
-     */
     public boolean isTransparentToLight() {
-        // Water is somewhat transparent to sky light, but might block block light propagation more.
-        // For simplicity here, let's say only WATER allows light through easily.
-        // Grass, Rock, Sand, Snow are opaque.
-        return type == TileType.WATER; // Or more complex logic: e.g. type == TileType.AIR (if you add it)
+        // Consider if water should be more transparent to sky light than block light
+        return type == TileType.WATER;
     }
 }

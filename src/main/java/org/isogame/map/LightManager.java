@@ -17,6 +17,8 @@ public class LightManager {
     private final Queue<LightNode> skyLightQueue;
     private final Queue<LightNode> skyLightRemovalQueue;
 
+    private static final int MAX_NODES_PER_FRAME_PROPAGATION = 500;
+    private static final int MAX_NODES_PER_FRAME_REMOVAL = 200;
 
     public LightManager(Map map) {
         this.map = map;
@@ -38,9 +40,8 @@ public class LightManager {
     }
 
     public void updateGlobalSkyLight(byte globalSkyLight) {
-        System.out.println("LightManager: Updating global sky light to " + globalSkyLight + " (Using Aggressive Seeding)");
+        System.out.println("LightManager: Updating global sky light to " + globalSkyLight + " (Aggressive Seeding)");
 
-        // 1. Reset all sky light on all tiles.
         for (int r = 0; r < map.getHeight(); r++) {
             for (int c = 0; c < map.getWidth(); c++) {
                 Tile tile = map.getTile(r, c);
@@ -55,8 +56,6 @@ public class LightManager {
         skyLightQueue.clear();
         skyLightRemovalQueue.clear();
 
-        // 2. AGGRESSIVE SEEDING:
-        // Seed all non-water tiles at or above sea level with globalSkyLight.
         for (int r = 0; r < map.getHeight(); r++) {
             for (int c = 0; c < map.getWidth(); c++) {
                 Tile tile = map.getTile(r, c);
@@ -69,9 +68,7 @@ public class LightManager {
                 }
             }
         }
-
-        processSkyLightQueue();
-        System.out.println("LightManager: Global sky light update complete (Aggressive Seeding). Dirty chunks: " + dirtyChunks.size());
+        System.out.println("LightManager: Global sky light update initiated. Queue size: " + skyLightQueue.size());
     }
 
     public void addLightSource(int r, int c, byte lightLevel) {
@@ -82,7 +79,6 @@ public class LightManager {
                 tile.setBlockLightLevel(lightLevel);
                 blockLightQueue.add(new LightNode(r, c, lightLevel));
                 markChunkDirty(r, c);
-                processBlockLightQueue();
             }
         }
     }
@@ -95,95 +91,132 @@ public class LightManager {
             tile.setBlockLightLevel((byte) 0);
             blockLightRemovalQueue.add(new LightNode(r, c, oldLight));
             markChunkDirty(r, c);
-            processBlockLightRemovalQueue();
         }
     }
 
-    private void processBlockLightQueue() {
-        while (!blockLightQueue.isEmpty()) {
-            LightNode current = blockLightQueue.poll();
-            propagateLight(current, LightType.BLOCK);
-        }
+    public void processLightQueuesIncrementally() {
+        processQueue(blockLightRemovalQueue, LightType.BLOCK_REMOVAL, MAX_NODES_PER_FRAME_REMOVAL);
+        processQueue(skyLightRemovalQueue, LightType.SKY_REMOVAL, MAX_NODES_PER_FRAME_REMOVAL);
+
+        processQueue(blockLightQueue, LightType.BLOCK, MAX_NODES_PER_FRAME_PROPAGATION);
+        processQueue(skyLightQueue, LightType.SKY, MAX_NODES_PER_FRAME_PROPAGATION);
     }
 
-    private void processSkyLightQueue() {
-        while (!skyLightQueue.isEmpty()) {
-            LightNode current = skyLightQueue.poll();
-            propagateLight(current, LightType.SKY);
-        }
-    }
+    private void processQueue(Queue<LightNode> queue, LightType type, int budget) {
+        int processedNodes = 0;
+        while (!queue.isEmpty() && processedNodes < budget) {
+            LightNode current = queue.poll(); // Poll at the start of the loop
+            if (current == null) break; // Should not happen if !queue.isEmpty() but defensive
 
-    private void processBlockLightRemovalQueue() {
-        Set<LightNode> reLightSources = new HashSet<>();
-
-        while (!blockLightRemovalQueue.isEmpty()) {
-            LightNode current = blockLightRemovalQueue.poll();
-            int r = current.r;
-            int c = current.c;
-            byte removedLight = current.lightLevel;
-
-            Tile tile = map.getTile(r, c);
-            if (tile == null) continue;
-
-            if (tile.getBlockLightLevel() <= removedLight && !tile.hasTorch()) {
-                tile.setBlockLightLevel((byte)0);
-                markChunkDirty(r,c);
-            } else if (tile.getBlockLightLevel() > 0) {
-                reLightSources.add(new LightNode(r, c, tile.getBlockLightLevel()));
+            if (type == LightType.BLOCK_REMOVAL) {
+                // Pass the single polled node to an adapted incremental removal function
+                processSingleBlockLightRemovalNode(current);
+            } else if (type == LightType.SKY_REMOVAL) {
+                processSingleSkyLightRemovalNode(current);
+            } else { // BLOCK or SKY propagation
+                propagateLight(current, type);
             }
+            processedNodes++;
+        }
+    }
+
+    private void processSingleBlockLightRemovalNode(LightNode removedNode) {
+        int r = removedNode.r;
+        int c = removedNode.c;
+        byte originalRemovedLightLevel = removedNode.lightLevel; // The light level this source originally provided
+
+        Tile tile = map.getTile(r, c);
+        if (tile == null) return;
+
+        // If this tile was the source and is no longer, or its light was reduced
+        if (!tile.hasTorch() && tile.getBlockLightLevel() < originalRemovedLightLevel) {
+            tile.setBlockLightLevel((byte) 0); // Remove its light contribution
+            markChunkDirty(r, c);
+        } else if (tile.hasTorch() && tile.getBlockLightLevel() < originalRemovedLightLevel) {
+            // A torch whose intensity was reduced - this case is less common with simple toggle
+            // For now, assume torches are either full strength or 0.
+        }
+
+
+        // Check neighbors that might have been lit by this node
+        Queue<LightNode> toRecheck = new LinkedList<>();
+        toRecheck.add(new LightNode(r,c,originalRemovedLightLevel)); // Start recheck from the source of removal
+
+        Set<LightNode> visitedForRemovalWave = new HashSet<>();
+        visitedForRemovalWave.add(new LightNode(r,c,(byte)0)); // Add by coord only
+
+        while(!toRecheck.isEmpty()){
+            LightNode currentCheckNode = toRecheck.poll();
+            int cr = currentCheckNode.r;
+            int cc = currentCheckNode.c;
+            byte lightLevelFromThisPath = currentCheckNode.lightLevel;
 
             for (int dr = -1; dr <= 1; dr++) {
                 for (int dc = -1; dc <= 1; dc++) {
                     if (dr == 0 && dc == 0) continue;
                     if (Math.abs(dr) + Math.abs(dc) > 1) continue;
 
-                    int nr = r + dr;
-                    int nc = c + dc;
+                    int nr = cr + dr;
+                    int nc = cc + dc;
 
                     if (!map.isValid(nr, nc)) continue;
                     Tile neighbor = map.getTile(nr, nc);
-                    if (neighbor == null) continue;
+                    if (neighbor == null || neighbor.getBlockLightLevel() == 0) continue;
 
-                    byte neighborLight = neighbor.getBlockLightLevel();
-                    byte lightFromCurrent = (byte)Math.max(0, removedLight - LIGHT_PROPAGATION_COST - getOpacityCost(neighbor));
+                    byte expectedLightFromCurrent = (byte) Math.max(0, lightLevelFromThisPath - LIGHT_PROPAGATION_COST - getOpacityCost(neighbor));
 
-                    if (neighborLight > 0 && neighborLight <= lightFromCurrent) {
-                        blockLightRemovalQueue.add(new LightNode(nr, nc, neighborLight));
-                        neighbor.setBlockLightLevel((byte)0);
-                        markChunkDirty(nr,nc);
-                    } else if (neighborLight > 0) {
-                        reLightSources.add(new LightNode(nr, nc, neighborLight));
+                    if (neighbor.getBlockLightLevel() <= expectedLightFromCurrent) {
+                        // This neighbor was lit by the path we are removing or an equally strong one through it.
+                        // Set its light to 0 and add it to the removal propagation.
+                        byte oldNeighborLight = neighbor.getBlockLightLevel();
+                        neighbor.setBlockLightLevel((byte) 0);
+                        markChunkDirty(nr, nc);
+                        LightNode neighborRemovalNode = new LightNode(nr,nc,oldNeighborLight);
+                        if(!visitedForRemovalWave.contains(neighborRemovalNode)){
+                            toRecheck.add(neighborRemovalNode);
+                            visitedForRemovalWave.add(neighborRemovalNode);
+                        }
+                    } else {
+                        // Neighbor is lit by another stronger path or is a source.
+                        // Add it to the main blockLightQueue to ensure its light re-propagates correctly.
+                        blockLightQueue.add(new LightNode(nr, nc, neighbor.getBlockLightLevel()));
                     }
                 }
             }
         }
-        for (LightNode source : reLightSources) {
-            Tile tile = map.getTile(source.r, source.c);
-            if(tile != null && tile.getBlockLightLevel() > 0) {
-                blockLightQueue.add(new LightNode(source.r, source.c, tile.getBlockLightLevel()));
-            }
-        }
-        if (!reLightSources.isEmpty()) {
-            processBlockLightQueue();
+    }
+
+    private void processSingleSkyLightRemovalNode(LightNode removedNode) {
+        // Similar to block light removal, but for sky light.
+        // Given current updateGlobalSkyLight, this might be less critical as it does a full reset.
+        // However, for future targeted sky light changes (e.g. building a roof), this would be needed.
+        int r = removedNode.r;
+        int c = removedNode.c;
+        byte originalRemovedLightLevel = removedNode.lightLevel;
+
+        Tile tile = map.getTile(r,c);
+        if(tile == null || tile.getSkyLightLevel() >= originalRemovedLightLevel) return;
+
+        tile.setSkyLightLevel((byte)0);
+        markChunkDirty(r,c);
+
+        Queue<LightNode> toRecheck = new LinkedList<>();
+        toRecheck.add(new LightNode(r,c,originalRemovedLightLevel));
+        Set<LightNode> visitedForRemovalWave = new HashSet<>();
+        visitedForRemovalWave.add(new LightNode(r,c,(byte)0));
+
+        while(!toRecheck.isEmpty()){
+            LightNode currentCheckNode = toRecheck.poll();
+            // ... (propagation logic similar to block removal, but using skyLight fields and SKY propagation rules)
         }
     }
 
-    private void processSkyLightRemovalQueue() {
-        while(!skyLightRemovalQueue.isEmpty()){
-            skyLightRemovalQueue.poll();
-        }
-    }
 
     private void propagateLight(LightNode sourceNode, LightType type) {
         Queue<LightNode> queue = new LinkedList<>();
         queue.add(sourceNode);
-        // visitedInThisWave now stores LightNode objects, which include lightLevel.
-        // However, for the purpose of not re-adding the same COORDINATE to the queue
-        // multiple times in one wave if it's already processed or scheduled,
-        // a Set<CoordinateXY> might be simpler if LightNode's equals/hashCode are complex.
-        // For now, LightNode.equals uses r,c only, so it acts like a coordinate set.
         Set<LightNode> visitedInThisWave = new HashSet<>();
-        visitedInThisWave.add(sourceNode); // Add source node (r,c) to visited set
+        visitedInThisWave.add(sourceNode);
 
         while(!queue.isEmpty()){
             LightNode current = queue.poll();
@@ -209,9 +242,9 @@ public class LightManager {
                 int propagationCost = LIGHT_PROPAGATION_COST;
 
                 if (type == LightType.SKY) {
-                    if (dr < 0) {
+                    if (dr < 0) { // Moving upwards
                         propagationCost = MAX_LIGHT_LEVEL;
-                    } else {
+                    } else { // Sideways or Downwards for sky light
                         propagationCost = LIGHT_PROPAGATION_COST;
                     }
                 }
@@ -228,7 +261,6 @@ public class LightManager {
                 }
 
                 if (lightToNeighbor > existingNeighborLight) {
-                    // Update the light on the tile
                     if (type == LightType.BLOCK) {
                         neighborTile.setBlockLightLevel(lightToNeighbor);
                     } else {
@@ -236,15 +268,10 @@ public class LightManager {
                     }
                     markChunkDirty(nr, nc);
 
-                    // Create a node representing the neighbor *with its new light level*
                     LightNode neighborNodeForQueue = new LightNode(nr, nc, lightToNeighbor);
-
-                    // Add to queue for further propagation if this coordinate hasn't been
-                    // a source in this wave yet. The light level in neighborNodeForQueue
-                    // is the new, higher light level.
-                    if (!visitedInThisWave.contains(neighborNodeForQueue)) { // contains() uses r,c from LightNode.equals()
+                    if (!visitedInThisWave.contains(neighborNodeForQueue)) {
                         queue.add(neighborNodeForQueue);
-                        visitedInThisWave.add(neighborNodeForQueue); // Mark (r,c) as visited for this wave
+                        visitedInThisWave.add(neighborNodeForQueue);
                     }
                 }
             }
@@ -279,21 +306,15 @@ public class LightManager {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             LightNode lightNode = (LightNode) o;
-            // For visitedInThisWave set, only coordinates matter to prevent re-processing same tile as a source in one wave
             return r == lightNode.r && c == lightNode.c;
         }
 
         @Override
         public int hashCode() {
-            // Hashcode based on coordinates for set behavior
             return 31 * r + c;
         }
     }
-
-    private enum LightType {
-        SKY, BLOCK
-    }
-
+    private enum LightType { SKY, BLOCK, BLOCK_REMOVAL, SKY_REMOVAL }
     public static class ChunkCoordinate {
         public final int chunkX, chunkY;
 
