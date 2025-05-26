@@ -1,17 +1,10 @@
-package org.isogame.entitiy; // Ensure this package is correct
+package org.isogame.entitiy;
 
-// Remove imports related to Renderable interface if they were added:
-// import org.isogame.render.Renderable;
-// import org.isogame.render.Renderer; // Only if it was used by a Renderable.render method
-
-// Keep other necessary imports
 import org.isogame.map.PathNode;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.HashMap;
-// import java.util.Map; // For java.util.Map
 
-// NO "implements Renderable" here
 public class PlayerModel {
 
     private float mapRow;
@@ -21,20 +14,23 @@ public class PlayerModel {
 
     private List<PathNode> currentPath;
     private int currentPathIndex;
-    private PathNode currentMoveTargetNode;
+    private PathNode currentMoveTargetNode; // The specific node we are currently moving towards
+
+    // targetVisualRow/Col are the coordinates of currentMoveTargetNode
     private float targetVisualRow;
     private float targetVisualCol;
 
-    public static final float MOVEMENT_SPEED = 3.0f;
+    public static final float MOVEMENT_SPEED = 3.0f; // Tiles per second
 
     public enum Action { IDLE, WALK }
     public enum Direction { NORTH, WEST, SOUTH, EAST }
 
     private Action currentAction = Action.IDLE;
-    private Direction currentDirection = Direction.SOUTH;
+    private Direction currentDirection = Direction.SOUTH; // Default facing direction
+    // private Direction movementDirection = Direction.SOUTH; // This can be removed if currentDirection is managed well
     private int currentFrameIndex = 0;
     private double animationTimer = 0.0;
-    private double frameDuration = 0.1;
+    private double frameDuration = 0.1; // Duration of each animation frame in seconds
 
     public static final int FRAME_WIDTH = 64;
     public static final int FRAME_HEIGHT = 64;
@@ -45,6 +41,7 @@ public class PlayerModel {
     public static final int FRAMES_PER_WALK_CYCLE = 9;
 
     private java.util.Map<String, Integer> inventory;
+    private boolean newSegmentNeedsDirectionDetermination = false; // Renamed for clarity
 
     public PlayerModel(int startRow, int startCol) {
         this.mapRow = startRow;
@@ -53,7 +50,7 @@ public class PlayerModel {
         this.targetVisualCol = startCol;
         this.inventory = new HashMap<>();
         this.currentPath = new ArrayList<>();
-        this.currentPathIndex = -1;
+        this.currentPathIndex = -1; // Start before the first node
         this.currentMoveTargetNode = null;
     }
 
@@ -63,46 +60,58 @@ public class PlayerModel {
         }
 
         boolean activelyMovingOnPath = false;
+
         if (currentPath != null && !currentPath.isEmpty()) {
-            if (currentMoveTargetNode == null) {
+            if (currentMoveTargetNode == null) { // Need to pick the next (or first) target
                 if (currentPathIndex < currentPath.size() - 1) {
                     currentPathIndex++;
                     currentMoveTargetNode = currentPath.get(currentPathIndex);
                     targetVisualRow = currentMoveTargetNode.row;
                     targetVisualCol = currentMoveTargetNode.col;
+                    newSegmentNeedsDirectionDetermination = true; // Flag that we need to set direction for this new segment
                 } else {
-                    pathFinished();
+                    pathFinished(); // No more nodes in the path
                 }
             }
 
-            if (currentMoveTargetNode != null) {
+            if (currentMoveTargetNode != null) { // If we have a valid target for the current segment
                 activelyMovingOnPath = true;
-                setAction(Action.WALK);
+                setAction(Action.WALK); // Ensure action is WALK
 
                 float moveStep = MOVEMENT_SPEED * (float) deltaTime;
-                float dx = targetVisualCol - this.mapCol;
-                float dy = targetVisualRow - this.mapRow;
-                float distance = (float) Math.sqrt(dx * dx + dy * dy);
 
-                if (distance <= moveStep || distance == 0.0f) {
-                    this.mapRow = targetVisualRow;
-                    this.mapCol = targetVisualCol;
-                    currentMoveTargetNode = null;
-                    if (currentPathIndex >= currentPath.size() - 1) {
+                float dxToTarget = targetVisualCol - this.mapCol;
+                float dyToTarget = targetVisualRow - this.mapRow;
+                float distanceToTarget = (float) Math.sqrt(dxToTarget * dxToTarget + dyToTarget * dyToTarget);
+
+                if (newSegmentNeedsDirectionDetermination && distanceToTarget > 0.001f) {
+                    Direction determinedDirection;
+                    if (Math.abs(dxToTarget) > Math.abs(dyToTarget)) { // More horizontal movement
+                        determinedDirection = dxToTarget > 0 ? Direction.EAST : Direction.WEST;
+                    } else { // More vertical or purely vertical (prioritize N/S for diagonals)
+                        determinedDirection = dyToTarget > 0 ? Direction.SOUTH : Direction.NORTH;
+                    }
+                    setDirection(determinedDirection); // This will update currentDirection and reset animation if needed
+                    newSegmentNeedsDirectionDetermination = false;
+                }
+
+
+                if (distanceToTarget <= moveStep || distanceToTarget < 0.001f) { // Check with a small epsilon
+                    // Reached the currentMoveTargetNode (or very close)
+                    this.mapRow = targetVisualRow; // Snap to the target node's exact row
+                    this.mapCol = targetVisualCol; // Snap to the target node's exact col
+                    currentMoveTargetNode = null; // Signal to pick next node in the next frame
+
+                    if (currentPathIndex >= currentPath.size() - 1) { // If this was the last node
                         pathFinished();
                         activelyMovingOnPath = false;
                     }
                 } else {
-                    float moveX = (dx / distance) * moveStep;
-                    float moveY = (dy / distance) * moveStep;
+                    // Move towards currentMoveTargetNode
+                    float moveX = (dxToTarget / distanceToTarget) * moveStep;
+                    float moveY = (dyToTarget / distanceToTarget) * moveStep;
                     this.mapCol += moveX;
                     this.mapRow += moveY;
-
-                    if (Math.abs(dx) > Math.abs(dy) * 0.8) {
-                        setDirection(dx > 0 ? Direction.EAST : Direction.WEST);
-                    } else if (Math.abs(dy) > Math.abs(dx) * 0.8) {
-                        setDirection(dy > 0 ? Direction.SOUTH : Direction.NORTH);
-                    }
                 }
             }
         }
@@ -111,13 +120,12 @@ public class PlayerModel {
             setAction(Action.IDLE);
         }
 
+        // Animation timer update
         animationTimer += deltaTime;
         if (animationTimer >= frameDuration) {
             animationTimer -= frameDuration;
             currentFrameIndex++;
-            int maxFrames = (currentAction == Action.WALK) ? FRAMES_PER_WALK_CYCLE : 1;
-            if (currentAction == Action.IDLE) maxFrames = 1;
-
+            int maxFrames = (currentAction == Action.WALK) ? FRAMES_PER_WALK_CYCLE : 1; // IDLE has 1 frame (frame 0)
             if (currentFrameIndex >= maxFrames) {
                 currentFrameIndex = 0;
             }
@@ -126,18 +134,21 @@ public class PlayerModel {
 
     private void pathFinished() {
         setAction(Action.IDLE);
-        if (currentPath != null) currentPath.clear();
+        if (currentPath != null) {
+            currentPath.clear();
+        }
         currentPathIndex = -1;
         currentMoveTargetNode = null;
+        newSegmentNeedsDirectionDetermination = false;
     }
 
     public void setPath(List<PathNode> path) {
         if (path != null && !path.isEmpty()) {
             this.currentPath = new ArrayList<>(path);
-            this.currentPathIndex = 0;
+            this.currentPathIndex = -1;
             this.currentMoveTargetNode = null;
-            this.targetVisualRow = path.get(0).row;
-            this.targetVisualCol = path.get(0).col;
+            this.newSegmentNeedsDirectionDetermination = true;
+            setAction(Action.IDLE); // Reset to idle before starting a new path, action will become WALK in update
         } else {
             pathFinished();
         }
@@ -166,13 +177,19 @@ public class PlayerModel {
         }
     }
 
+    /**
+     * Sets the player's visual facing direction.
+     * If the direction changes, it resets the animation frame and timer
+     * to ensure the animation for the new direction starts correctly.
+     * @param newDirection The new direction to face.
+     */
     public void setDirection(Direction newDirection) {
         if (this.currentDirection != newDirection) {
             this.currentDirection = newDirection;
-            if (this.currentAction == Action.WALK) {
-                this.currentFrameIndex = 0;
-                this.animationTimer = 0.0;
-            }
+            // Always reset animation when direction changes, whether IDLE or WALK.
+            // This ensures the correct starting frame for the new direction's animation.
+            this.currentFrameIndex = 0;
+            this.animationTimer = 0.0;
         }
     }
 
@@ -196,9 +213,14 @@ public class PlayerModel {
     public float getLevitateTimer() { return levitateTimer; }
     public Action getCurrentAction() { return currentAction; }
     public Direction getCurrentDirection() { return currentDirection; }
-    public void setPosition(float row, float col) { this.mapRow = row; this.mapCol = col; this.targetVisualRow = row; this.targetVisualCol = col; }
+
+    public void setPosition(float row, float col) {
+        this.mapRow = row;
+        this.mapCol = col;
+        this.targetVisualRow = row;
+        this.targetVisualCol = col;
+        pathFinished();
+    }
     public void toggleLevitate() { this.levitating = !this.levitating; if (!this.levitating) levitateTimer = 0; }
     public void setLevitating(boolean levitating) { this.levitating = levitating; if (!this.levitating) levitateTimer = 0;}
-
-    // NO RENDERABLE METHODS HERE (getScreenYSortKey, getZOrder, render(...))
 }
