@@ -42,7 +42,7 @@ public class Constants {
     public static final float MIN_ZOOM = 0.25f;
     public static final float MAX_ZOOM = 4.0f;
     public static final float CAMERA_SMOOTH_FACTOR = 0.15f;
-    public static final int RENDER_DISTANCE_CHUNKS = 2; // Render a 5x5 grid of chunks (2 out from player's chunk)
+    public static final int RENDER_DISTANCE_CHUNKS = 7; // Render a 5x5 grid of chunks (2 out from player's chunk)
 
 
     // Resources
