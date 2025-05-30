@@ -57,8 +57,16 @@ public class Constants {
     public static final int MAX_LIGHT_LEVEL = 15;
     public static final int TORCH_LIGHT_LEVEL = 14;
     public static final int SKY_LIGHT_DAY = 15;
-    public static final int SKY_LIGHT_NIGHT = 4;
+    public static final int SKY_LIGHT_NIGHT = 4; // Min light for night
     public static final int LIGHT_PROPAGATION_COST = 1;
-    public static final float MIN_AMBIENT_LIGHT_FACTOR = 0.2f;
+    public static final float MIN_AMBIENT_LIGHT_FACTOR = 0.2f; // Matches shader
+
+    // --- Optimization Constants ---
+    // Adjusted for smoother transitions:
+    public static final double DAY_NIGHT_CYCLE_SPEED = 0.01; // e.g., Full cycle in 100 seconds. Dusk/Dawn (0.2 of cycle) = 20 seconds.
+    // Adjust as needed for desired speed. 0.005 = 200s cycle (40s transition).
+    public static final int SKY_LIGHT_UPDATE_THRESHOLD = 1;  // Update if light changes by at least 1.
+    public static final long GLOBAL_SKY_LIGHT_UPDATE_COOLDOWN_MS = 2000; // Update lighting propagation max every 2 seconds during transition.
+    // Shorter if you want faster visual updates of spreading light.
 }
 //
