@@ -61,3 +61,4 @@ public class Constants {
     public static final int LIGHT_PROPAGATION_COST = 1;
     public static final float MIN_AMBIENT_LIGHT_FACTOR = 0.2f;
 }
+//
