@@ -54,6 +54,12 @@ public class InputHandler {
 
     private void handleSingleKeyPress(int key, Runnable requestFullMapRegenerationCallback) {
         switch (key) {
+            case GLFW_KEY_I: // Toggle inventory
+                if (gameInstance != null) {
+                    gameInstance.toggleInventory();
+                }
+                break;
+
             case GLFW_KEY_G:
                 if (requestFullMapRegenerationCallback != null) {
                     requestFullMapRegenerationCallback.run();

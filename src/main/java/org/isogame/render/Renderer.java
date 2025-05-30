@@ -15,6 +15,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+
+import org.isogame.inventory.InventorySlot;
+import org.isogame.item.Item;
 import static org.isogame.constants.Constants.*;
 import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.opengl.GL13.GL_TEXTURE0;
@@ -131,6 +134,162 @@ public class Renderer {
             throw new RuntimeException("Failed to init shaders", e);
         }
     }
+    public void renderInventoryUI(PlayerModel player) {
+        if (uiFont == null || !uiFont.isInitialized() || player == null) {
+            System.err.println("Renderer: Cannot render inventory UI. Font or player not available.");
+            return;
+        }
+
+        // --- UI Setup ---
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDisable(GL_DEPTH_TEST); // UI should draw on top
+
+        defaultShader.bind();
+        // Use the existing orthographic projection matrix for UI
+        defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
+        // Identity model-view for screen-space UI
+        defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
+        defaultShader.setUniform("uHasTexture", 0); // Initially for panel/slots
+        defaultShader.setUniform("uIsFont", 0);
+
+        // --- Inventory Panel Dimensions & Position ---
+        float panelPadding = 20f;
+        int slotsPerRow = 5;
+        float slotSize = 50f;
+        float slotMargin = 10f;
+        float itemRenderSize = slotSize * 0.7f; // Size of the colored item placeholder
+        float itemOffset = (slotSize - itemRenderSize) / 2f;
+
+        List<InventorySlot> slots = player.getInventorySlots();
+        int numRows = (int) Math.ceil((double) slots.size() / slotsPerRow);
+        if (slots.isEmpty()) numRows = 1; // Minimum size for the panel even if empty
+
+        float panelWidth = (slotsPerRow * slotSize) + ((slotsPerRow + 1) * slotMargin);
+        float panelHeight = (numRows * slotSize) + ((numRows + 1) * slotMargin);
+
+        // Center the panel (example positioning)
+        float panelX = (camera.getScreenWidth() - panelWidth) / 2.0f;
+        float panelY = (camera.getScreenHeight() - panelHeight) / 2.0f;
+
+        // --- Draw Panel Background ---
+        // Use the spriteVBO for convenience, or a dedicated UI VBO
+        glBindVertexArray(spriteVaoId); // Re-use sprite VAO/VBO for simple UI quads
+        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+        spriteVertexBuffer.clear();
+
+        float[] panelColor = {0.2f, 0.2f, 0.25f, 0.85f}; // Dark semi-transparent
+        float z = -1.0f; // UI Z-depth
+
+        // Panel quad
+        spriteVertexBuffer.put(panelX).put(panelY).put(z).put(panelColor).put(0f).put(0f).put(1f); // Top-Left
+        spriteVertexBuffer.put(panelX).put(panelY + panelHeight).put(z).put(panelColor).put(0f).put(0f).put(1f); // Bottom-Left
+        spriteVertexBuffer.put(panelX + panelWidth).put(panelY).put(z).put(panelColor).put(0f).put(0f).put(1f); // Top-Right
+
+        spriteVertexBuffer.put(panelX + panelWidth).put(panelY).put(z).put(panelColor).put(0f).put(0f).put(1f); // Top-Right
+        spriteVertexBuffer.put(panelX).put(panelY + panelHeight).put(z).put(panelColor).put(0f).put(0f).put(1f); // Bottom-Left
+        spriteVertexBuffer.put(panelX + panelWidth).put(panelY + panelHeight).put(z).put(panelColor).put(0f).put(0f).put(1f); // Bottom-Right
+
+        spriteVertexBuffer.flip();
+        glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+        glDrawArrays(GL_TRIANGLES, 0, 6); // Draw panel
+
+        // --- Draw Slots and Items ---
+        float[] slotColor = {0.4f, 0.4f, 0.45f, 0.9f}; // Slot background color
+        float currentX = panelX + slotMargin;
+        float currentY = panelY + slotMargin;
+        int colCount = 0;
+
+        for (InventorySlot slot : slots) {
+            spriteVertexBuffer.clear();
+            // Slot background quad
+            spriteVertexBuffer.put(currentX).put(currentY).put(z).put(slotColor).put(0f).put(0f).put(1f);
+            spriteVertexBuffer.put(currentX).put(currentY + slotSize).put(z).put(slotColor).put(0f).put(0f).put(1f);
+            spriteVertexBuffer.put(currentX + slotSize).put(currentY).put(z).put(slotColor).put(0f).put(0f).put(1f);
+
+            spriteVertexBuffer.put(currentX + slotSize).put(currentY).put(z).put(slotColor).put(0f).put(0f).put(1f);
+            spriteVertexBuffer.put(currentX).put(currentY + slotSize).put(z).put(slotColor).put(0f).put(0f).put(1f);
+            spriteVertexBuffer.put(currentX + slotSize).put(currentY + slotSize).put(z).put(slotColor).put(0f).put(0f).put(1f);
+
+            spriteVertexBuffer.flip();
+            glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+            glDrawArrays(GL_TRIANGLES, 0, 6); // Draw slot background
+
+            if (!slot.isEmpty()) {
+                Item item = slot.getItem();
+                float[] itemColor = item.getPlaceholderColor();
+
+                // Item placeholder quad (colored square)
+                spriteVertexBuffer.clear();
+                float itemX = currentX + itemOffset;
+                float itemY = currentY + itemOffset;
+                spriteVertexBuffer.put(itemX).put(itemY).put(z).put(itemColor).put(0f).put(0f).put(1f);
+                spriteVertexBuffer.put(itemX).put(itemY + itemRenderSize).put(z).put(itemColor).put(0f).put(0f).put(1f);
+                spriteVertexBuffer.put(itemX + itemRenderSize).put(itemY).put(z).put(itemColor).put(0f).put(0f).put(1f);
+
+                spriteVertexBuffer.put(itemX + itemRenderSize).put(itemY).put(z).put(itemColor).put(0f).put(0f).put(1f);
+                spriteVertexBuffer.put(itemX).put(itemY + itemRenderSize).put(z).put(itemColor).put(0f).put(0f).put(1f);
+                spriteVertexBuffer.put(itemX + itemRenderSize).put(itemY + itemRenderSize).put(z).put(itemColor).put(0f).put(0f).put(1f);
+
+                spriteVertexBuffer.flip();
+                glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+                glDrawArrays(GL_TRIANGLES, 0, 6); // Draw item placeholder
+            }
+
+            // Positioning for next slot
+            currentX += slotSize + slotMargin;
+            colCount++;
+            if (colCount >= slotsPerRow) {
+                colCount = 0;
+                currentX = panelX + slotMargin;
+                currentY += slotSize + slotMargin;
+            }
+        }
+
+        // --- Unbind VBO/VAO ---
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+
+
+        // --- Draw Quantities (Text) ---
+        // Text rendering needs to happen after all batched quad rendering for that shader pass,
+        // or ensure the font rendering correctly sets its own shader state (uIsFont, texture)
+        // For simplicity, draw text after the quads. Font.drawText handles its own shader setup.
+        currentX = panelX + slotMargin;
+        currentY = panelY + slotMargin;
+        colCount = 0;
+        float textOffsetX = 5f; // Small offset for text within slot
+        float textOffsetY = slotSize - 5f - uiFont.getAscent(); // Position at bottom of slot
+
+
+        for (InventorySlot slot : slots) {
+            if (!slot.isEmpty() && slot.getQuantity() > 0) {
+                String quantityStr = String.valueOf(slot.getQuantity());
+                // For quantity text, you might want to position it at the bottom-right of the slot, for example
+                float qtyTextX = currentX + slotSize - uiFont.getTextWidth(quantityStr) - textOffsetX;
+                float qtyTextY = currentY + slotSize - uiFont.getAscent() - textOffsetX; // Using textOffsetX also for Y padding from bottom
+                uiFont.drawText(qtyTextX, qtyTextY, quantityStr, 1f, 1f, 1f); // White text
+            }
+
+            currentX += slotSize + slotMargin;
+            colCount++;
+            if (colCount >= slotsPerRow) {
+                colCount = 0;
+                currentX = panelX + slotMargin;
+                currentY += slotSize + slotMargin;
+            }
+        }
+
+
+        // --- Restore GL State ---
+        defaultShader.unbind(); // Or whatever shader was used for UI elements
+        glEnable(GL_DEPTH_TEST); // Re-enable depth testing if it was disabled for UI
+        // glDisable(GL_BLEND); // If you want to disable blending
+    }
+
+
+
+
 
     public Shader getDefaultShader() { return defaultShader; }
 

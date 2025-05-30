@@ -8,19 +8,20 @@ public class Item {
     private String description;
     private int maxStackSize;       // How many can fit in one stack (e.g., 1 for tools, 64 for resources)
     private ItemType type;          // Enum for item categories
-    // private String iconTexturePath; // Future: For UI icon
+    private float[] placeholderColor; // For UI placeholder
 
     public enum ItemType {
         RESOURCE, TOOL, EQUIPMENT, CONSUMABLE, MISC
     }
 
-    public Item(String itemId, String displayName, String description, ItemType type, int maxStackSize) {
+    // Ensure this constructor matches:
+    public Item(String itemId, String displayName, String description, ItemType type, int maxStackSize, float[] placeholderColor) {
         this.itemId = itemId;
         this.displayName = displayName;
         this.description = description;
         this.type = type;
         this.maxStackSize = maxStackSize;
-        // this.iconTexturePath = iconTexturePath; // Future
+        this.placeholderColor = placeholderColor; // This line is important
     }
 
     // --- Getters ---
@@ -29,7 +30,7 @@ public class Item {
     public String getDescription() { return description; }
     public int getMaxStackSize() { return maxStackSize; }
     public ItemType getType() { return type; }
-    // public String getIconTexturePath() { return iconTexturePath; } // Future
+    public float[] getPlaceholderColor() { return placeholderColor; } // Getter for the color
 
     @Override
     public boolean equals(Object o) {

@@ -47,6 +47,7 @@ public class Game {
 
     private int currentRenderDistanceChunks = Constants.RENDER_DISTANCE_CHUNKS; // Initialize with default
 
+    private boolean showInventory = false; // SHOW INVENTORTY
 
     // New: Queue for chunk render updates and max updates per frame
     private final Queue<LightManager.ChunkCoordinate> chunkRenderUpdateQueue = new LinkedList<>();
@@ -230,6 +231,16 @@ public class Game {
         System.out.println("Render distance decreased to: " + currentRenderDistanceChunks);
     }
 
+
+    public void toggleInventory() {
+        this.showInventory = !this.showInventory;
+        System.out.println("Inventory visible: " + this.showInventory);
+    }
+
+    public boolean isInventoryVisible() {
+        return this.showInventory;
+    }
+
     private void renderGame() {
         float rSky, gSky, bSky;
         if (currentGlobalSkyLight > SKY_LIGHT_NIGHT + (SKY_LIGHT_DAY - SKY_LIGHT_NIGHT) / 2) {
@@ -242,6 +253,12 @@ public class Game {
 
         if (renderer != null) {
             renderer.render(); // Renders terrain chunks and entities
+
+                                                            // Render Inventory UI if visible
+            if (this.showInventory && player != null) { // Ensure player is not null
+                renderer.renderInventoryUI(player); // We'll create this method in Renderer
+            }
+
 
             if (this.showDebugOverlay) {
                 List<String> debugLines = new ArrayList<>();
@@ -267,6 +284,7 @@ public class Game {
 
 
                 renderer.renderDebugOverlay(10f, 10f, 1000f, 220f, debugLines);
+
             }
         }
     }
