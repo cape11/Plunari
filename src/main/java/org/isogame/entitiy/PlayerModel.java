@@ -1,17 +1,14 @@
-package org.isogame.entitiy; // Ensure this package is correct
+package org.isogame.entitiy;
 
-// Remove imports related to Renderable interface if they were added:
-// import org.isogame.render.Renderable;
-// import org.isogame.render.Renderer; // Only if it was used by a Renderable.render method
-
-// Keep other necessary imports
+import org.isogame.inventory.InventorySlot;
+import org.isogame.item.Item;
+import org.isogame.item.ItemRegistry; // For easy access to item instances
 import org.isogame.map.PathNode;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.HashMap;
-// import java.util.Map; // For java.util.Map
 
-// NO "implements Renderable" here
+import java.util.ArrayList;
+import java.util.List;
+// Note: java.util.Map and java.util.HashMap are no longer needed for the inventory itself.
+
 public class PlayerModel {
 
     private float mapRow;
@@ -44,17 +41,24 @@ public class PlayerModel {
     public static final int ROW_WALK_EAST = 11;
     public static final int FRAMES_PER_WALK_CYCLE = 9;
 
-    private java.util.Map<String, Integer> inventory;
+    // --- New Inventory System ---
+    private List<InventorySlot> inventorySlots;
+    public static final int DEFAULT_INVENTORY_SIZE = 20; // Example: 20 slots
 
     public PlayerModel(int startRow, int startCol) {
         this.mapRow = startRow;
         this.mapCol = startCol;
         this.targetVisualRow = startRow;
         this.targetVisualCol = startCol;
-        this.inventory = new HashMap<>();
         this.currentPath = new ArrayList<>();
         this.currentPathIndex = -1;
         this.currentMoveTargetNode = null;
+
+        // Initialize new inventory
+        this.inventorySlots = new ArrayList<>(DEFAULT_INVENTORY_SIZE);
+        for (int i = 0; i < DEFAULT_INVENTORY_SIZE; i++) {
+            this.inventorySlots.add(new InventorySlot());
+        }
     }
 
     public void update(double deltaTime) {
@@ -134,10 +138,11 @@ public class PlayerModel {
     public void setPath(List<PathNode> path) {
         if (path != null && !path.isEmpty()) {
             this.currentPath = new ArrayList<>(path);
-            this.currentPathIndex = 0;
-            this.currentMoveTargetNode = null;
-            this.targetVisualRow = path.get(0).row;
-            this.targetVisualCol = path.get(0).col;
+            this.currentPathIndex = 0; // Start from the first node
+            this.currentMoveTargetNode = null; // Will be set in update
+            // Target visual can be set to the first node's coords
+            // targetVisualRow = path.get(0).row;
+            // targetVisualCol = path.get(0).col;
         } else {
             pathFinished();
         }
@@ -169,25 +174,97 @@ public class PlayerModel {
     public void setDirection(Direction newDirection) {
         if (this.currentDirection != newDirection) {
             this.currentDirection = newDirection;
-            if (this.currentAction == Action.WALK) {
+            if (this.currentAction == Action.WALK) { // Reset animation if walking and direction changes
                 this.currentFrameIndex = 0;
                 this.animationTimer = 0.0;
             }
         }
     }
 
+    // --- Updated Inventory Methods ---
+    public boolean addItemToInventory(Item itemToAdd, int amount) {
+        if (itemToAdd == null || amount <= 0) return false;
+        int remainingAmountToAdd = amount;
+
+        // 1. Try to stack with existing items of the same type that are not full
+        for (InventorySlot slot : inventorySlots) {
+            if (!slot.isEmpty() && slot.getItem().equals(itemToAdd) && slot.getQuantity() < slot.getItem().getMaxStackSize()) {
+                remainingAmountToAdd = slot.addItem(itemToAdd, remainingAmountToAdd);
+            }
+            if (remainingAmountToAdd == 0) {
+                System.out.println("Added " + amount + " of " + itemToAdd.getDisplayName() + " to inventory (stacked).");
+                return true;
+            }
+        }
+
+        // 2. Try to add to an empty slot
+        for (InventorySlot slot : inventorySlots) {
+            if (slot.isEmpty()) {
+                remainingAmountToAdd = slot.addItem(itemToAdd, remainingAmountToAdd);
+            }
+            if (remainingAmountToAdd == 0) {
+                System.out.println("Added " + amount + " of " + itemToAdd.getDisplayName() + " to inventory (new slot).");
+                return true;
+            }
+        }
+
+        if (remainingAmountToAdd > 0) {
+            System.out.println("Inventory full, couldn't add remaining " + remainingAmountToAdd + " of " + itemToAdd.getDisplayName());
+            // Optionally return the amount that was successfully added, or just a boolean
+            return amount > remainingAmountToAdd; // True if at least some were added
+        }
+        return true; // Should have returned earlier if all added
+    }
+
+    public int getItemCount(Item itemToCount) {
+        if (itemToCount == null) return 0;
+        int totalCount = 0;
+        for (InventorySlot slot : inventorySlots) {
+            if (!slot.isEmpty() && slot.getItem().equals(itemToCount)) {
+                totalCount += slot.getQuantity();
+            }
+        }
+        return totalCount;
+    }
+
+    public List<InventorySlot> getInventorySlots() {
+        return inventorySlots;
+    }
+
+    // --- Old inventory methods (can be removed or refactored) ---
+    /** @deprecated Use addItemToInventory with Item objects instead. */
+    @Deprecated
     public void addResource(String resourceType, int amount) {
-        inventory.put(resourceType, inventory.getOrDefault(resourceType, 0) + amount);
+        Item item = ItemRegistry.getItem(resourceType.toLowerCase()); // Assuming item IDs in registry are lowercase
+        if (item != null) {
+            addItemToInventory(item, amount);
+        } else {
+            System.err.println("PlayerModel: Unknown resource type string '" + resourceType + "' for addResource.");
+        }
     }
 
+    /** @deprecated Use getItemCount with Item objects instead. */
+    @Deprecated
     public int getResourceCount(String resourceType) {
-        return inventory.getOrDefault(resourceType, 0);
+        Item item = ItemRegistry.getItem(resourceType.toLowerCase());
+        if (item != null) {
+            return getItemCount(item);
+        }
+        System.err.println("PlayerModel: Unknown resource type string '" + resourceType + "' for getResourceCount.");
+        return 0;
     }
 
-    public java.util.Map<String, Integer> getInventory() {
-        return inventory;
+    /** @deprecated Use getInventorySlots() instead. */
+    @Deprecated
+    public java.util.Map<String, Integer> getInventory_OLD() {
+        // This method is hard to represent with the new slot-based system directly.
+        // It's better to iterate over getInventorySlots() if this specific map is needed.
+        System.err.println("PlayerModel.getInventory_OLD() is deprecated and does not map well to the new slot system.");
+        return new java.util.HashMap<>(); // Return empty or throw exception
     }
 
+
+    // --- Getters & Setters ---
     public float getMapRow() { return mapRow; }
     public float getMapCol() { return mapCol; }
     public int getTileRow() { return Math.round(mapRow); }
@@ -199,6 +276,4 @@ public class PlayerModel {
     public void setPosition(float row, float col) { this.mapRow = row; this.mapCol = col; this.targetVisualRow = row; this.targetVisualCol = col; }
     public void toggleLevitate() { this.levitating = !this.levitating; if (!this.levitating) levitateTimer = 0; }
     public void setLevitating(boolean levitating) { this.levitating = levitating; if (!this.levitating) levitateTimer = 0;}
-
-    // NO RENDERABLE METHODS HERE (getScreenYSortKey, getZOrder, render(...))
 }

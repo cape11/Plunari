@@ -69,6 +69,8 @@ public class Renderer {
     private static final float[] DEFAULT_TOP_COLOR = {1f,0f,1f,1f};
     private static final float[] WHITE_TINT = {1.0f, 1.0f, 1.0f, 1.0f};
 
+
+
     // Z-depth offsets (smaller Z values are closer to the camera)
     private static final float Z_OFFSET_SPRITE_PLAYER = 0.1f;
     private static final float Z_OFFSET_SPRITE_TREE = 0.1f;
@@ -414,24 +416,29 @@ public class Renderer {
             worldEntities.add(player);
         }
 
-        // --- MODIFIED ENTITY COLLECTION LOGIC ---
-        if (mapChunks != null && camera != null && player != null && CHUNK_SIZE_TILES > 0) { //
-            int playerTileCol = player.getTileCol(); //
-            int playerTileRow = player.getTileRow(); //
-            int playerChunkX = playerTileCol / CHUNK_SIZE_TILES; //
-            int playerChunkY = playerTileRow / CHUNK_SIZE_TILES; //
+        if (mapChunks != null && camera != null && player != null && CHUNK_SIZE_TILES > 0) {
+            int playerTileCol = player.getTileCol();
+            int playerTileRow = player.getTileRow();
+            int playerChunkX = playerTileCol / CHUNK_SIZE_TILES;
+            int playerChunkY = playerTileRow / CHUNK_SIZE_TILES;
 
-            for (int dy = -RENDER_DISTANCE_CHUNKS; dy <= RENDER_DISTANCE_CHUNKS; dy++) { //
-                for (int dx = -RENDER_DISTANCE_CHUNKS; dx <= RENDER_DISTANCE_CHUNKS; dx++) { //
+            // Get the dynamic render distance
+            int actualRenderDistanceEntities = Constants.RENDER_DISTANCE_CHUNKS; // Default fallback
+            if (this.inputHandler != null && this.inputHandler.getGameInstance() != null) {
+                actualRenderDistanceEntities = this.inputHandler.getGameInstance().getCurrentRenderDistanceChunks();
+            }
+
+            for (int dy = -actualRenderDistanceEntities; dy <= actualRenderDistanceEntities; dy++) { // Use dynamic value
+                for (int dx = -actualRenderDistanceEntities; dx <= actualRenderDistanceEntities; dx++) { // Use dynamic value
                     int currentChunkGridX = playerChunkX + dx;
                     int currentChunkGridY = playerChunkY + dy;
 
-                    for (Chunk chunk : mapChunks) { //
+                    for (Chunk chunk : mapChunks) {
                         if (chunk.chunkGridX == currentChunkGridX && chunk.chunkGridY == currentChunkGridY) {
-                            if (camera.isChunkVisible(chunk.getBoundingBox())) { //
-                                worldEntities.addAll(chunk.getTreesInChunk()); //
+                            if (camera.isChunkVisible(chunk.getBoundingBox())) {
+                                worldEntities.addAll(chunk.getTreesInChunk());
                             }
-                            break; // Found the chunk
+                            break;
                         }
                     }
                 }
@@ -557,24 +564,29 @@ public class Renderer {
         }
 
         // --- MODIFIED CHUNK RENDERING LOGIC ---
-        if (mapChunks != null && player != null && camera != null && CHUNK_SIZE_TILES > 0) { //
-            int playerTileCol = player.getTileCol(); //
-            int playerTileRow = player.getTileRow(); //
-            int playerChunkX = playerTileCol / CHUNK_SIZE_TILES; //
-            int playerChunkY = playerTileRow / CHUNK_SIZE_TILES; //
+        if (mapChunks != null && player != null && camera != null && CHUNK_SIZE_TILES > 0) {
+            int playerTileCol = player.getTileCol();
+            int playerTileRow = player.getTileRow();
+            int playerChunkX = playerTileCol / CHUNK_SIZE_TILES;
+            int playerChunkY = playerTileRow / CHUNK_SIZE_TILES;
 
-            for (int dy = -RENDER_DISTANCE_CHUNKS; dy <= RENDER_DISTANCE_CHUNKS; dy++) { //
-                for (int dx = -RENDER_DISTANCE_CHUNKS; dx <= RENDER_DISTANCE_CHUNKS; dx++) { //
+            // Get the dynamic render distance
+            int actualRenderDistance = Constants.RENDER_DISTANCE_CHUNKS; // Default fallback
+            if (this.inputHandler != null && this.inputHandler.getGameInstance() != null) {
+                actualRenderDistance = this.inputHandler.getGameInstance().getCurrentRenderDistanceChunks();
+            }
+
+            for (int dy = -actualRenderDistance; dy <= actualRenderDistance; dy++) { // Use dynamic value
+                for (int dx = -actualRenderDistance; dx <= actualRenderDistance; dx++) { // Use dynamic value
                     int currentChunkGridX = playerChunkX + dx;
                     int currentChunkGridY = playerChunkY + dy;
 
-                    // Find and render this chunk if it exists and is visible
-                    for (Chunk chunk : mapChunks) { //
+                    for (Chunk chunk : mapChunks) {
                         if (chunk.chunkGridX == currentChunkGridX && chunk.chunkGridY == currentChunkGridY) {
-                            if (camera.isChunkVisible(chunk.getBoundingBox())) { //
-                                chunk.render(); //
+                            if (camera.isChunkVisible(chunk.getBoundingBox())) {
+                                chunk.render();
                             }
-                            break; // Found the chunk, move to next target dx, dy
+                            break;
                         }
                     }
                 }

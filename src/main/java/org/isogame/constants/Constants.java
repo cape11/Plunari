@@ -45,11 +45,11 @@ public class Constants {
     public static final int RENDER_DISTANCE_CHUNKS = 7; // Render a 5x5 grid of chunks (2 out from player's chunk)
 
 
-    // Resources
-    public static final String RESOURCE_DIRT = "Dirt";
+    // Resources (These string constants are now largely superseded by Item objects in ItemRegistry for inventory actions)
+    // You might still use them for other string comparisons or data keys if needed.
+    public static final String RESOURCE_DIRT = "Dirt"; // Keep for reference or other uses
     public static final String RESOURCE_STONE = "Stone";
     public static final String RESOURCE_SAND = "Sand";
-
     // Interaction
     public static final int MAX_INTERACTION_DISTANCE = 1;
 

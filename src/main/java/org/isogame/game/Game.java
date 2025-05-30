@@ -1,5 +1,6 @@
 package org.isogame.game;
 
+import org.isogame.constants.Constants;
 import org.isogame.input.InputHandler;
 import org.isogame.input.MouseHandler;
 import org.isogame.camera.CameraManager;
@@ -43,6 +44,9 @@ public class Game {
     private double timeAccumulatorForFps = 0.0;
     private double displayedFps = 0.0;
     // --- End FPS Counter Variables ---
+
+    private int currentRenderDistanceChunks = Constants.RENDER_DISTANCE_CHUNKS; // Initialize with default
+
 
     // New: Queue for chunk render updates and max updates per frame
     private final Queue<LightManager.ChunkCoordinate> chunkRenderUpdateQueue = new LinkedList<>();
@@ -209,6 +213,23 @@ public class Game {
         }
     }
 
+
+    public int getCurrentRenderDistanceChunks() {
+        return currentRenderDistanceChunks;
+    }
+
+    public void increaseRenderDistance() {
+        // You can cap the maximum render distance if you want, e.g., 10
+        currentRenderDistanceChunks = Math.min(currentRenderDistanceChunks + 1, 10);
+        System.out.println("Render distance increased to: " + currentRenderDistanceChunks);
+    }
+
+    public void decreaseRenderDistance() {
+        // You can cap the minimum render distance, e.g., 1
+        currentRenderDistanceChunks = Math.max(1, currentRenderDistanceChunks - 1);
+        System.out.println("Render distance decreased to: " + currentRenderDistanceChunks);
+    }
+
     private void renderGame() {
         float rSky, gSky, bSky;
         if (currentGlobalSkyLight > SKY_LIGHT_NIGHT + (SKY_LIGHT_DAY - SKY_LIGHT_NIGHT) / 2) {
@@ -241,9 +262,11 @@ public class Game {
                 debugLines.add("Toggle Torch: L | Dig: J | Elev: Q/E");
                 debugLines.add("Center Cam: C | Regen Map: G | Debug: F5");
                 debugLines.add("Render Q Size: " + chunkRenderUpdateQueue.size());
+                debugLines.add("Render Distance (Chunks): " + currentRenderDistanceChunks + " (F6/F7)"); // Add this line
 
 
-                renderer.renderDebugOverlay(10f, 10f, 900f, 170f, debugLines);
+
+                renderer.renderDebugOverlay(10f, 10f, 1000f, 220f, debugLines);
             }
         }
     }
