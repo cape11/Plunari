@@ -44,6 +44,9 @@ public class PlayerModel {
     // --- New Inventory System ---
     private List<InventorySlot> inventorySlots;
     public static final int DEFAULT_INVENTORY_SIZE = 20; // Example: 20 slots
+    private int selectedHotbarSlotIndex = 0; // Default to the first slot (index 0) as the active item
+
+
 
     public PlayerModel(int startRow, int startCol) {
         this.mapRow = startRow;
@@ -186,7 +189,6 @@ public class PlayerModel {
         if (itemToAdd == null || amount <= 0) return false;
         int remainingAmountToAdd = amount;
 
-        // 1. Try to stack with existing items of the same type that are not full
         for (InventorySlot slot : inventorySlots) {
             if (!slot.isEmpty() && slot.getItem().equals(itemToAdd) && slot.getQuantity() < slot.getItem().getMaxStackSize()) {
                 remainingAmountToAdd = slot.addItem(itemToAdd, remainingAmountToAdd);
@@ -197,7 +199,6 @@ public class PlayerModel {
             }
         }
 
-        // 2. Try to add to an empty slot
         for (InventorySlot slot : inventorySlots) {
             if (slot.isEmpty()) {
                 remainingAmountToAdd = slot.addItem(itemToAdd, remainingAmountToAdd);
@@ -210,10 +211,9 @@ public class PlayerModel {
 
         if (remainingAmountToAdd > 0) {
             System.out.println("Inventory full, couldn't add remaining " + remainingAmountToAdd + " of " + itemToAdd.getDisplayName());
-            // Optionally return the amount that was successfully added, or just a boolean
-            return amount > remainingAmountToAdd; // True if at least some were added
+            return amount > remainingAmountToAdd;
         }
-        return true; // Should have returned earlier if all added
+        return true;
     }
 
     public int getItemCount(Item itemToCount) {
@@ -231,11 +231,65 @@ public class PlayerModel {
         return inventorySlots;
     }
 
-    // --- Old inventory methods (can be removed or refactored) ---
+    // --- Hotbar/Item Selection for Placement ---
+    public int getSelectedHotbarSlotIndex() {
+        return selectedHotbarSlotIndex;
+    }
+
+    public void setSelectedHotbarSlotIndex(int index) {
+        // For an MVP, let's say the first 5 slots are the "hotbar"
+        int hotbarSize = 5; // Or link to number of inventory columns if UI is fixed
+        if (index >= 0 && index < Math.min(hotbarSize, inventorySlots.size())) {
+            this.selectedHotbarSlotIndex = index;
+            System.out.println("Selected hotbar slot: " + index + " (Item: " + (getSelectedItemForPlacement() != null ? getSelectedItemForPlacement().getDisplayName() : "Empty") + ")");
+        } else {
+            System.out.println("Attempted to select invalid hotbar slot: " + index);
+        }
+    }
+
+    public Item getSelectedItemForPlacement() {
+        if (selectedHotbarSlotIndex < 0 || selectedHotbarSlotIndex >= inventorySlots.size()) {
+            return null;
+        }
+        InventorySlot slot = inventorySlots.get(selectedHotbarSlotIndex);
+        if (slot != null && !slot.isEmpty()) {
+            // For MVP, allow placing any item that might represent a block (e.g., RESOURCES)
+            if (slot.getItem().getType() == Item.ItemType.RESOURCE) {
+                return slot.getItem();
+            }
+            System.out.println("Item in selected hotbar slot is not placeable: " + slot.getItem().getDisplayName());
+            return null; // Only allow placing resources for MVP
+        }
+        return null;
+    }
+
+    public boolean consumeSelectedItemForPlacement(int amount) {
+        if (selectedHotbarSlotIndex < 0 || selectedHotbarSlotIndex >= inventorySlots.size() || amount <= 0) {
+            return false;
+        }
+        InventorySlot slot = inventorySlots.get(selectedHotbarSlotIndex);
+        Item itemInSlot = getSelectedItemForPlacement(); // Checks if item is placeable and slot is valid
+
+        if (itemInSlot != null && slot.getQuantity() >= amount) { // Ensure we're consuming a placeable item
+            int removed = slot.removeQuantity(amount);
+            if (removed == amount) {
+                System.out.println("Consumed " + amount + " of " + itemInSlot.getDisplayName() + " from slot " + selectedHotbarSlotIndex);
+                return true;
+            } else {
+                // Should not happen if getQuantity was >= amount, but good for robustness
+                System.err.println("Error consuming item: tried to remove " + amount + ", but only " + removed + " were removed.");
+                return false;
+            }
+        }
+        System.out.println("Failed to consume. Item not placeable, not enough quantity, or invalid slot.");
+        return false;
+    }
+
+    // --- Deprecated inventory methods ---
     /** @deprecated Use addItemToInventory with Item objects instead. */
     @Deprecated
     public void addResource(String resourceType, int amount) {
-        Item item = ItemRegistry.getItem(resourceType.toLowerCase()); // Assuming item IDs in registry are lowercase
+        Item item = ItemRegistry.getItem(resourceType.toLowerCase());
         if (item != null) {
             addItemToInventory(item, amount);
         } else {
@@ -257,12 +311,9 @@ public class PlayerModel {
     /** @deprecated Use getInventorySlots() instead. */
     @Deprecated
     public java.util.Map<String, Integer> getInventory_OLD() {
-        // This method is hard to represent with the new slot-based system directly.
-        // It's better to iterate over getInventorySlots() if this specific map is needed.
-        System.err.println("PlayerModel.getInventory_OLD() is deprecated and does not map well to the new slot system.");
-        return new java.util.HashMap<>(); // Return empty or throw exception
+        System.err.println("PlayerModel.getInventory_OLD() is deprecated.");
+        return new java.util.HashMap<>();
     }
-
 
     // --- Getters & Setters ---
     public float getMapRow() { return mapRow; }

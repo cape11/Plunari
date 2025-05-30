@@ -1,6 +1,10 @@
 package org.isogame.item;
 
 import java.util.Objects;
+import org.isogame.item.Item; // Import Item
+import static org.lwjgl.glfw.GLFW.*;
+
+
 
 public class Item {
     private String itemId;          // Unique identifier, e.g., "dirt_block", "iron_pickaxe"

@@ -3,6 +3,7 @@ package org.isogame.render;
 import org.isogame.camera.CameraManager;
 import org.isogame.constants.Constants;
 import org.isogame.entitiy.PlayerModel;
+import org.isogame.game.Game;
 import org.isogame.input.InputHandler;
 import org.isogame.map.Map;
 import org.isogame.tile.Tile;
@@ -140,146 +141,149 @@ public class Renderer {
             return;
         }
 
+        Game game = null; // To get the selected slot index
+        if (this.inputHandler != null) {
+            game = this.inputHandler.getGameInstance();
+        }
+        int selectedSlotIndex = (game != null) ? player.getSelectedHotbarSlotIndex() : -1;
+
         // --- UI Setup ---
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glDisable(GL_DEPTH_TEST); // UI should draw on top
 
         defaultShader.bind();
-        // Use the existing orthographic projection matrix for UI
         defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
-        // Identity model-view for screen-space UI
         defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
-        defaultShader.setUniform("uHasTexture", 0); // Initially for panel/slots
+        defaultShader.setUniform("uHasTexture", 0); // Default to no texture for panel/slots
         defaultShader.setUniform("uIsFont", 0);
 
         // --- Inventory Panel Dimensions & Position ---
-        float panelPadding = 20f;
-        int slotsPerRow = 5;
+        // float panelPadding = 20f; // Not used in current panel calculation, but good for future
+        int slotsPerRow = 5; // You defined this in PlayerModel hotbar selection
         float slotSize = 50f;
         float slotMargin = 10f;
-        float itemRenderSize = slotSize * 0.7f; // Size of the colored item placeholder
+        float itemRenderSize = slotSize * 0.7f;
         float itemOffset = (slotSize - itemRenderSize) / 2f;
 
         List<InventorySlot> slots = player.getInventorySlots();
         int numRows = (int) Math.ceil((double) slots.size() / slotsPerRow);
-        if (slots.isEmpty()) numRows = 1; // Minimum size for the panel even if empty
+        if (slots.isEmpty()) numRows = 1;
 
         float panelWidth = (slotsPerRow * slotSize) + ((slotsPerRow + 1) * slotMargin);
         float panelHeight = (numRows * slotSize) + ((numRows + 1) * slotMargin);
-
-        // Center the panel (example positioning)
         float panelX = (camera.getScreenWidth() - panelWidth) / 2.0f;
         float panelY = (camera.getScreenHeight() - panelHeight) / 2.0f;
+        float z = -1.0f; // UI Z-depth, ensure it's different from other UI elements if they overlap
 
         // --- Draw Panel Background ---
-        // Use the spriteVBO for convenience, or a dedicated UI VBO
-        glBindVertexArray(spriteVaoId); // Re-use sprite VAO/VBO for simple UI quads
+        glBindVertexArray(spriteVaoId);
         glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
         spriteVertexBuffer.clear();
 
-        float[] panelColor = {0.2f, 0.2f, 0.25f, 0.85f}; // Dark semi-transparent
-        float z = -1.0f; // UI Z-depth
-
+        float[] panelColor = {0.2f, 0.2f, 0.25f, 0.85f};
+        // Vertex data: Pos(3), Color(4), UV(2={0,0}), Light(1=1f)
         // Panel quad
-        spriteVertexBuffer.put(panelX).put(panelY).put(z).put(panelColor).put(0f).put(0f).put(1f); // Top-Left
-        spriteVertexBuffer.put(panelX).put(panelY + panelHeight).put(z).put(panelColor).put(0f).put(0f).put(1f); // Bottom-Left
-        spriteVertexBuffer.put(panelX + panelWidth).put(panelY).put(z).put(panelColor).put(0f).put(0f).put(1f); // Top-Right
+        spriteVertexBuffer.put(panelX).put(panelY).put(z).put(panelColor).put(0f).put(0f).put(1f);
+        spriteVertexBuffer.put(panelX).put(panelY + panelHeight).put(z).put(panelColor).put(0f).put(0f).put(1f);
+        spriteVertexBuffer.put(panelX + panelWidth).put(panelY).put(z).put(panelColor).put(0f).put(0f).put(1f);
 
-        spriteVertexBuffer.put(panelX + panelWidth).put(panelY).put(z).put(panelColor).put(0f).put(0f).put(1f); // Top-Right
-        spriteVertexBuffer.put(panelX).put(panelY + panelHeight).put(z).put(panelColor).put(0f).put(0f).put(1f); // Bottom-Left
-        spriteVertexBuffer.put(panelX + panelWidth).put(panelY + panelHeight).put(z).put(panelColor).put(0f).put(0f).put(1f); // Bottom-Right
+        spriteVertexBuffer.put(panelX + panelWidth).put(panelY).put(z).put(panelColor).put(0f).put(0f).put(1f);
+        spriteVertexBuffer.put(panelX).put(panelY + panelHeight).put(z).put(panelColor).put(0f).put(0f).put(1f);
+        spriteVertexBuffer.put(panelX + panelWidth).put(panelY + panelHeight).put(z).put(panelColor).put(0f).put(0f).put(1f);
 
         spriteVertexBuffer.flip();
         glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
         glDrawArrays(GL_TRIANGLES, 0, 6); // Draw panel
 
-        // --- Draw Slots and Items ---
-        float[] slotColor = {0.4f, 0.4f, 0.45f, 0.9f}; // Slot background color
-        float currentX = panelX + slotMargin;
-        float currentY = panelY + slotMargin;
+        // --- Draw Slots and Item Placeholders ---
+        float[] slotColorDefault = {0.4f, 0.4f, 0.45f, 0.9f};
+        float[] slotColorSelected = {0.8f, 0.8f, 0.3f, 0.95f}; // Highlight for selected slot
+
+        float currentSlotDrawX = panelX + slotMargin;
+        float currentSlotDrawY = panelY + slotMargin;
         int colCount = 0;
 
-        for (InventorySlot slot : slots) {
-            spriteVertexBuffer.clear();
-            // Slot background quad
-            spriteVertexBuffer.put(currentX).put(currentY).put(z).put(slotColor).put(0f).put(0f).put(1f);
-            spriteVertexBuffer.put(currentX).put(currentY + slotSize).put(z).put(slotColor).put(0f).put(0f).put(1f);
-            spriteVertexBuffer.put(currentX + slotSize).put(currentY).put(z).put(slotColor).put(0f).put(0f).put(1f);
+        // This pass draws slot backgrounds and item placeholders
+        for (int i = 0; i < slots.size(); i++) {
+            InventorySlot slot = slots.get(i);
+            float[] actualSlotColor = (i == selectedSlotIndex) ? slotColorSelected : slotColorDefault;
 
-            spriteVertexBuffer.put(currentX + slotSize).put(currentY).put(z).put(slotColor).put(0f).put(0f).put(1f);
-            spriteVertexBuffer.put(currentX).put(currentY + slotSize).put(z).put(slotColor).put(0f).put(0f).put(1f);
-            spriteVertexBuffer.put(currentX + slotSize).put(currentY + slotSize).put(z).put(slotColor).put(0f).put(0f).put(1f);
+            spriteVertexBuffer.clear(); // Buffer for this slot's graphics (background + item placeholder)
+            int verticesForThisSlot = 0;
 
-            spriteVertexBuffer.flip();
-            glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
-            glDrawArrays(GL_TRIANGLES, 0, 6); // Draw slot background
+            // 1. Add Slot Background Quad
+            spriteVertexBuffer.put(currentSlotDrawX).put(currentSlotDrawY).put(z).put(actualSlotColor).put(0f).put(0f).put(1f);
+            spriteVertexBuffer.put(currentSlotDrawX).put(currentSlotDrawY + slotSize).put(z).put(actualSlotColor).put(0f).put(0f).put(1f);
+            spriteVertexBuffer.put(currentSlotDrawX + slotSize).put(currentSlotDrawY).put(z).put(actualSlotColor).put(0f).put(0f).put(1f);
 
+            spriteVertexBuffer.put(currentSlotDrawX + slotSize).put(currentSlotDrawY).put(z).put(actualSlotColor).put(0f).put(0f).put(1f);
+            spriteVertexBuffer.put(currentSlotDrawX).put(currentSlotDrawY + slotSize).put(z).put(actualSlotColor).put(0f).put(0f).put(1f);
+            spriteVertexBuffer.put(currentSlotDrawX + slotSize).put(currentSlotDrawY + slotSize).put(z).put(actualSlotColor).put(0f).put(0f).put(1f);
+            verticesForThisSlot += 6;
+
+            // 2. Add Item Placeholder Quad if item exists
             if (!slot.isEmpty()) {
                 Item item = slot.getItem();
                 float[] itemColor = item.getPlaceholderColor();
+                float itemX = currentSlotDrawX + itemOffset;
+                float itemY = currentSlotDrawY + itemOffset;
+                float itemZ = z - 0.01f; // Slightly in front of slot background
 
-                // Item placeholder quad (colored square)
-                spriteVertexBuffer.clear();
-                float itemX = currentX + itemOffset;
-                float itemY = currentY + itemOffset;
-                spriteVertexBuffer.put(itemX).put(itemY).put(z).put(itemColor).put(0f).put(0f).put(1f);
-                spriteVertexBuffer.put(itemX).put(itemY + itemRenderSize).put(z).put(itemColor).put(0f).put(0f).put(1f);
-                spriteVertexBuffer.put(itemX + itemRenderSize).put(itemY).put(z).put(itemColor).put(0f).put(0f).put(1f);
+                spriteVertexBuffer.put(itemX).put(itemY).put(itemZ).put(itemColor).put(0f).put(0f).put(1f);
+                spriteVertexBuffer.put(itemX).put(itemY + itemRenderSize).put(itemZ).put(itemColor).put(0f).put(0f).put(1f);
+                spriteVertexBuffer.put(itemX + itemRenderSize).put(itemY).put(itemZ).put(itemColor).put(0f).put(0f).put(1f);
 
-                spriteVertexBuffer.put(itemX + itemRenderSize).put(itemY).put(z).put(itemColor).put(0f).put(0f).put(1f);
-                spriteVertexBuffer.put(itemX).put(itemY + itemRenderSize).put(z).put(itemColor).put(0f).put(0f).put(1f);
-                spriteVertexBuffer.put(itemX + itemRenderSize).put(itemY + itemRenderSize).put(z).put(itemColor).put(0f).put(0f).put(1f);
-
-                spriteVertexBuffer.flip();
-                glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
-                glDrawArrays(GL_TRIANGLES, 0, 6); // Draw item placeholder
+                spriteVertexBuffer.put(itemX + itemRenderSize).put(itemY).put(itemZ).put(itemColor).put(0f).put(0f).put(1f);
+                spriteVertexBuffer.put(itemX).put(itemY + itemRenderSize).put(itemZ).put(itemColor).put(0f).put(0f).put(1f);
+                spriteVertexBuffer.put(itemX + itemRenderSize).put(itemY + itemRenderSize).put(itemZ).put(itemColor).put(0f).put(0f).put(1f);
+                verticesForThisSlot += 6;
             }
 
-            // Positioning for next slot
-            currentX += slotSize + slotMargin;
+            if (verticesForThisSlot > 0) {
+                spriteVertexBuffer.flip();
+                glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+                glDrawArrays(GL_TRIANGLES, 0, verticesForThisSlot);
+            }
+
+            // Update drawing position for the next slot
+            currentSlotDrawX += slotSize + slotMargin;
             colCount++;
             if (colCount >= slotsPerRow) {
                 colCount = 0;
-                currentX = panelX + slotMargin;
-                currentY += slotSize + slotMargin;
+                currentSlotDrawX = panelX + slotMargin;
+                currentSlotDrawY += slotSize + slotMargin;
             }
         }
 
-        // --- Unbind VBO/VAO ---
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
-
+        glBindBuffer(GL_ARRAY_BUFFER, 0); // Unbind VBO after drawing all slots+items
+        glBindVertexArray(0);           // Unbind VAO
 
         // --- Draw Quantities (Text) ---
-        // Text rendering needs to happen after all batched quad rendering for that shader pass,
-        // or ensure the font rendering correctly sets its own shader state (uIsFont, texture)
-        // For simplicity, draw text after the quads. Font.drawText handles its own shader setup.
-        currentX = panelX + slotMargin;
-        currentY = panelY + slotMargin;
+        // Reset positions for text drawing pass
+        currentSlotDrawX = panelX + slotMargin;
+        currentSlotDrawY = panelY + slotMargin;
         colCount = 0;
-        float textOffsetX = 5f; // Small offset for text within slot
-        float textOffsetY = slotSize - 5f - uiFont.getAscent(); // Position at bottom of slot
-
+        float textOffsetX = 5f;
 
         for (InventorySlot slot : slots) {
             if (!slot.isEmpty() && slot.getQuantity() > 0) {
                 String quantityStr = String.valueOf(slot.getQuantity());
-                // For quantity text, you might want to position it at the bottom-right of the slot, for example
-                float qtyTextX = currentX + slotSize - uiFont.getTextWidth(quantityStr) - textOffsetX;
-                float qtyTextY = currentY + slotSize - uiFont.getAscent() - textOffsetX; // Using textOffsetX also for Y padding from bottom
+                // Position quantity text (e.g., bottom-right of the slot)
+                float qtyTextX = currentSlotDrawX + slotSize - uiFont.getTextWidth(quantityStr) - textOffsetX;
+                float qtyTextY = currentSlotDrawY + slotSize - uiFont.getAscent() - textOffsetX; // Adjust Y for font ascent
                 uiFont.drawText(qtyTextX, qtyTextY, quantityStr, 1f, 1f, 1f); // White text
             }
 
-            currentX += slotSize + slotMargin;
+            // Update drawing position for the next slot's text
+            currentSlotDrawX += slotSize + slotMargin;
             colCount++;
             if (colCount >= slotsPerRow) {
                 colCount = 0;
-                currentX = panelX + slotMargin;
-                currentY += slotSize + slotMargin;
+                currentSlotDrawX = panelX + slotMargin;
+                currentSlotDrawY += slotSize + slotMargin;
             }
         }
-
 
         // --- Restore GL State ---
         defaultShader.unbind(); // Or whatever shader was used for UI elements

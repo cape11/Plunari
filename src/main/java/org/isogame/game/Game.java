@@ -44,6 +44,7 @@ public class Game {
     private double timeAccumulatorForFps = 0.0;
     private double displayedFps = 0.0;
     // --- End FPS Counter Variables ---
+    private int selectedInventorySlotIndex = 0; // Add this line, default to first slot (index 0)
 
     private int currentRenderDistanceChunks = Constants.RENDER_DISTANCE_CHUNKS; // Initialize with default
 
@@ -215,30 +216,46 @@ public class Game {
     }
 
 
-    public int getCurrentRenderDistanceChunks() {
-        return currentRenderDistanceChunks;
-    }
-
-    public void increaseRenderDistance() {
-        // You can cap the maximum render distance if you want, e.g., 10
-        currentRenderDistanceChunks = Math.min(currentRenderDistanceChunks + 1, 10);
-        System.out.println("Render distance increased to: " + currentRenderDistanceChunks);
-    }
-
-    public void decreaseRenderDistance() {
-        // You can cap the minimum render distance, e.g., 1
-        currentRenderDistanceChunks = Math.max(1, currentRenderDistanceChunks - 1);
-        System.out.println("Render distance decreased to: " + currentRenderDistanceChunks);
-    }
-
-
     public void toggleInventory() {
         this.showInventory = !this.showInventory;
+        if (!this.showInventory) {
+            //selectedInventorySlotIndex = -1; // Optionally deselect when inventory is hidden
+        }
         System.out.println("Inventory visible: " + this.showInventory);
     }
 
     public boolean isInventoryVisible() {
         return this.showInventory;
+    }
+
+    public int getCurrentRenderDistanceChunks() {
+        return currentRenderDistanceChunks;
+    }
+
+    public void increaseRenderDistance() {
+        currentRenderDistanceChunks = Math.min(currentRenderDistanceChunks + 1, 10);
+        System.out.println("Render distance increased to: " + currentRenderDistanceChunks);
+    }
+
+    public void decreaseRenderDistance() {
+        currentRenderDistanceChunks = Math.max(1, currentRenderDistanceChunks - 1);
+        System.out.println("Render distance decreased to: " + currentRenderDistanceChunks);
+    }
+
+    // Add these methods for managing selected slot:
+    public int getSelectedInventorySlotIndex() {
+        return selectedInventorySlotIndex;
+    }
+
+    public void setSelectedInventorySlotIndex(int index) {
+        // Validate index against player's actual inventory size if needed
+        if (player != null && index >= 0 && index < player.getInventorySlots().size()) {
+            this.selectedInventorySlotIndex = index;
+        } else if (index == -1) { // Allow deselecting
+            this.selectedInventorySlotIndex = -1;
+        }
+        // Optionally provide feedback, or PlayerModel can do it if selection changes item
+        // System.out.println("Game: Selected inventory slot index: " + this.selectedInventorySlotIndex);
     }
 
     private void renderGame() {
@@ -252,11 +269,10 @@ public class Game {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         if (renderer != null) {
-            renderer.render(); // Renders terrain chunks and entities
+            renderer.render();
 
-                                                            // Render Inventory UI if visible
-            if (this.showInventory && player != null) { // Ensure player is not null
-                renderer.renderInventoryUI(player); // We'll create this method in Renderer
+            if (this.showInventory && player != null) {
+                renderer.renderInventoryUI(player); // Renderer will get selected index from Game
             }
 
 
@@ -280,6 +296,7 @@ public class Game {
                 debugLines.add("Center Cam: C | Regen Map: G | Debug: F5");
                 debugLines.add("Render Q Size: " + chunkRenderUpdateQueue.size());
                 debugLines.add("Render Distance (Chunks): " + currentRenderDistanceChunks + " (F6/F7)"); // Add this line
+                debugLines.add("Selected Slot: " + selectedInventorySlotIndex); // Example for debug
 
 
 

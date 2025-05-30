@@ -59,6 +59,21 @@ public class InputHandler {
                     gameInstance.toggleInventory();
                 }
                 break;
+            case GLFW_KEY_1:
+                if (player != null) player.setSelectedHotbarSlotIndex(0);
+                break;
+            case GLFW_KEY_2:
+                if (player != null) player.setSelectedHotbarSlotIndex(1);
+                break;
+            case GLFW_KEY_3:
+                if (player != null) player.setSelectedHotbarSlotIndex(2);
+                break;
+            case GLFW_KEY_4:
+                if (player != null) player.setSelectedHotbarSlotIndex(3);
+                break;
+            case GLFW_KEY_5:
+                if (player != null) player.setSelectedHotbarSlotIndex(4);
+                break;
 
             case GLFW_KEY_G:
                 if (requestFullMapRegenerationCallback != null) {
