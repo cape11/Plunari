@@ -410,11 +410,30 @@ public class Renderer {
 
     private void collectWorldEntities() {
         worldEntities.clear();
-        if (player != null) worldEntities.add(player);
-        if (mapChunks != null && camera != null) {
-            for (Chunk chunk : mapChunks) {
-                if (camera.isChunkVisible(chunk.getBoundingBox())) {
-                    worldEntities.addAll(chunk.getTreesInChunk());
+        if (player != null) {
+            worldEntities.add(player);
+        }
+
+        // --- MODIFIED ENTITY COLLECTION LOGIC ---
+        if (mapChunks != null && camera != null && player != null && CHUNK_SIZE_TILES > 0) { //
+            int playerTileCol = player.getTileCol(); //
+            int playerTileRow = player.getTileRow(); //
+            int playerChunkX = playerTileCol / CHUNK_SIZE_TILES; //
+            int playerChunkY = playerTileRow / CHUNK_SIZE_TILES; //
+
+            for (int dy = -RENDER_DISTANCE_CHUNKS; dy <= RENDER_DISTANCE_CHUNKS; dy++) { //
+                for (int dx = -RENDER_DISTANCE_CHUNKS; dx <= RENDER_DISTANCE_CHUNKS; dx++) { //
+                    int currentChunkGridX = playerChunkX + dx;
+                    int currentChunkGridY = playerChunkY + dy;
+
+                    for (Chunk chunk : mapChunks) { //
+                        if (chunk.chunkGridX == currentChunkGridX && chunk.chunkGridY == currentChunkGridY) {
+                            if (camera.isChunkVisible(chunk.getBoundingBox())) { //
+                                worldEntities.addAll(chunk.getTreesInChunk()); //
+                            }
+                            break; // Found the chunk
+                        }
+                    }
                 }
             }
         }
@@ -536,18 +555,38 @@ public class Renderer {
         } else {
             defaultShader.setUniform("uHasTexture", 0);
         }
-        if (mapChunks != null) {
-            for (Chunk chunk : mapChunks) {
-                if (camera.isChunkVisible(chunk.getBoundingBox())) {
-                    chunk.render();
+
+        // --- MODIFIED CHUNK RENDERING LOGIC ---
+        if (mapChunks != null && player != null && camera != null && CHUNK_SIZE_TILES > 0) { //
+            int playerTileCol = player.getTileCol(); //
+            int playerTileRow = player.getTileRow(); //
+            int playerChunkX = playerTileCol / CHUNK_SIZE_TILES; //
+            int playerChunkY = playerTileRow / CHUNK_SIZE_TILES; //
+
+            for (int dy = -RENDER_DISTANCE_CHUNKS; dy <= RENDER_DISTANCE_CHUNKS; dy++) { //
+                for (int dx = -RENDER_DISTANCE_CHUNKS; dx <= RENDER_DISTANCE_CHUNKS; dx++) { //
+                    int currentChunkGridX = playerChunkX + dx;
+                    int currentChunkGridY = playerChunkY + dy;
+
+                    // Find and render this chunk if it exists and is visible
+                    for (Chunk chunk : mapChunks) { //
+                        if (chunk.chunkGridX == currentChunkGridX && chunk.chunkGridY == currentChunkGridY) {
+                            if (camera.isChunkVisible(chunk.getBoundingBox())) { //
+                                chunk.render(); //
+                            }
+                            break; // Found the chunk, move to next target dx, dy
+                        }
+                    }
                 }
             }
         }
+        // --- END OF MODIFIED CHUNK RENDERING LOGIC ---
+
         if (tileAtlasTexture != null) glBindTexture(GL_TEXTURE_2D, 0);
 
-        collectWorldEntities();
-        defaultShader.setUniform("uHasTexture", 1);
-        defaultShader.setUniform("uTextureSampler", 0);
+        collectWorldEntities(); // This method will also be updated
+        defaultShader.setUniform("uHasTexture", 1); // For sprites
+        defaultShader.setUniform("uTextureSampler", 0); // For sprites
 
         if (spriteVaoId != 0 && !worldEntities.isEmpty()) {
             glBindVertexArray(spriteVaoId);
@@ -564,7 +603,7 @@ public class Renderer {
                     textureForEntity = playerTexture;
                 } else if (entity instanceof TreeData && treeTexture != null) {
                     verticesAdded = addTreeVerticesToBuffer_WorldSpace((TreeData)entity, spriteVertexBuffer);
-                    textureForEntity = treeTexture; // Assuming treeTexture atlas contains all tree sprites
+                    textureForEntity = treeTexture;
                 }
 
                 if (verticesAdded > 0 && textureForEntity != null) {
