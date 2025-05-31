@@ -49,17 +49,25 @@ public class Renderer {
     public static final int FLOATS_PER_VERTEX_SPRITE_TEXTURED = 10; // Pos(3) Color(4) UV(2) Light(1)
     // For UI quads without texture/light, we can use a subset or adapt
     public static final int FLOATS_PER_VERTEX_UI_COLORED = 7; // Pos(3) Color(4) - if no texture/light needed for simple quads
+    private Font titleFont;
+    private Texture mainMenuBackgroundTexture; // <<<< ADD THIS DECLARATION
 
     private static final float ATLAS_TOTAL_WIDTH = 128.0f, ATLAS_TOTAL_HEIGHT = 128.0f;
     private static final float SUB_TEX_WIDTH = 64.0f, SUB_TEX_HEIGHT = 64.0f;
     private static final float GRASS_ATLAS_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, GRASS_ATLAS_V0 = (0*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
     private static final float GRASS_ATLAS_U1 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, GRASS_ATLAS_V1 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    private static final float ROCK_ATLAS_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, ROCK_ATLAS_V0 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    private static final float ROCK_ATLAS_U1 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, ROCK_ATLAS_V1 = (2*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    private static final float SAND_ATLAS_U0 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, SAND_ATLAS_V0 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    private static final float SAND_ATLAS_U1 = (2*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, SAND_ATLAS_V1 = (2*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    private static final float DEFAULT_SIDE_U0 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, DEFAULT_SIDE_V0 = (0*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    private static final float DEFAULT_SIDE_U1 = (2*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, DEFAULT_SIDE_V1 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float ROCK_ATLAS_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH;
+    public static final float ROCK_ATLAS_V0 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float ROCK_ATLAS_U1 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH;
+    public static final float ROCK_ATLAS_V1 = (2*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float SAND_ATLAS_U0 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH;
+    public static final float SAND_ATLAS_V0 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float SAND_ATLAS_U1 = (2*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH;
+    public static final float SAND_ATLAS_V1 = (2*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float DEFAULT_SIDE_U0 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH;
+    public static final float DEFAULT_SIDE_V0 = (0*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float DEFAULT_SIDE_U1 = (2*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH;
+    public static final float DEFAULT_SIDE_V1 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
     private static final float SNOW_ATLAS_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, SNOW_ATLAS_V0 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
     private static final float SNOW_ATLAS_U1 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, SNOW_ATLAS_V1 = (2*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
     private static final float SNOW_SIDE_ATLAS_U0 = ROCK_ATLAS_U0, SNOW_SIDE_ATLAS_V0 = ROCK_ATLAS_V0;
@@ -80,9 +88,12 @@ public class Renderer {
     private static final float Z_OFFSET_TILE_TOP_SURFACE = 0.0f;
     private static final float Z_OFFSET_TILE_SIDES = 0.01f;    // Slightly behind top surface
     private static final float Z_OFFSET_TILE_PEDESTAL = 0.02f; // Slightly behind sides
-    private static final float Z_OFFSET_UI_ELEMENT = -1.0f;   // UI elements rendered in screen space
-    private static final float Z_OFFSET_UI_BORDER = -0.99f;
 
+
+    private static final float Z_OFFSET_UI_ELEMENT = 1.0f;   // UI elements rendered in screen space
+    private static final float Z_OFFSET_UI_BORDER = 0.9f;
+
+    private static final float Z_OFFSET_UI_BACKGROUND = -0.5f;
 
 
     public static class TreeData {
@@ -110,14 +121,29 @@ public class Renderer {
     }
 
     private void loadAssets() {
-        playerTexture = Texture.loadTexture("/org/isogame/render/textures/lpc_character.png"); //
-        treeTexture = Texture.loadTexture("/org/isogame/render/textures/fruit-trees.png"); //
-        tileAtlasTexture = Texture.loadTexture("/org/isogame/render/textures/textu.png"); //
+        playerTexture = Texture.loadTexture("/org/isogame/render/textures/lpc_character.png");
+        treeTexture = Texture.loadTexture("/org/isogame/render/textures/fruit-trees.png");
+        tileAtlasTexture = Texture.loadTexture("/org/isogame/render/textures/textu.png");
+
+        // Load main menu background texture
         try {
-            uiFont = new Font("/org/isogame/render/fonts/PressStart2P-Regular.ttf", 16f, this); //
+            // IMPORTANT: Make sure you have an image at this path in your resources
+            mainMenuBackgroundTexture = Texture.loadTexture("/org/isogame/render/textures/main_menu_background.png");
+            if (mainMenuBackgroundTexture == null) {
+                System.err.println("Renderer WARNING: Failed to load main menu background texture. Menu will have a solid color background.");
+            }
+        } catch (Exception e) {
+            System.err.println("Renderer ERROR loading main menu background texture: " + e.getMessage());
+            mainMenuBackgroundTexture = null;
+        }
+
+        try {
+            uiFont = new Font("/org/isogame/render/fonts/PressStart2P-Regular.ttf", 16f, this);
+            titleFont = new Font("/org/isogame/render/fonts/PressStart2P-Regular.ttf", 32f, this);
         } catch (IOException | RuntimeException e) {
-            System.err.println("Renderer CRITICAL: Failed to load UI font: " + e.getMessage());
-            uiFont = null;
+            System.err.println("Renderer CRITICAL: Failed to load UI/Title font: " + e.getMessage());
+            if (uiFont == null) uiFont = null;
+            if (titleFont == null) titleFont = null;
         }
     }
     public Font getUiFont() { return uiFont; }
@@ -140,17 +166,63 @@ public class Renderer {
         }
     }
 
+    public void renderMainMenuBackground() {
+        // Check if mainMenuBackgroundTexture is loaded and valid
+        if (mainMenuBackgroundTexture == null || mainMenuBackgroundTexture.getId() == 0 || defaultShader == null || camera == null) {
+            // Fallback: If texture isn't available, don't try to render it.
+            // The glClearColor set in Game.java -> renderMainMenu() will be visible.
+            return;
+        }
+
+        defaultShader.bind();
+        defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
+        defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
+        defaultShader.setUniform("uHasTexture", 1); // Enable texture
+        defaultShader.setUniform("uIsFont", 0);
+        defaultShader.setUniform("uTextureSampler", 0);
+
+        glActiveTexture(GL_TEXTURE0);
+        mainMenuBackgroundTexture.bind();
+
+        glBindVertexArray(spriteVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+        spriteVertexBuffer.clear();
+
+        float screenWidth = camera.getScreenWidth();
+        float screenHeight = camera.getScreenHeight();
+        float dummyLight = 1f; // Not affected by game lighting
+
+        // Full-screen quad with correct UVs for the background
+        // Using WHITE_TINT for the color so texture appears as is
+        spriteVertexBuffer.put(0).put(0).put(Z_OFFSET_UI_BACKGROUND).put(WHITE_TINT).put(0f).put(0f).put(dummyLight);               // Top-left screen, UV (0,0)
+        spriteVertexBuffer.put(0).put(screenHeight).put(Z_OFFSET_UI_BACKGROUND).put(WHITE_TINT).put(0f).put(1f).put(dummyLight);      // Bottom-left screen, UV (0,1)
+        spriteVertexBuffer.put(screenWidth).put(0).put(Z_OFFSET_UI_BACKGROUND).put(WHITE_TINT).put(1f).put(0f).put(dummyLight);      // Top-right screen, UV (1,0)
+
+        spriteVertexBuffer.put(screenWidth).put(0).put(Z_OFFSET_UI_BACKGROUND).put(WHITE_TINT).put(1f).put(0f).put(dummyLight);      // Top-right screen, UV (1,0)
+        spriteVertexBuffer.put(0).put(screenHeight).put(Z_OFFSET_UI_BACKGROUND).put(WHITE_TINT).put(0f).put(1f).put(dummyLight);      // Bottom-left screen, UV (0,1)
+        spriteVertexBuffer.put(screenWidth).put(screenHeight).put(Z_OFFSET_UI_BACKGROUND).put(WHITE_TINT).put(1f).put(1f).put(dummyLight); // Bottom-right screen, UV (1,1)
+
+        spriteVertexBuffer.flip();
+        glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        mainMenuBackgroundTexture.unbind(); // Unbind the texture
+        // defaultShader.unbind(); // Usually handled by the caller after all UI drawn with this shader
+    }
+
+
+    // In Renderer.java
     public void renderMenuButton(MenuItemButton button) {
         if (uiFont == null || !uiFont.isInitialized() || defaultShader == null) {
             System.err.println("Renderer: Cannot render menu button, font or shader not ready.");
             return;
         }
 
-
         defaultShader.bind();
         defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
         defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
-        defaultShader.setUniform("uHasTexture", 0);
         defaultShader.setUniform("uIsFont", 0);
 
         glBindVertexArray(spriteVaoId);
@@ -158,69 +230,131 @@ public class Renderer {
         spriteVertexBuffer.clear();
 
         float dummyU = 0f, dummyV = 0f;
-        float dummyLight = 1f; // UI elements typically ignore game lighting
-        int verticesForThisButton = 0;
+        float dummyLight = 1f;
+        int totalVerticesDrawn = 0; // Tracks vertices for the combined draw call
 
-        // 1. Render Border
+        // 1. Render Border (if enabled)
         if (button.borderWidth > 0 && button.borderColor != null) {
+            defaultShader.setUniform("uHasTexture", 0); // Border is not textured
             float bx = button.x - button.borderWidth;
             float by = button.y - button.borderWidth;
             float bWidth = button.width + (2 * button.borderWidth);
             float bHeight = button.height + (2 * button.borderWidth);
 
-            // Border quad uses button.borderColor
-            spriteVertexBuffer.put(bx).put(by).put(Z_OFFSET_UI_BORDER).put(button.borderColor).put(dummyU).put(dummyV).put(dummyLight); //
-            spriteVertexBuffer.put(bx).put(by + bHeight).put(Z_OFFSET_UI_BORDER).put(button.borderColor).put(dummyU).put(dummyV).put(dummyLight); //
-            spriteVertexBuffer.put(bx + bWidth).put(by).put(Z_OFFSET_UI_BORDER).put(button.borderColor).put(dummyU).put(dummyV).put(dummyLight); //
-            verticesForThisButton +=3;
+            spriteVertexBuffer.put(bx).put(by).put(Z_OFFSET_UI_BORDER).put(button.borderColor).put(dummyU).put(dummyV).put(dummyLight);
+            spriteVertexBuffer.put(bx).put(by + bHeight).put(Z_OFFSET_UI_BORDER).put(button.borderColor).put(dummyU).put(dummyV).put(dummyLight);
+            spriteVertexBuffer.put(bx + bWidth).put(by).put(Z_OFFSET_UI_BORDER).put(button.borderColor).put(dummyU).put(dummyV).put(dummyLight);
+            totalVerticesDrawn +=3;
 
-            spriteVertexBuffer.put(bx + bWidth).put(by).put(Z_OFFSET_UI_BORDER).put(button.borderColor).put(dummyU).put(dummyV).put(dummyLight); //
-            spriteVertexBuffer.put(bx).put(by + bHeight).put(Z_OFFSET_UI_BORDER).put(button.borderColor).put(dummyU).put(dummyV).put(dummyLight); //
-            spriteVertexBuffer.put(bx + bWidth).put(by + bHeight).put(Z_OFFSET_UI_BORDER).put(button.borderColor).put(dummyU).put(dummyV).put(dummyLight); //
-            verticesForThisButton +=3;
+            spriteVertexBuffer.put(bx + bWidth).put(by).put(Z_OFFSET_UI_BORDER).put(button.borderColor).put(dummyU).put(dummyV).put(dummyLight);
+            spriteVertexBuffer.put(bx).put(by + bHeight).put(Z_OFFSET_UI_BORDER).put(button.borderColor).put(dummyU).put(dummyV).put(dummyLight);
+            spriteVertexBuffer.put(bx + bWidth).put(by + bHeight).put(Z_OFFSET_UI_BORDER).put(button.borderColor).put(dummyU).put(dummyV).put(dummyLight);
+            totalVerticesDrawn +=3;
         }
 
-        // 2. Render Button Background (with gradient)
-        float[] topQuadColor = button.isHovered ? button.hoverBackgroundColor : button.baseBackgroundColor; //
-        float gradientFactor = 0.15f; // How much darker the bottom is
-        // Ensure colors don't go below 0 after subtracting gradientFactor
-        float[] bottomQuadColor = new float[]{
-                Math.max(0f, topQuadColor[0] - gradientFactor),
-                Math.max(0f, topQuadColor[1] - gradientFactor),
-                Math.max(0f, topQuadColor[2] - gradientFactor),
-                topQuadColor[3] // Alpha remains the same
-        };
+        // 2. Render Button Face
+        if (button.useTexture && tileAtlasTexture != null && tileAtlasTexture.getId() != 0) {
+            defaultShader.setUniform("uHasTexture", 1);
+            glActiveTexture(GL_TEXTURE0);
+            tileAtlasTexture.bind();
 
-        // Vertices for the main button face, using Z_OFFSET_UI_ELEMENT
-        spriteVertexBuffer.put(button.x).put(button.y).put(Z_OFFSET_UI_ELEMENT).put(topQuadColor).put(dummyU).put(dummyV).put(dummyLight); //
-        spriteVertexBuffer.put(button.x).put(button.y + button.height).put(Z_OFFSET_UI_ELEMENT).put(bottomQuadColor).put(dummyU).put(dummyV).put(dummyLight); //
-        spriteVertexBuffer.put(button.x + button.width).put(button.y).put(Z_OFFSET_UI_ELEMENT).put(topQuadColor).put(dummyU).put(dummyV).put(dummyLight); //
-        verticesForThisButton +=3;
 
-        spriteVertexBuffer.put(button.x + button.width).put(button.y).put(Z_OFFSET_UI_ELEMENT).put(topQuadColor).put(dummyU).put(dummyV).put(dummyLight); //
-        spriteVertexBuffer.put(button.x).put(button.y + button.height).put(Z_OFFSET_UI_ELEMENT).put(bottomQuadColor).put(dummyU).put(dummyV).put(dummyLight); //
-        spriteVertexBuffer.put(button.x + button.width).put(button.y + button.height).put(Z_OFFSET_UI_ELEMENT).put(bottomQuadColor).put(dummyU).put(dummyV).put(dummyLight); //
-        verticesForThisButton +=3;
 
-        if (verticesForThisButton > 0) {
+            float u0 = button.u0, v0_tex = button.v0, u1 = button.u1, v1_tex = button.v1;
+            float[] tintToUse = button.isHovered ? new float[]{1.1f, 1.1f, 1.05f, 1.0f} : WHITE_TINT;
+
+            spriteVertexBuffer.put(button.x).put(button.y).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u0).put(v0_tex).put(dummyLight);
+            spriteVertexBuffer.put(button.x).put(button.y + button.height).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u0).put(v1_tex).put(dummyLight);
+            spriteVertexBuffer.put(button.x + button.width).put(button.y).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u1).put(v0_tex).put(dummyLight);
+            totalVerticesDrawn +=3;
+
+            spriteVertexBuffer.put(button.x + button.width).put(button.y).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u1).put(v0_tex).put(dummyLight);
+            spriteVertexBuffer.put(button.x).put(button.y + button.height).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u0).put(v1_tex).put(dummyLight);
+            spriteVertexBuffer.put(button.x + button.width).put(button.y + button.height).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u1).put(v1_tex).put(dummyLight);
+            totalVerticesDrawn +=3;
+
+        } else { // Fallback to colored gradient buttons
+            defaultShader.setUniform("uHasTexture", 0);
+            float[] topQuadColor = button.isHovered ? button.hoverBackgroundColor : button.baseBackgroundColor;
+            float gradientFactor = 0.15f;
+            float[] bottomQuadColor = new float[]{
+                    Math.max(0f, topQuadColor[0] - gradientFactor),
+                    Math.max(0f, topQuadColor[1] - gradientFactor),
+                    Math.max(0f, topQuadColor[2] - gradientFactor),
+                    topQuadColor[3]
+            };
+
+            spriteVertexBuffer.put(button.x).put(button.y).put(Z_OFFSET_UI_ELEMENT).put(topQuadColor).put(dummyU).put(dummyV).put(dummyLight);
+            spriteVertexBuffer.put(button.x).put(button.y + button.height).put(Z_OFFSET_UI_ELEMENT).put(bottomQuadColor).put(dummyU).put(dummyV).put(dummyLight);
+            spriteVertexBuffer.put(button.x + button.width).put(button.y).put(Z_OFFSET_UI_ELEMENT).put(topQuadColor).put(dummyU).put(dummyV).put(dummyLight);
+            totalVerticesDrawn +=3;
+
+            spriteVertexBuffer.put(button.x + button.width).put(button.y).put(Z_OFFSET_UI_ELEMENT).put(topQuadColor).put(dummyU).put(dummyV).put(dummyLight);
+            spriteVertexBuffer.put(button.x).put(button.y + button.height).put(Z_OFFSET_UI_ELEMENT).put(bottomQuadColor).put(dummyU).put(dummyV).put(dummyLight);
+            spriteVertexBuffer.put(button.x + button.width).put(button.y + button.height).put(Z_OFFSET_UI_ELEMENT).put(bottomQuadColor).put(dummyU).put(dummyV).put(dummyLight);
+            totalVerticesDrawn +=3;
+        }
+
+        if (totalVerticesDrawn > 0) {
             spriteVertexBuffer.flip();
             glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
-            glDrawArrays(GL_TRIANGLES, 0, verticesForThisButton);
+            glDrawArrays(GL_TRIANGLES, 0, totalVerticesDrawn);
+        }
+
+        if (button.useTexture && tileAtlasTexture != null && tileAtlasTexture.getId() != 0) {
+            tileAtlasTexture.unbind();
         }
 
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
 
         // 3. Render Button Text
-        float[] currentTextColor = button.isHovered ? button.hoverTextColor : button.baseTextColor; //
-        float textWidth = uiFont.getTextWidth(button.text); //
-        float fontHeightApproximation = uiFont.getAscent(); //
-        float textX = button.x + (button.width - textWidth) / 2f; //
-        float textY = button.y + (button.height - fontHeightApproximation) / 2f + fontHeightApproximation - (fontHeightApproximation * 0.2f); // Adjusted for better vertical centering of PressStart2P
+        float[] currentTextColor = button.isHovered ? button.hoverTextColor : button.baseTextColor;
+        float textWidth = uiFont.getTextWidth(button.text);
+        float fontAscent = uiFont.getAscent(); // Height of the font from baseline to top
+        // For PressStart2P, the actual visual height is very close to the ascent.
+        // Descenders are minimal or non-existent for uppercase.
 
-        uiFont.drawText(textX, textY, button.text, currentTextColor[0], currentTextColor[1], currentTextColor[2]); //
+        float horizontalPadding = 10f; // Adjust as needed
+        float verticalPadding = 100f;   // Adjust as needed
+
+        float textX, textY;
+
+        // Horizontal Centering
+        float availableWidthForText = button.width - (2 * horizontalPadding);
+        if (textWidth >= availableWidthForText && availableWidthForText > 0) {
+            textX = button.x + horizontalPadding;
+        } else if (availableWidthForText <= 0) { // Not enough space even for padding
+            textX = button.x + button.borderWidth + 2f; // Small offset from inner border edge
+        } else {
+            textX = button.x + horizontalPadding + (availableWidthForText - textWidth) / 2f;
+        }
+
+        // Vertical Centering (Revised for PressStart2P style fonts)
+        // We want to center the block of pixels that the font occupies.
+        // Ascent is the distance from baseline to top.
+        // For PressStart2P, visual top is roughly ascent, visual bottom is roughly baseline.
+        float availableHeightForText = button.height - (2 * verticalPadding);
+        if (fontAscent >= availableHeightForText && availableHeightForText > 0) {
+            // If font is too tall, align top of font with top padding
+            textY = button.y + verticalPadding + fontAscent;
+        } else if (availableHeightForText <= 0) {
+            // Not enough space, position near top border
+            textY = button.y + button.borderWidth + fontAscent + 2f;
+        } else {
+            // Center the font's ascent block within the available padded height
+            textY = button.y + verticalPadding + ((availableHeightForText - fontAscent) / 2f) + fontAscent;
+        }
+
+        // uiFont.drawText positions text from its baseline.
+        // No further manual nudge should be strictly necessary if the above is right,
+        // but small tweaks might be needed for visual perfection.
+        // textY -= fontAscent * 0.05f; // Remove or adjust this based on visual result
+
+        if (uiFont != null && uiFont.isInitialized()){
+            uiFont.drawText(textX, textY, button.text, currentTextColor[0], currentTextColor[1], currentTextColor[2]);
+        }
     }
-
 
     public void renderInventoryUI(PlayerModel player) {
         if (uiFont == null || !uiFont.isInitialized() || player == null) {
@@ -551,6 +685,9 @@ public class Renderer {
         return vCount; //
     }
 
+    public Font getTitleFont() { return titleFont; }
+
+
     private int addTopSurfaceToBuffer(FloatBuffer buffer, Tile.TileType topSurfaceType, boolean isSelected,
                                       float topCenterX, float topCenterY, float worldZ,
                                       float dLeftX, float dSideY, float dRightX, float dTopY, float dBottomY,
@@ -875,6 +1012,8 @@ public class Renderer {
         }
         defaultShader.unbind(); //
     }
+
+
     public void renderDebugOverlay(float panelX, float panelY, float panelWidth, float panelHeight, List<String> lines) {
         if (uiFont == null || !uiFont.isInitialized()) return; //
         glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); //
@@ -918,5 +1057,8 @@ public class Renderer {
         if(spriteVaoId!=0){glDeleteVertexArrays(spriteVaoId);spriteVaoId=0;} //
         if(spriteVboId!=0){glDeleteBuffers(spriteVboId);spriteVboId=0;} //
         if(spriteVertexBuffer!=null){MemoryUtil.memFree(spriteVertexBuffer);spriteVertexBuffer=null;} //
+        if (titleFont != null) titleFont.cleanup();
+        if(mainMenuBackgroundTexture != null) mainMenuBackgroundTexture.delete(); // <<<< ADD THIS LINE FOR CLEANUP
+
     }
 }

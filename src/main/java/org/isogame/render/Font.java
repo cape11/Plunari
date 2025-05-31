@@ -375,7 +375,7 @@ public class Font {
                 // yPosBuf.put(0, yPosBuf.get(0) * scale); // This also needs care.
 
 
-                float screenZ = 0.0f; //
+                float screenZ = 2.0f; //
 
                 float uTL = quad.s0(); float vTL = quad.t0(); //
                 float uBL = quad.s0(); float vBL = quad.t1(); //

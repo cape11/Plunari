@@ -34,9 +34,11 @@ import java.util.Set;
 import java.util.Queue;
 import java.util.LinkedList;
 import java.util.stream.Collectors;
-
-
+import static org.isogame.render.Renderer.ROCK_ATLAS_U0;
+import static org.isogame.render.Renderer.ROCK_ATLAS_V0;
+import static org.isogame.render.Renderer.ROCK_ATLAS_U1;
 import static org.isogame.constants.Constants.*;
+import static org.isogame.render.Renderer.ROCK_ATLAS_V1;
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
 
@@ -121,6 +123,9 @@ public class Game {
         return menuButtons;
     }
 
+    // In Game.java
+// Ensure you have: import org.isogame.render.Renderer; at the top if it's not already there.
+
     private void setupMainMenuButtons() {
         menuButtons.clear();
         if (cameraManager == null) return; // Cannot setup without screen dimensions
@@ -132,46 +137,71 @@ public class Game {
         float screenCenterX = cameraManager.getScreenWidth() / 2f;
         float buttonX = screenCenterX - buttonWidth / 2f;
 
-        // Create New World Button
-        menuButtons.add(new MenuItemButton(buttonX, currentY, buttonWidth, buttonHeight, "Create New World", "NEW_WORLD", null));
+        // Create New World Button (Rock Texture)
+        MenuItemButton newWorldButton = new MenuItemButton(buttonX, currentY, buttonWidth, buttonHeight, "Create New World", "NEW_WORLD", null);
+        newWorldButton.setTextureAtlasUVs(
+                Renderer.ROCK_ATLAS_U0, Renderer.ROCK_ATLAS_V0,
+                Renderer.ROCK_ATLAS_U1, Renderer.ROCK_ATLAS_V1
+        );
+        // Adjust text color for rock texture for better visibility if needed
+        newWorldButton.baseTextColor = new float[]{1.0f, 1.0f, 1.0f, 1.0f}; // White text
+        newWorldButton.hoverTextColor = new float[]{0.9f, 0.9f, 0.7f, 1.0f}; // Slightly off-white/yellowish on hover
+        menuButtons.add(newWorldButton);
         currentY += buttonHeight + buttonSpacing;
 
-        // Available Worlds Header (optional, could be rendered separately by Renderer)
-        // For simplicity, we'll just list worlds as buttons directly
-
         if (availableSaveFiles.isEmpty()) {
-            // Could add a non-interactive label here if desired, drawn by renderer
-            // For now, just spacing
-            currentY += buttonHeight + buttonSpacing;
+            // Optional: Could render a static text "No saved worlds found" here if desired
+            // For now, just add spacing if no worlds to list
+            currentY += buttonHeight + buttonSpacing; // Add some spacing anyway
         } else {
-            float worldButtonWidth = buttonWidth * 0.75f; // Smaller button for world name
+            float worldButtonWidth = buttonWidth * 0.75f; // Main button for loading
             float deleteButtonWidth = buttonWidth * 0.20f; // Smaller button for DEL
-            float worldButtonX = screenCenterX - (worldButtonWidth + deleteButtonWidth + 5f) / 2f; // 5f is spacing
+            // Adjust X positions to center the pair of (Load + DEL) buttons
+            float totalPairWidth = worldButtonWidth + deleteButtonWidth + 5f; // 5f is spacing between Load and DEL
+            float worldButtonX = screenCenterX - totalPairWidth / 2f;
             float deleteButtonX = worldButtonX + worldButtonWidth + 5f;
 
             for (String worldFile : availableSaveFiles) {
-                   String worldNameDisplay = worldFile.replace(".json", "");
+                String worldNameDisplay = worldFile.replace(".json", "");
                 MenuItemButton loadButton = new MenuItemButton(worldButtonX, currentY, worldButtonWidth, buttonHeight, "Load: " + worldNameDisplay, "LOAD_WORLD", worldFile);
+                // Using DEFAULT_SIDE texture (often a dirt/earthy side texture) for "Load" buttons
+                loadButton.setTextureAtlasUVs(
+                        Renderer.DEFAULT_SIDE_U0, Renderer.DEFAULT_SIDE_V0,
+                        Renderer.DEFAULT_SIDE_U1, Renderer.DEFAULT_SIDE_V1
+                );
+                loadButton.baseTextColor = new float[]{1.0f, 1.0f, 1.0f, 1.0f};
+                loadButton.hoverTextColor = new float[]{0.8f, 0.9f, 0.7f, 1.0f};
                 menuButtons.add(loadButton);
 
                 MenuItemButton deleteButton = new MenuItemButton(deleteButtonX, currentY, deleteButtonWidth, buttonHeight, "DEL", "DELETE_WORLD", worldNameDisplay);
-                deleteButton.setCustomColors(
-                        new float[]{0.5f, 0.25f, 0.15f, 0.9f},  // baseBg: Dark, muted terracotta/brown
-                        new float[]{0.6f, 0.3f, 0.2f, 0.95f}, // hoverBg: Slightly lighter
-                        new float[]{0.2f, 0.1f, 0.05f, 1.0f},  // border: Very dark brown
-                        new float[]{0.9f, 0.8f, 0.75f, 1.0f},  // baseText: Light beige
-                        new float[]{1.0f, 0.95f, 0.9f, 1.0f}   // hoverText: Brighter beige
+                // Using SAND texture for "DEL" buttons
+                deleteButton.setTextureAtlasUVs(
+                        Renderer.SAND_ATLAS_U0, Renderer.SAND_ATLAS_V0,
+                        Renderer.SAND_ATLAS_U1, Renderer.SAND_ATLAS_V1
                 );
-                deleteButton.borderWidth = 1.5f; // Slightly thinner border for the small DEL button
+                // Custom colors for DEL button text to make it stand out on sand texture
+                deleteButton.setCustomColors(
+                        new float[]{0.5f, 0.25f, 0.15f, 0.0f},  // baseBg (mostly transparent if texture fully opaque)
+                        new float[]{0.6f, 0.3f, 0.2f, 0.0f},   // hoverBg
+                        new float[]{0.2f, 0.1f, 0.05f, 1.0f},    // borderColor
+                        new float[]{0.6f, 0.1f, 0.05f, 1.0f},    // baseTextColor (dark red/brown)
+                        new float[]{0.8f, 0.2f, 0.1f, 1.0f}     // hoverTextColor
+                );
                 menuButtons.add(deleteButton);
-
-                currentY += buttonHeight + buttonSpacing / 2; // Less spacing for world list items
+                currentY += buttonHeight + buttonSpacing / 2; // Less spacing for items in the list
             }
         }
-        currentY += buttonSpacing; // Extra space before Exit
+        currentY += buttonSpacing; // Extra space before Exit button
 
-        // Exit Game Button
-        menuButtons.add(new MenuItemButton(buttonX, currentY, buttonWidth, buttonHeight, "Exit Game", "EXIT_GAME", null));
+        // Exit Game Button (e.g., using ROCK texture again or another distinct one)
+        MenuItemButton exitButton = new MenuItemButton(buttonX, currentY, buttonWidth, buttonHeight, "Exit Game", "EXIT_GAME", null);
+        exitButton.setTextureAtlasUVs(
+                Renderer.ROCK_ATLAS_U0, Renderer.ROCK_ATLAS_V0, // You can use different UVs from your atlas for variety
+                Renderer.ROCK_ATLAS_U1, Renderer.ROCK_ATLAS_V1
+        );
+        exitButton.baseTextColor = new float[]{0.9f, 0.88f, 0.82f, 1.0f}; // Default themed text color
+        exitButton.hoverTextColor = new float[]{1.0f, 0.98f, 0.92f, 1.0f};
+        menuButtons.add(exitButton);
     }
 
 
@@ -282,52 +312,62 @@ public class Game {
     }
 
     private void updateMainMenu(double deltaTime) {
-        // Update hover state for buttons - can be done here or in MouseHandler's cursorPosCallback
-        if (mouseHandler != null && cameraManager != null) {
+        if (mouseHandler != null && cameraManager != null) { // Ensure these are not null
             double[] xpos = new double[1];
             double[] ypos = new double[1];
             glfwGetCursorPos(window, xpos, ypos);
 
-            // Scale mouse coords if necessary (similar to MouseHandler)
+            // Correctly scale mouse coordinates from window points to framebuffer pixels
             int[] fbWidth = new int[1]; int[] fbHeight = new int[1];
             glfwGetFramebufferSize(window, fbWidth, fbHeight);
             int[] winWidth = new int[1]; int[] winHeight = new int[1];
             glfwGetWindowSize(window, winWidth, winHeight);
 
-            double scaleX = (fbWidth[0] > 0 && winWidth[0] > 0) ? (double)fbWidth[0]/winWidth[0] : 1.0;
-            double scaleY = (fbHeight[0] > 0 && winHeight[0] > 0) ? (double)fbHeight[0]/winHeight[0] : 1.0;
+            double scaleX = (fbWidth[0] > 0 && winWidth[0] > 0) ? (double)fbWidth[0] / winWidth[0] : 1.0;
+            double scaleY = (fbHeight[0] > 0 && winHeight[0] > 0) ? (double)fbHeight[0] / winHeight[0] : 1.0;
             float physicalMouseX = (float)(xpos[0] * scaleX);
             float physicalMouseY = (float)(ypos[0] * scaleY);
 
-            for (MenuItemButton button : menuButtons) {
-                button.isHovered = button.isMouseOver(physicalMouseX, physicalMouseY);
-            }
-        }
-    }
-
-    private void renderMainMenu() {
-        glClearColor(0.1f, 0.1f, 0.2f, 1.0f); // Dark blue background
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        if (renderer != null && cameraManager != null) {
-            // Title Text (optional, rendered by Renderer if needed)
-            if (renderer.getUiFont() != null && renderer.getUiFont().isInitialized()) {
-                String title = "ISO GAME";
-                float titleWidth = renderer.getUiFont().getTextWidth(title) * 2f; // Scale title up
-                renderer.getUiFont().drawTextScaled( // Assuming you add/have a drawTextScaled method
-                        cameraManager.getScreenWidth() / 2f - titleWidth / 2f,
-                        cameraManager.getScreenHeight() * 0.1f,
-                        title, 2.0f, 0.9f, 0.9f, 1.0f); // White title
-            }
-
-            // Render all defined menu buttons
-            for (MenuItemButton button : menuButtons) {
-                if (button.isVisible) {
-                    renderer.renderMenuButton(button); // Pass the whole button object
+            for (MenuItemButton button : menuButtons) { // menuButtons is your List<MenuItemButton>
+                if (button.isVisible) { // Only check hover for visible buttons
+                    button.isHovered = button.isMouseOver(physicalMouseX, physicalMouseY);
+                } else {
+                    button.isHovered = false; // Ensure non-visible buttons are not marked as hovered
                 }
             }
         }
     }
+
+
+
+    private void renderMainMenu() {
+        glClearColor(0.05f, 0.05f, 0.1f, 1.0f); // Fallback clear color
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+
+        if (renderer != null && cameraManager != null) {
+            renderer.renderMainMenuBackground();
+
+            // Title Text using the new titleFont
+            if (renderer.getTitleFont() != null && renderer.getTitleFont().isInitialized()) {
+                String title = "PLUNARI";
+                Font currentTitleFont = renderer.getTitleFont(); // Use the larger font
+                float titleWidth = currentTitleFont.getTextWidth(title); // Get width from the larger font
+                currentTitleFont.drawText( // Use the standard drawText
+                        cameraManager.getScreenWidth() / 2f - titleWidth / 2f,
+                        cameraManager.getScreenHeight() * 0.15f, // Adjust Y position as needed
+                        title, 0.9f, 0.85f, 0.7f); // Themed title text color
+            }
+
+            for (MenuItemButton button : menuButtons) {
+                if (button.isVisible) {
+                    renderer.renderMenuButton(button);
+                }
+            }
+        }
+    }
+
+
 
     public void createNewWorld() {
         int nextWorldNum = 1;
@@ -714,6 +754,8 @@ public class Game {
             }
         }
     }
+
+
 
     private boolean showDebugOverlay = true;
     public void toggleShowDebugOverlay() { this.showDebugOverlay = !this.showDebugOverlay; }

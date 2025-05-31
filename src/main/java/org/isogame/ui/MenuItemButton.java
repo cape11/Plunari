@@ -14,7 +14,16 @@ public class MenuItemButton {
     public float[] baseTextColor;
     public float[] hoverTextColor;
 
-    public float borderWidth = 2f; // Default border width
+    public float borderWidth = 2f;
+
+    // Added texture path fields
+    public String texturePathNormal;
+    public String texturePathHover;
+    // public String texturePathPressed; // Optional for later
+
+    // UV coordinates for texture atlas (if using one for buttons)
+    public float u0, v0, u1, v1;
+    public boolean useTexture = false; // Flag to indicate if this button should be textured
 
     public MenuItemButton(float x, float y, float width, float height, String text, String actionCommand, String associatedData) {
         this.x = x;
@@ -27,16 +36,17 @@ public class MenuItemButton {
         this.isHovered = false;
         this.isVisible = true;
 
-        // Nature/Survival Theme Colors
-        // Base: A medium earthy green/brown
-        this.baseBackgroundColor = new float[]{0.4f, 0.45f, 0.2f, 0.9f}; // Muted green/brown
-        // Hover: A slightly lighter/more saturated version
-        this.hoverBackgroundColor = new float[]{0.5f, 0.55f, 0.3f, 0.95f};
-        // Border: Dark, earthy color
-        this.borderColor = new float[]{0.2f, 0.22f, 0.1f, 0.95f}; // Darker version of base
-        // Text: Off-white or light tan for readability
-        this.baseTextColor = new float[]{0.9f, 0.88f, 0.8f, 1.0f};   // Light tan/off-white
-        this.hoverTextColor = new float[]{1.0f, 0.98f, 0.9f, 1.0f};  // Slightly brighter off-white
+        // Default colors (can be overridden)
+        this.baseBackgroundColor = new float[]{0.45f, 0.35f, 0.20f, 0.9f};
+        this.hoverBackgroundColor = new float[]{0.55f, 0.45f, 0.30f, 0.95f};
+        this.borderColor = new float[]{0.25f, 0.18f, 0.08f, 0.95f};
+        this.baseTextColor = new float[]{0.9f, 0.88f, 0.82f, 1.0f};
+        this.hoverTextColor = new float[]{1.0f, 0.98f, 0.92f, 1.0f};
+
+        // Default to no texture
+        this.texturePathNormal = null;
+        this.texturePathHover = null;
+        this.u0 = 0f; this.v0 = 0f; this.u1 = 1f; this.v1 = 1f; // Default to full texture
     }
 
     public boolean isMouseOver(float mouseX, float mouseY) {
@@ -54,5 +64,19 @@ public class MenuItemButton {
     public void setBorder(float width, float[] color) {
         this.borderWidth = width;
         this.borderColor = color;
+    }
+
+    // Method to set texture paths
+    public void setTextures(String normalPath, String hoverPath) {
+        this.texturePathNormal = normalPath;
+        this.texturePathHover = hoverPath;
+        this.useTexture = (normalPath != null);
+    }
+
+    // Method to set UVs for texture atlas
+    public void setTextureAtlasUVs(float u0, float v0, float u1, float v1) {
+        this.u0 = u0; this.v0 = v0;
+        this.u1 = u1; this.v1 = v1;
+        this.useTexture = true; // Assumes if UVs are set, a texture (likely atlas) will be used
     }
 }
