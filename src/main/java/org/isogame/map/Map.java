@@ -7,7 +7,8 @@ import org.isogame.item.Item;
 import org.isogame.item.ItemRegistry; // For checking item types
 import org.isogame.tile.Tile;
 import java.util.Random;
-
+import org.isogame.savegame.MapSaveData;
+import org.isogame.savegame.TileSaveData;
 
 import static org.isogame.constants.Constants.*;
 
@@ -186,6 +187,72 @@ public class Map {
         if (elevation < NIVEL_NIEVE) return Tile.TileType.ROCK;
         return Tile.TileType.SNOW;
     }
+
+    public boolean loadState(MapSaveData mapData) {
+        if (mapData == null || mapData.width != this.width || mapData.height != this.height) {
+            System.err.println("Map loadState: Invalid map data or dimension mismatch.");
+            return false;
+        }
+        System.out.println("Map: Loading state...");
+        for (int r = 0; r < height; r++) {
+            for (int c = 0; c < width; c++) {
+                if (mapData.tiles == null || r >= mapData.tiles.size() || mapData.tiles.get(r) == null || c >= mapData.tiles.get(r).size()) {
+                    System.err.println("Map loadState: Missing tile data for [" + r + "][" + c + "]");
+                    // Handle missing tile data, e.g., by setting to a default or returning false
+                    if (this.tiles[r][c] == null) this.tiles[r][c] = new Tile(Tile.TileType.WATER, 0); // Failsafe
+                    continue;
+                }
+
+                TileSaveData savedTile = mapData.tiles.get(r).get(c);
+                if (this.tiles[r][c] == null) { // Should have been initialized in Map constructor
+                    this.tiles[r][c] = new Tile(Tile.TileType.WATER, 0); // Failsafe
+                }
+                Tile currentTile = this.tiles[r][c];
+
+                if (savedTile != null) {
+                    currentTile.setType(Tile.TileType.values()[savedTile.typeOrdinal]);
+                    currentTile.setElevation(savedTile.elevation);
+                    currentTile.setHasTorch(savedTile.hasTorch);
+                    currentTile.setSkyLightLevel(savedTile.skyLightLevel);
+                    currentTile.setBlockLightLevel(savedTile.blockLightLevel);
+                    // Restore tree type
+                    currentTile.setTreeType(Tile.TreeVisualType.values()[savedTile.treeTypeOrdinal]); // <<< ADD THIS LINE
+                } else {
+                    System.err.println("Map loadState: Null TileSaveData for [" + r + "][" + c + "]");
+                    // Set to a default state if saved data for a tile is null
+                    currentTile.setType(Tile.TileType.WATER);
+                    currentTile.setElevation(0);
+                    currentTile.setHasTorch(false);
+                    currentTile.setSkyLightLevel((byte)0);
+                    currentTile.setBlockLightLevel((byte)0);
+                    currentTile.setTreeType(Tile.TreeVisualType.NONE);
+                }
+            }
+        }
+        // Mark all chunks dirty for light manager to re-process and renderer to update geometry.
+        // This ensures that lighting is recalculated and chunk geometry (including tree data collection in Chunk.uploadGeometry) is refreshed.
+        getLightManager().getDirtyChunksAndClear(); // Clear previous dirty state
+        for (int r = 0; r < height; r += CHUNK_SIZE_TILES) {
+            for (int c = 0; c < width; c += CHUNK_SIZE_TILES) {
+                lightManager.markChunkDirty(r, c);
+            }
+        }
+        // Ensure edges are marked dirty too if map size isn't a multiple of chunk size
+        if (height % CHUNK_SIZE_TILES != 0) {
+            for (int c = 0; c < width; c+=CHUNK_SIZE_TILES) lightManager.markChunkDirty(height -1 ,c);
+        }
+        if (width % CHUNK_SIZE_TILES != 0) {
+            for (int r = 0; r < height; r+=CHUNK_SIZE_TILES) lightManager.markChunkDirty(r ,width -1);
+        }
+        if (height % CHUNK_SIZE_TILES != 0 && width % CHUNK_SIZE_TILES != 0) {
+            lightManager.markChunkDirty(height-1, width-1);
+        }
+
+        System.out.println("Map: State loaded. All chunks marked dirty for light/geometry recalc.");
+        return true;
+    }
+
+
 
     private void smoothTerrain(int[][] elevations, int passes) {
         if (passes <= 0) return;

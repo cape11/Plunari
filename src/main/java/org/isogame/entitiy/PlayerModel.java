@@ -5,6 +5,11 @@ import org.isogame.item.Item;
 import org.isogame.item.ItemRegistry; // For easy access to item instances
 import org.isogame.map.PathNode;
 
+import org.isogame.savegame.PlayerSaveData;
+import org.isogame.savegame.InventorySlotSaveData;
+import org.isogame.item.ItemRegistry;
+
+
 import java.util.ArrayList;
 import java.util.List;
 // Note: java.util.Map and java.util.HashMap are no longer needed for the inventory itself.
@@ -308,6 +313,30 @@ public class PlayerModel {
         return 0;
     }
 
+    public boolean loadState(PlayerSaveData playerData) {
+        if (playerData == null) return false;
+        System.out.println("PlayerModel: Loading state...");
+        this.setPosition(playerData.mapRow, playerData.mapCol);
+
+        this.inventorySlots.forEach(InventorySlot::clearSlot); // Clear current inventory
+        if (playerData.inventory != null) {
+            for (int i = 0; i < playerData.inventory.size() && i < this.inventorySlots.size(); i++) {
+                InventorySlotSaveData savedSlot = playerData.inventory.get(i);
+                if (savedSlot != null && savedSlot.itemId != null) {
+                    Item item = ItemRegistry.getItem(savedSlot.itemId);
+                    if (item != null) {
+                        this.inventorySlots.get(i).addItem(item, savedSlot.quantity);
+                    } else {
+                        System.err.println("PlayerModel loadState: Unknown item ID in saved inventory: " + savedSlot.itemId);
+                    }
+                }
+            }
+        }
+        System.out.println("PlayerModel: State loaded.");
+        return true;
+    }
+
+
     /** @deprecated Use getInventorySlots() instead. */
     @Deprecated
     public java.util.Map<String, Integer> getInventory_OLD() {
@@ -315,6 +344,59 @@ public class PlayerModel {
         return new java.util.HashMap<>();
     }
 
+    public Item getItemInSlot(int slotIndex) { // Helper method
+        if (slotIndex < 0 || slotIndex >= inventorySlots.size()) {
+            return null;
+        }
+        InventorySlot slot = inventorySlots.get(slotIndex);
+        if (slot != null && !slot.isEmpty()) {
+            return slot.getItem();
+        }
+        return null;
+    }
+
+    public Item getPlaceableItemInSlot(int slotIndex) {
+        Item item = getItemInSlot(slotIndex);
+        if (item != null && item.getType() == Item.ItemType.RESOURCE) { // Only allow placing RESOURCE type items for MVP
+            return item;
+        }
+        if (item != null) {
+            System.out.println("Item in slot " + slotIndex + " (" + item.getDisplayName() + ") is not a placeable resource.");
+        }
+        return null;
+    }
+
+    public boolean consumeItemFromSlot(int slotIndex, int amount) {
+        if (slotIndex < 0 || slotIndex >= inventorySlots.size() || amount <= 0) {
+            return false;
+        }
+        InventorySlot slot = inventorySlots.get(slotIndex);
+
+        // Ensure item is actually in slot and of sufficient quantity
+        if (slot != null && !slot.isEmpty() && slot.getQuantity() >= amount) {
+            Item itemBeingConsumed = slot.getItem(); // Get the item BEFORE its quantity changes
+
+            int removed = slot.removeQuantity(amount); // removeQuantity returns amount actually removed
+            if (removed == amount) {
+                // Use itemBeingConsumed for its name, as slot.getItem() might be null if the stack was depleted
+                String itemName = (itemBeingConsumed != null) ? itemBeingConsumed.getDisplayName() : "Unknown Item";
+
+                System.out.println("Consumed " + amount + " of " + itemName + " from slot " + slotIndex);
+                return true;
+            } else {
+                // This case implies not enough was removed, which could happen if logic in removeQuantity changes
+                // or if there's a concurrency issue (not applicable here).
+                // For robustness, log with the item that was initially there.
+                String itemNameForError = (itemBeingConsumed != null) ? itemBeingConsumed.getDisplayName() : "N/A";
+                System.err.println("Error consuming item: tried to remove " + amount + " from slot " + slotIndex +
+                        ", but only " + removed + " were (or could be) removed from item: " +
+                        itemNameForError);
+                return false;
+            }
+        }
+        System.out.println("Failed to consume item from slot " + slotIndex + ". Slot empty, not enough quantity, or invalid index.");
+        return false;
+    }
     // --- Getters & Setters ---
     public float getMapRow() { return mapRow; }
     public float getMapCol() { return mapCol; }
