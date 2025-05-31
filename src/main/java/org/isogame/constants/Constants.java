@@ -15,7 +15,7 @@ public class Constants {
     public static final int CHUNK_SIZE_TILES = 16;
 
     // Map generation
-    public static final double NOISE_SCALE = 0.10;
+    public static final double NOISE_SCALE = 0.02;
     public static final int ALTURA_MAXIMA = 35;
     public static final int NIVEL_MAR = 9;
     public static final int NIVEL_ARENA = 10;
@@ -63,7 +63,7 @@ public class Constants {
 
     // --- Optimization Constants ---
     // Adjusted for smoother transitions:
-    public static final double DAY_NIGHT_CYCLE_SPEED = 0.01; // e.g., Full cycle in 100 seconds. Dusk/Dawn (0.2 of cycle) = 20 seconds.
+    public static final double DAY_NIGHT_CYCLE_SPEED = 0.0001; // e.g., Full cycle in 100 seconds. Dusk/Dawn (0.2 of cycle) = 20 seconds.
     // Adjust as needed for desired speed. 0.005 = 200s cycle (40s transition).
     public static final int SKY_LIGHT_UPDATE_THRESHOLD = 1;  // Update if light changes by at least 1.
     public static final long GLOBAL_SKY_LIGHT_UPDATE_COOLDOWN_MS = 2000; // Update lighting propagation max every 2 seconds during transition.

@@ -14,20 +14,21 @@ import org.isogame.render.Renderer;
 import org.isogame.entitiy.PlayerModel;
 import org.isogame.savegame.*;
 import org.isogame.tile.Tile;
+import org.isogame.ui.MenuItemButton; // Import the new MenuItemButton class
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
-import java.io.File; // For file operations
+import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
-import java.nio.file.Files; // For file deletion
-import java.nio.file.Paths; // For file paths
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays; // For listing files
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.Queue;
@@ -52,11 +53,11 @@ public class Game {
     private final LightManager lightManager;
 
     private double pseudoTimeOfDay = 0.0005;
-    private final double DAY_NIGHT_CYCLE_SPEED = 0.05;
+    // private final double DAY_NIGHT_CYCLE_SPEED = 0.05; // Already in Constants
     private byte currentGlobalSkyLight;
 
     private byte lastUpdatedSkyLightValue;
-    private static final int SKY_LIGHT_UPDATE_THRESHOLD = 2;
+    // private static final int SKY_LIGHT_UPDATE_THRESHOLD = 2; // Already in Constants
 
     private int framesRenderedThisSecond = 0;
     private double timeAccumulatorForFps = 0.0;
@@ -74,14 +75,16 @@ public class Game {
         IN_GAME,
     }
     private GameState currentGameState = GameState.MAIN_MENU;
-    private String currentWorldName = null; // Name of the currently loaded/active world
+    private String currentWorldName = null;
     private List<String> availableSaveFiles = new ArrayList<>();
-    private static final String SAVES_DIRECTORY = "saves"; // Directory to store save files
+    private static final String SAVES_DIRECTORY = "saves";
+
+    // New list for main menu buttons
+    private List<MenuItemButton> menuButtons = new ArrayList<>();
 
     public Game(long window, int initialFramebufferWidth, int initialScreenHeight) {
         this.window = window;
 
-        // Ensure saves directory exists
         new File(SAVES_DIRECTORY).mkdirs();
 
         map = new Map(MAP_WIDTH, MAP_HEIGHT);
@@ -93,21 +96,84 @@ public class Game {
         inputHandler.registerCallbacks(this::requestFullMapRegeneration);
 
         renderer = new Renderer(cameraManager, map, player, inputHandler);
-        mouseHandler = new MouseHandler(window, cameraManager, map, inputHandler, player);
+        // Pass 'this' (Game instance) to MouseHandler if it needs to access menuButtons or game state
+        mouseHandler = new MouseHandler(window, cameraManager, map, inputHandler, player, this);
+
 
         glfwSetFramebufferSizeCallback(window, (win, fbW, fbH) -> {
             if (cameraManager != null) cameraManager.updateScreenSize(fbW, fbH);
             if (renderer != null) renderer.onResize(fbW, fbH);
+            if (currentGameState == GameState.MAIN_MENU) { // Re-calculate button positions on resize
+                setupMainMenuButtons();
+            }
         });
 
         if (renderer != null) renderer.onResize(initialFramebufferWidth, initialScreenHeight);
 
-        // Don't auto-load here; let the main menu handle it.
-        // Initialize with a blank state for the menu.
-        initializeNewGameCommonLogic(); // Prepare a blank slate for the menu screen
-        currentGameState = GameState.MAIN_MENU; // Start at main menu
-        refreshAvailableSaveFiles(); // Load list of saves for the menu
+        initializeNewGameCommonLogic();
+        currentGameState = GameState.MAIN_MENU;
+        refreshAvailableSaveFiles();
+        setupMainMenuButtons(); // Setup buttons initially
     }
+
+    // Getter for MouseHandler to access menu buttons
+    public List<MenuItemButton> getMainMenuButtons() {
+        return menuButtons;
+    }
+
+    private void setupMainMenuButtons() {
+        menuButtons.clear();
+        if (cameraManager == null) return; // Cannot setup without screen dimensions
+
+        float buttonWidth = 300f;
+        float buttonHeight = 40f;
+        float buttonSpacing = 15f;
+        float currentY = cameraManager.getScreenHeight() * 0.25f; // Start buttons lower down
+        float screenCenterX = cameraManager.getScreenWidth() / 2f;
+        float buttonX = screenCenterX - buttonWidth / 2f;
+
+        // Create New World Button
+        menuButtons.add(new MenuItemButton(buttonX, currentY, buttonWidth, buttonHeight, "Create New World", "NEW_WORLD", null));
+        currentY += buttonHeight + buttonSpacing;
+
+        // Available Worlds Header (optional, could be rendered separately by Renderer)
+        // For simplicity, we'll just list worlds as buttons directly
+
+        if (availableSaveFiles.isEmpty()) {
+            // Could add a non-interactive label here if desired, drawn by renderer
+            // For now, just spacing
+            currentY += buttonHeight + buttonSpacing;
+        } else {
+            float worldButtonWidth = buttonWidth * 0.75f; // Smaller button for world name
+            float deleteButtonWidth = buttonWidth * 0.20f; // Smaller button for DEL
+            float worldButtonX = screenCenterX - (worldButtonWidth + deleteButtonWidth + 5f) / 2f; // 5f is spacing
+            float deleteButtonX = worldButtonX + worldButtonWidth + 5f;
+
+            for (String worldFile : availableSaveFiles) {
+                   String worldNameDisplay = worldFile.replace(".json", "");
+                MenuItemButton loadButton = new MenuItemButton(worldButtonX, currentY, worldButtonWidth, buttonHeight, "Load: " + worldNameDisplay, "LOAD_WORLD", worldFile);
+                menuButtons.add(loadButton);
+
+                MenuItemButton deleteButton = new MenuItemButton(deleteButtonX, currentY, deleteButtonWidth, buttonHeight, "DEL", "DELETE_WORLD", worldNameDisplay);
+                deleteButton.setCustomColors(
+                        new float[]{0.5f, 0.25f, 0.15f, 0.9f},  // baseBg: Dark, muted terracotta/brown
+                        new float[]{0.6f, 0.3f, 0.2f, 0.95f}, // hoverBg: Slightly lighter
+                        new float[]{0.2f, 0.1f, 0.05f, 1.0f},  // border: Very dark brown
+                        new float[]{0.9f, 0.8f, 0.75f, 1.0f},  // baseText: Light beige
+                        new float[]{1.0f, 0.95f, 0.9f, 1.0f}   // hoverText: Brighter beige
+                );
+                deleteButton.borderWidth = 1.5f; // Slightly thinner border for the small DEL button
+                menuButtons.add(deleteButton);
+
+                currentY += buttonHeight + buttonSpacing / 2; // Less spacing for world list items
+            }
+        }
+        currentY += buttonSpacing; // Extra space before Exit
+
+        // Exit Game Button
+        menuButtons.add(new MenuItemButton(buttonX, currentY, buttonWidth, buttonHeight, "Exit Game", "EXIT_GAME", null));
+    }
+
 
     private void initializeNewGameCommonLogic() {
         System.out.println("Initializing new game common logic (or blank state for menu)...");
@@ -210,43 +276,56 @@ public class Game {
         }
         System.out.println("Game loop exited.");
         if (currentGameState == GameState.IN_GAME && currentWorldName != null) {
-            saveGame(currentWorldName); // Auto-save current world on exit
+            saveGame(currentWorldName);
         }
         cleanup();
     }
 
-    private void updateMainMenu(double deltaTime) { /* For menu animations, etc. */ }
+    private void updateMainMenu(double deltaTime) {
+        // Update hover state for buttons - can be done here or in MouseHandler's cursorPosCallback
+        if (mouseHandler != null && cameraManager != null) {
+            double[] xpos = new double[1];
+            double[] ypos = new double[1];
+            glfwGetCursorPos(window, xpos, ypos);
+
+            // Scale mouse coords if necessary (similar to MouseHandler)
+            int[] fbWidth = new int[1]; int[] fbHeight = new int[1];
+            glfwGetFramebufferSize(window, fbWidth, fbHeight);
+            int[] winWidth = new int[1]; int[] winHeight = new int[1];
+            glfwGetWindowSize(window, winWidth, winHeight);
+
+            double scaleX = (fbWidth[0] > 0 && winWidth[0] > 0) ? (double)fbWidth[0]/winWidth[0] : 1.0;
+            double scaleY = (fbHeight[0] > 0 && winHeight[0] > 0) ? (double)fbHeight[0]/winHeight[0] : 1.0;
+            float physicalMouseX = (float)(xpos[0] * scaleX);
+            float physicalMouseY = (float)(ypos[0] * scaleY);
+
+            for (MenuItemButton button : menuButtons) {
+                button.isHovered = button.isMouseOver(physicalMouseX, physicalMouseY);
+            }
+        }
+    }
 
     private void renderMainMenu() {
-        glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
+        glClearColor(0.1f, 0.1f, 0.2f, 1.0f); // Dark blue background
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        if (renderer != null && this.cameraManager != null) {
-            float panelWidth = 400f; // Wider panel for world list
-            float panelHeight = 300f + (availableSaveFiles.size() * 20f); // Dynamic height
-            panelHeight = Math.min(panelHeight, cameraManager.getScreenHeight() * 0.8f); // Cap height
+        if (renderer != null && cameraManager != null) {
+            // Title Text (optional, rendered by Renderer if needed)
+            if (renderer.getUiFont() != null && renderer.getUiFont().isInitialized()) {
+                String title = "ISO GAME";
+                float titleWidth = renderer.getUiFont().getTextWidth(title) * 2f; // Scale title up
+                renderer.getUiFont().drawTextScaled( // Assuming you add/have a drawTextScaled method
+                        cameraManager.getScreenWidth() / 2f - titleWidth / 2f,
+                        cameraManager.getScreenHeight() * 0.1f,
+                        title, 2.0f, 0.9f, 0.9f, 1.0f); // White title
+            }
 
-            float panelX = (this.cameraManager.getScreenWidth() - panelWidth) / 2f;
-            float panelY = (this.cameraManager.getScreenHeight() - panelHeight) / 2f;
-
-            List<String> menuLines = new ArrayList<>();
-            menuLines.add("--- ISO GAME - MAIN MENU ---");
-            menuLines.add("");
-            menuLines.add("   Create New World (Auto-named)");
-            menuLines.add("");
-            menuLines.add("   Available Worlds (Click to Load):");
-            if (availableSaveFiles.isEmpty()) {
-                menuLines.add("     (No saved worlds found)");
-            } else {
-                for (int i = 0; i < availableSaveFiles.size(); i++) {
-                    // Remove .json for display, add (D) for delete option
-                    String displayName = availableSaveFiles.get(i).replace(".json", "");
-                    menuLines.add("     " + (i + 1) + ". " + displayName + "  (DEL)");
+            // Render all defined menu buttons
+            for (MenuItemButton button : menuButtons) {
+                if (button.isVisible) {
+                    renderer.renderMenuButton(button); // Pass the whole button object
                 }
             }
-            menuLines.add("");
-            menuLines.add("   Exit Game");
-            renderer.renderDebugOverlay(panelX, panelY, panelWidth, panelHeight, menuLines);
         }
     }
 
@@ -258,11 +337,12 @@ public class Game {
         String newWorldName = "World" + nextWorldNum;
         System.out.println("Creating new world: " + newWorldName);
 
-        initializeNewGameCommonLogic(); // Prepare fresh map and player state
-        this.currentWorldName = newWorldName; // Set current world name
-        saveGame(this.currentWorldName);    // Immediately save the new world
-        refreshAvailableSaveFiles();        // Update list for menu
+        initializeNewGameCommonLogic();
+        this.currentWorldName = newWorldName;
+        saveGame(this.currentWorldName);
+        refreshAvailableSaveFiles();
         setCurrentGameState(GameState.IN_GAME);
+        // No need to call setupMainMenuButtons here as we are leaving the menu
     }
 
     public void deleteWorld(String worldName) {
@@ -272,8 +352,8 @@ public class Game {
         if (saveFile.exists()) {
             if (saveFile.delete()) {
                 System.out.println("Deleted world: " + fileName);
-                if (fileName.equals(currentWorldName) || (currentWorldName !=null && currentWorldName.equals(worldName))) {
-                    currentWorldName = null; // No world loaded if current was deleted
+                if (this.currentWorldName != null && (this.currentWorldName.equals(fileName.replace(".json","")) || this.currentWorldName.equals(worldName)) ){
+                    this.currentWorldName = null;
                 }
             } else {
                 System.err.println("Failed to delete world: " + fileName);
@@ -282,6 +362,7 @@ public class Game {
             System.err.println("World file not found for deletion: " + fileName);
         }
         refreshAvailableSaveFiles();
+        setupMainMenuButtons(); // Re-setup buttons as the list of worlds changed
     }
 
 
@@ -294,25 +375,26 @@ public class Game {
                 for (File file : files) {
                     availableSaveFiles.add(file.getName());
                 }
-                availableSaveFiles.sort(String::compareToIgnoreCase); // Sort them
+                availableSaveFiles.sort(String::compareToIgnoreCase);
             }
         }
         System.out.println("Refreshed save files: " + availableSaveFiles);
+        // If in main menu, update buttons
+        if (currentGameState == GameState.MAIN_MENU) {
+            setupMainMenuButtons();
+        }
     }
 
-    public List<String> getAvailableSaveFiles() { // For MouseHandler to know what's clickable
+    public List<String> getAvailableSaveFiles() {
         return availableSaveFiles;
     }
 
 
-    public void startNewGame() { // This is called by menu if "New Game" is chosen
+    public void startNewGame() {
         System.out.println("Explicitly starting New Game via menu action (after load logic)...");
         initializeNewGameCommonLogic();
         setCurrentGameState(GameState.IN_GAME);
-        // For a true "new game" from menu, we might not auto-save it until player does.
-        // Or, like createNewWorld, give it a default name and save.
-        // For now, createNewWorld handles named creation. This method is a fallback.
-        this.currentWorldName = null; // No specific world name yet for this path
+        this.currentWorldName = null;
     }
 
     private byte calculateSkyLightForTime(double time) {
@@ -334,7 +416,7 @@ public class Game {
         boolean skyLightActuallyChanged = (newCalculatedSkyLight != currentGlobalSkyLight);
         currentGlobalSkyLight = newCalculatedSkyLight;
 
-        if (Math.abs(newCalculatedSkyLight - lastUpdatedSkyLightValue) >= SKY_LIGHT_UPDATE_THRESHOLD ||
+        if (Math.abs(newCalculatedSkyLight - lastUpdatedSkyLightValue) >= Constants.SKY_LIGHT_UPDATE_THRESHOLD ||
                 (skyLightActuallyChanged && (newCalculatedSkyLight == SKY_LIGHT_DAY || newCalculatedSkyLight == SKY_LIGHT_NIGHT))) {
             lightManager.updateGlobalSkyLight(newCalculatedSkyLight);
             lastUpdatedSkyLightValue = newCalculatedSkyLight;
@@ -342,7 +424,7 @@ public class Game {
     }
 
     private void updateGameLogic(double deltaTime) {
-        pseudoTimeOfDay += deltaTime * DAY_NIGHT_CYCLE_SPEED;
+        pseudoTimeOfDay += deltaTime * Constants.DAY_NIGHT_CYCLE_SPEED; // Use constant
         if (pseudoTimeOfDay >= 1.0) pseudoTimeOfDay -= 1.0;
         updateSkyLightBasedOnTimeOfDay(deltaTime);
 
@@ -374,16 +456,15 @@ public class Game {
         }
     }
 
-    public void saveGame(String worldName) { // Now takes worldName
+    public void saveGame(String worldName) {
         if (worldName == null || worldName.trim().isEmpty()) {
             System.err.println("SaveGame Error: World name is null or empty. Cannot save.");
-            // Optionally, assign a default name or prompt user if UI supported it
-            // For now, just don't save if no name.
             return;
         }
-        String fileName = worldName.endsWith(".json") ? worldName : worldName + ".json";
-        String filePath = Paths.get(SAVES_DIRECTORY, fileName).toString();
+        String baseWorldName = worldName.replace(".json", "");
+        String filePath = Paths.get(SAVES_DIRECTORY, baseWorldName + ".json").toString();
         System.out.println("Attempting to save game to: " + filePath);
+
 
         if (player == null || map == null) {
             System.err.println("SaveGame Error: Player or Map is null.");
@@ -438,22 +519,23 @@ public class Game {
         try (Writer writer = new FileWriter(filePath)) {
             gson.toJson(saveState, writer);
             System.out.println("Game saved successfully to " + filePath);
-            this.currentWorldName = worldName; // Update current world name on successful save
-            refreshAvailableSaveFiles(); // Refresh list in case this was a new save
+            this.currentWorldName = baseWorldName;
+            refreshAvailableSaveFiles();
         } catch (IOException e) {
             System.err.println("Error saving game: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
-    public boolean loadGame(String worldName) { // Now takes worldName
-        if (worldName == null || worldName.trim().isEmpty()) {
+    public boolean loadGame(String worldNameOrFileName) {
+        if (worldNameOrFileName == null || worldNameOrFileName.trim().isEmpty()) {
             System.err.println("LoadGame Error: World name is null or empty.");
             return false;
         }
-        String fileName = worldName.endsWith(".json") ? worldName : worldName + ".json";
+        String fileName = worldNameOrFileName.endsWith(".json") ? worldNameOrFileName : worldNameOrFileName + ".json";
         String filePath = Paths.get(SAVES_DIRECTORY, fileName).toString();
         System.out.println("Attempting to load game from: " + filePath);
+
 
         Gson gson = new Gson();
         GameSaveState saveState;
@@ -474,8 +556,9 @@ public class Game {
             return false;
         }
 
-        System.out.println("Restoring game state for world: " + worldName);
-        this.currentWorldName = worldName.replace(".json", ""); // Store the base name
+        String baseWorldName = fileName.replace(".json", "");
+        System.out.println("Restoring game state for world: " + baseWorldName);
+        this.currentWorldName = baseWorldName;
 
         this.pseudoTimeOfDay = saveState.pseudoTimeOfDay;
         this.currentGlobalSkyLight = calculateSkyLightForTime(this.pseudoTimeOfDay);
@@ -484,7 +567,7 @@ public class Game {
         if (map == null) {System.err.println("LoadGame Critical: Map object is null."); return false;}
         if (!map.loadState(saveState.mapData)) {
             System.err.println("Failed to load map state. Aborting load.");
-            this.currentWorldName = null; // Clear current world name on load failure
+            this.currentWorldName = null;
             return false;
         }
 
@@ -518,11 +601,11 @@ public class Game {
 
         System.out.println("Game loaded successfully: " + this.currentWorldName);
         setCurrentGameState(GameState.IN_GAME);
-        refreshAvailableSaveFiles(); // Good to refresh after a successful load too
+        refreshAvailableSaveFiles(); // Though we are leaving menu, good to keep it consistent for next time
         return true;
     }
 
-    public String getCurrentWorldName() { // Getter for InputHandler to use for saving
+    public String getCurrentWorldName() {
         return currentWorldName;
     }
 
@@ -537,8 +620,11 @@ public class Game {
         System.out.println("Game state changing from " + this.currentGameState + " to " + newState);
         this.currentGameState = newState;
         if (newState == GameState.MAIN_MENU) {
-            refreshAvailableSaveFiles(); // Refresh save list when returning to menu
-            currentWorldName = null; // No world is "active" in the main menu
+            refreshAvailableSaveFiles(); // This will call setupMainMenuButtons
+            currentWorldName = null;
+        } else if (newState == GameState.IN_GAME) {
+            // Ensure mouse isn't stuck from menu UI handling
+            if (mouseHandler != null) mouseHandler.resetLeftMouseDragFlags();
         }
     }
     public int getCurrentRenderDistanceChunks() { return currentRenderDistanceChunks; }
@@ -554,7 +640,7 @@ public class Game {
     public void setSelectedInventorySlotIndex(int index) {
         if (player != null && player.getInventorySlots() != null && index >= 0 && index < player.getInventorySlots().size()) {
             this.selectedInventorySlotIndex = index;
-        } else if (index == -1) {
+        } else if (index == -1) { // Allow deselecting
             this.selectedInventorySlotIndex = -1;
         }
     }
@@ -603,7 +689,12 @@ public class Game {
                 debugLines.add("I:Inv|L:Torch|J:Dig|Q/E:Elev|C:CenterCam|G:Regen|F5:Debug|F6/7:RDist|F9:Save");
                 debugLines.add("Render Q Size: " + chunkRenderUpdateQueue.size());
                 debugLines.add("Selected Slot: " + selectedInventorySlotIndex);
-                renderer.renderDebugOverlay(10f, 10f, 1000f, 260f, debugLines); // Increased height
+
+                // Tweak debug overlay position and size if needed
+                float debugPanelHeight = 20f * debugLines.size() + 10f; // Dynamic height
+                debugPanelHeight = Math.min(debugPanelHeight, cameraManager.getScreenHeight() * 0.5f); // Cap height
+                float debugPanelWidth = 450f; // Slightly wider for long lines
+                renderer.renderDebugOverlay(10f, 10f, debugPanelWidth, debugPanelHeight, debugLines);
             }
         }
     }
@@ -611,7 +702,7 @@ public class Game {
     public void requestFullMapRegeneration() {
         System.out.println("Game: Full map regeneration requested.");
         initializeNewGameCommonLogic();
-        this.currentWorldName = null; // A regenerated world is unsaved initially
+        this.currentWorldName = null;
         System.out.println("Game: Full map regeneration processing complete. World is now unsaved.");
     }
 
