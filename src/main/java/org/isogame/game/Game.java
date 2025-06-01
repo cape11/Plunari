@@ -81,6 +81,9 @@ public class Game {
     private List<String> availableSaveFiles = new ArrayList<>();
     private static final String SAVES_DIRECTORY = "saves";
 
+    private boolean showHotbar = true;
+
+
     // New list for main menu buttons
     private List<MenuItemButton> menuButtons = new ArrayList<>();
 
@@ -338,25 +341,32 @@ public class Game {
         }
     }
 
+    public void toggleHotbar() { // Method to be called by InputHandler
+        this.showHotbar = !this.showHotbar;
+        System.out.println("Hotbar visible: " + this.showHotbar);
+    }
 
 
     private void renderMainMenu() {
         glClearColor(0.05f, 0.05f, 0.1f, 1.0f); // Fallback clear color
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-
         if (renderer != null && cameraManager != null) {
+            // --- UI Rendering State Setup for Main Menu ---
+            glDisable(GL_DEPTH_TEST); // <<<< **KEY: Disable depth test for all UI**
+            glEnable(GL_BLEND);       // <<<< **KEY: Enable blending for UI transparency**
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); // <<<< **KEY: Set standard blend function**
+
             renderer.renderMainMenuBackground();
 
-            // Title Text using the new titleFont
             if (renderer.getTitleFont() != null && renderer.getTitleFont().isInitialized()) {
-                String title = "PLUNARI";
-                Font currentTitleFont = renderer.getTitleFont(); // Use the larger font
-                float titleWidth = currentTitleFont.getTextWidth(title); // Get width from the larger font
-                currentTitleFont.drawText( // Use the standard drawText
+                String title = "PLUNARI"; // Your game title
+                Font currentTitleFont = renderer.getTitleFont();
+                float titleWidth = currentTitleFont.getTextWidth(title);
+                currentTitleFont.drawText(
                         cameraManager.getScreenWidth() / 2f - titleWidth / 2f,
-                        cameraManager.getScreenHeight() * 0.15f, // Adjust Y position as needed
-                        title, 0.9f, 0.85f, 0.7f); // Themed title text color
+                        cameraManager.getScreenHeight() * 0.15f,
+                        title, 0.9f, 0.85f, 0.7f);
             }
 
             for (MenuItemButton button : menuButtons) {
@@ -364,9 +374,12 @@ public class Game {
                     renderer.renderMenuButton(button);
                 }
             }
+
+            // --- Restore GL State (important if anything else could draw in a different context) ---
+            glEnable(GL_DEPTH_TEST); // <<<< **KEY: Re-enable depth test if subsequent rendering needs it**
+            // glDisable(GL_BLEND); // Optional: if your game loop structure doesn't reset it elsewhere
         }
     }
-
 
 
     public void createNewWorld() {
@@ -695,14 +708,31 @@ public class Game {
             rSky = 0.05f; gSky = 0.05f; bSky = 0.15f;
         }
         glClearColor(rSky, gSky, bSky, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clears depth buffer too
 
         if (renderer != null) {
-            renderer.render();
+            // 1. Render the 3D game world
+            // This part expects depth test to be ON, and blending might be off or specific
+            glEnable(GL_DEPTH_TEST); // Ensure depth test is ON for the world
+            // Consider if blending needs to be disabled or set to a specific state for world rendering
+            // glDisable(GL_BLEND);
+
+            renderer.render(); // Renders map, player, entities
+
+            // --- UI Rendering Phase ---
+            glDisable(GL_DEPTH_TEST); // <<<< **KEY: Disable depth test for ALL subsequent UI**
+            glEnable(GL_BLEND);       // <<<< **KEY: Enable blending for ALL subsequent UI**
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); // <<<< **KEY: Standard blend function for UI**
+
             if (this.showInventory && player != null) {
                 renderer.renderInventoryUI(player);
             }
-            if (this.showDebugOverlay) {
+
+            if (this.showHotbar && player != null) {
+                renderer.renderHotbar(player, player.getSelectedHotbarSlotIndex());
+            }
+
+            if (this.showDebugOverlay && player != null) {
                 List<String> debugLines = new ArrayList<>();
                 debugLines.add(String.format("FPS: %.1f", displayedFps));
                 debugLines.add(String.format("Time: %.2f, SkyLight: %d", pseudoTimeOfDay, currentGlobalSkyLight));
@@ -726,16 +756,15 @@ public class Game {
                     debugLines.add(selectedInfo);
                 }
                 if (cameraManager != null) debugLines.add(String.format("Camera: (%.1f, %.1f) Zoom: %.2f", cameraManager.getCameraX(), cameraManager.getCameraY(), cameraManager.getZoom()));
-                debugLines.add("I:Inv|L:Torch|J:Dig|Q/E:Elev|C:CenterCam|G:Regen|F5:Debug|F6/7:RDist|F9:Save");
+                debugLines.add("I:Inv|L:Torch|J:Dig|Q/E:Elev|C:CenterCam|G:Regen|F5:Debug|F6/7:RDist|F9:Save|H:Hotbar");
                 debugLines.add("Render Q Size: " + chunkRenderUpdateQueue.size());
                 debugLines.add("Selected Slot: " + selectedInventorySlotIndex);
-
-                // Tweak debug overlay position and size if needed
-                float debugPanelHeight = 20f * debugLines.size() + 10f; // Dynamic height
-                debugPanelHeight = Math.min(debugPanelHeight, cameraManager.getScreenHeight() * 0.5f); // Cap height
-                float debugPanelWidth = 450f; // Slightly wider for long lines
-                renderer.renderDebugOverlay(10f, 10f, debugPanelWidth, debugPanelHeight, debugLines);
+                renderer.renderDebugOverlay(10f, 10f, 1300f, 260f, debugLines);
             }
+
+            // --- Restore GL State for next frame's 3D world rendering ---
+            glEnable(GL_DEPTH_TEST); // <<<< **KEY: Re-enable depth test for the world**
+            // glDisable(GL_BLEND); // Optional: if world rendering generally doesn't use blending
         }
     }
 

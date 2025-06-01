@@ -61,6 +61,11 @@ public class Constants {
     public static final int LIGHT_PROPAGATION_COST = 1;
     public static final float MIN_AMBIENT_LIGHT_FACTOR = 0.2f; // Matches shader
 
+    // Inventory / Hotbar
+    public static final int DEFAULT_INVENTORY_SIZE = 20; // Already in PlayerModel, but good to have a central constant if used elsewhere
+    public static final int HOTBAR_SIZE = 5; // Number of slots to display in the hotbar (e.g., for keys 1-5)
+
+
     // --- Optimization Constants ---
     // Adjusted for smoother transitions:
     public static final double DAY_NIGHT_CYCLE_SPEED = 0.0001; // e.g., Full cycle in 100 seconds. Dusk/Dawn (0.2 of cycle) = 20 seconds.

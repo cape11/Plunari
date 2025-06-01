@@ -90,10 +90,14 @@ public class Renderer {
     private static final float Z_OFFSET_TILE_PEDESTAL = 0.02f; // Slightly behind sides
 
 
-    private static final float Z_OFFSET_UI_ELEMENT = 1.0f;   // UI elements rendered in screen space
-    private static final float Z_OFFSET_UI_BORDER = 0.9f;
 
-    private static final float Z_OFFSET_UI_BACKGROUND = -0.5f;
+
+    // UI Z-Offsets (Larger Z = closer, drawn on top if depth test disabled for UI)
+    private static final float Z_OFFSET_UI_BACKGROUND = 0.5f;  // Furthest UI layer (e.g., main menu background image)
+    private static final float Z_OFFSET_UI_PANEL = 0.8f;       // <<<< ADD THIS LINE (General UI panels like inventory, hotbar bg)
+    private static final float Z_OFFSET_UI_BORDER = 0.9f;      // Borders for buttons/slots
+    private static final float Z_OFFSET_UI_ELEMENT = 1.0f;     // Button faces, item placeholders on slots
+    private static final float Z_OFFSET_UI_TEXT = 1.1f;        // Text (conceptual for ordering, Font class handles its Z)
 
 
     public static class TreeData {
@@ -214,6 +218,7 @@ public class Renderer {
 
 
     // In Renderer.java
+
     public void renderMenuButton(MenuItemButton button) {
         if (uiFont == null || !uiFont.isInitialized() || defaultShader == null) {
             System.err.println("Renderer: Cannot render menu button, font or shader not ready.");
@@ -223,18 +228,18 @@ public class Renderer {
         defaultShader.bind();
         defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
         defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
-        defaultShader.setUniform("uIsFont", 0);
+        defaultShader.setUniform("uIsFont", 0); // This pass is for button quads
 
         glBindVertexArray(spriteVaoId);
         glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
-        spriteVertexBuffer.clear();
+        // Buffer will be cleared before populating border and face vertices respectively
 
         float dummyU = 0f, dummyV = 0f;
         float dummyLight = 1f;
-        int totalVerticesDrawn = 0; // Tracks vertices for the combined draw call
 
-        // 1. Render Border (if enabled)
+        // 1. Render Border (Always colored, drawn first, if enabled)
         if (button.borderWidth > 0 && button.borderColor != null) {
+            spriteVertexBuffer.clear(); // Clear for border vertices
             defaultShader.setUniform("uHasTexture", 0); // Border is not textured
             float bx = button.x - button.borderWidth;
             float by = button.y - button.borderWidth;
@@ -244,34 +249,63 @@ public class Renderer {
             spriteVertexBuffer.put(bx).put(by).put(Z_OFFSET_UI_BORDER).put(button.borderColor).put(dummyU).put(dummyV).put(dummyLight);
             spriteVertexBuffer.put(bx).put(by + bHeight).put(Z_OFFSET_UI_BORDER).put(button.borderColor).put(dummyU).put(dummyV).put(dummyLight);
             spriteVertexBuffer.put(bx + bWidth).put(by).put(Z_OFFSET_UI_BORDER).put(button.borderColor).put(dummyU).put(dummyV).put(dummyLight);
-            totalVerticesDrawn +=3;
 
             spriteVertexBuffer.put(bx + bWidth).put(by).put(Z_OFFSET_UI_BORDER).put(button.borderColor).put(dummyU).put(dummyV).put(dummyLight);
             spriteVertexBuffer.put(bx).put(by + bHeight).put(Z_OFFSET_UI_BORDER).put(button.borderColor).put(dummyU).put(dummyV).put(dummyLight);
             spriteVertexBuffer.put(bx + bWidth).put(by + bHeight).put(Z_OFFSET_UI_BORDER).put(button.borderColor).put(dummyU).put(dummyV).put(dummyLight);
-            totalVerticesDrawn +=3;
+
+            spriteVertexBuffer.flip();
+            glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
         }
 
         // 2. Render Button Face
+        spriteVertexBuffer.clear(); // Clear buffer for button face vertices
+        int faceVerticesToDraw = 0;
+
         if (button.useTexture && tileAtlasTexture != null && tileAtlasTexture.getId() != 0) {
             defaultShader.setUniform("uHasTexture", 1);
             glActiveTexture(GL_TEXTURE0);
             tileAtlasTexture.bind();
 
+            float[] tintToUse = button.isHovered ? new float[]{1.05f, 1.05f, 1.02f, 1.0f} : WHITE_TINT;
 
+            float desiredRepeatCellWidth = 32f;
+            float desiredRepeatCellHeight = 32f;
 
-            float u0 = button.u0, v0_tex = button.v0, u1 = button.u1, v1_tex = button.v1;
-            float[] tintToUse = button.isHovered ? new float[]{1.1f, 1.1f, 1.05f, 1.0f} : WHITE_TINT;
+            int numCellsX = (int) Math.max(1, Math.ceil(button.width / desiredRepeatCellWidth));
+            int numCellsY = (int) Math.max(1, Math.ceil(button.height / desiredRepeatCellHeight));
 
-            spriteVertexBuffer.put(button.x).put(button.y).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u0).put(v0_tex).put(dummyLight);
-            spriteVertexBuffer.put(button.x).put(button.y + button.height).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u0).put(v1_tex).put(dummyLight);
-            spriteVertexBuffer.put(button.x + button.width).put(button.y).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u1).put(v0_tex).put(dummyLight);
-            totalVerticesDrawn +=3;
+            float actualCellDrawWidth = button.width / numCellsX;
+            float actualCellDrawHeight = button.height / numCellsY;
 
-            spriteVertexBuffer.put(button.x + button.width).put(button.y).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u1).put(v0_tex).put(dummyLight);
-            spriteVertexBuffer.put(button.x).put(button.y + button.height).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u0).put(v1_tex).put(dummyLight);
-            spriteVertexBuffer.put(button.x + button.width).put(button.y + button.height).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u1).put(v1_tex).put(dummyLight);
-            totalVerticesDrawn +=3;
+            float u0_tile = button.u0, v0_tile = button.v0;
+            float u1_tile = button.u1, v1_tile = button.v1;
+
+            for (int cellY = 0; cellY < numCellsY; cellY++) {
+                for (int cellX = 0; cellX < numCellsX; cellX++) {
+                    if (spriteVertexBuffer.remaining() < 6 * FLOATS_PER_VERTEX_SPRITE_TEXTURED) {
+                        spriteVertexBuffer.flip();
+                        glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+                        glDrawArrays(GL_TRIANGLES, 0, faceVerticesToDraw);
+                        spriteVertexBuffer.clear();
+                        faceVerticesToDraw = 0;
+                    }
+
+                    float currentX = button.x + cellX * actualCellDrawWidth;
+                    float currentY = button.y + cellY * actualCellDrawHeight;
+
+                    spriteVertexBuffer.put(currentX).put(currentY).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u0_tile).put(v0_tile).put(dummyLight);
+                    spriteVertexBuffer.put(currentX).put(currentY + actualCellDrawHeight).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u0_tile).put(v1_tile).put(dummyLight);
+                    spriteVertexBuffer.put(currentX + actualCellDrawWidth).put(currentY).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u1_tile).put(v0_tile).put(dummyLight);
+                    faceVerticesToDraw +=3;
+
+                    spriteVertexBuffer.put(currentX + actualCellDrawWidth).put(currentY).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u1_tile).put(v0_tile).put(dummyLight);
+                    spriteVertexBuffer.put(currentX).put(currentY + actualCellDrawHeight).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u0_tile).put(v1_tile).put(dummyLight);
+                    spriteVertexBuffer.put(currentX + actualCellDrawWidth).put(currentY + actualCellDrawHeight).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u1_tile).put(v1_tile).put(dummyLight);
+                    faceVerticesToDraw +=3;
+                }
+            }
 
         } else { // Fallback to colored gradient buttons
             defaultShader.setUniform("uHasTexture", 0);
@@ -287,18 +321,18 @@ public class Renderer {
             spriteVertexBuffer.put(button.x).put(button.y).put(Z_OFFSET_UI_ELEMENT).put(topQuadColor).put(dummyU).put(dummyV).put(dummyLight);
             spriteVertexBuffer.put(button.x).put(button.y + button.height).put(Z_OFFSET_UI_ELEMENT).put(bottomQuadColor).put(dummyU).put(dummyV).put(dummyLight);
             spriteVertexBuffer.put(button.x + button.width).put(button.y).put(Z_OFFSET_UI_ELEMENT).put(topQuadColor).put(dummyU).put(dummyV).put(dummyLight);
-            totalVerticesDrawn +=3;
+            faceVerticesToDraw +=3;
 
             spriteVertexBuffer.put(button.x + button.width).put(button.y).put(Z_OFFSET_UI_ELEMENT).put(topQuadColor).put(dummyU).put(dummyV).put(dummyLight);
             spriteVertexBuffer.put(button.x).put(button.y + button.height).put(Z_OFFSET_UI_ELEMENT).put(bottomQuadColor).put(dummyU).put(dummyV).put(dummyLight);
             spriteVertexBuffer.put(button.x + button.width).put(button.y + button.height).put(Z_OFFSET_UI_ELEMENT).put(bottomQuadColor).put(dummyU).put(dummyV).put(dummyLight);
-            totalVerticesDrawn +=3;
+            faceVerticesToDraw +=3;
         }
 
-        if (totalVerticesDrawn > 0) {
+        if (faceVerticesToDraw > 0) {
             spriteVertexBuffer.flip();
             glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
-            glDrawArrays(GL_TRIANGLES, 0, totalVerticesDrawn);
+            glDrawArrays(GL_TRIANGLES, 0, faceVerticesToDraw);
         }
 
         if (button.useTexture && tileAtlasTexture != null && tileAtlasTexture.getId() != 0) {
@@ -311,67 +345,141 @@ public class Renderer {
         // 3. Render Button Text
         float[] currentTextColor = button.isHovered ? button.hoverTextColor : button.baseTextColor;
         float textWidth = uiFont.getTextWidth(button.text);
-        float fontAscent = uiFont.getAscent(); // Height of the font from baseline to top
-        // For PressStart2P, the actual visual height is very close to the ascent.
-        // Descenders are minimal or non-existent for uppercase.
+        float fontAscent = uiFont.getAscent(); // For "PressStart2P", ascent is a good measure of its visual top from baseline.
 
-        float horizontalPadding = 10f; // Adjust as needed
-        float verticalPadding = 100f;   // Adjust as needed
+        // --- Padding and Text Y Calculation ---
+        float horizontalPadding = 10f; // Adjust for desired horizontal space around text
+        float verticalPadding = 5f;   // Desired space from button top/bottom edge to where text block starts/ends
 
         float textX, textY;
 
         // Horizontal Centering
         float availableWidthForText = button.width - (2 * horizontalPadding);
         if (textWidth >= availableWidthForText && availableWidthForText > 0) {
-            textX = button.x + horizontalPadding;
+            textX = button.x + horizontalPadding; // Align left within padding if text too wide
         } else if (availableWidthForText <= 0) { // Not enough space even for padding
-            textX = button.x + button.borderWidth + 2f; // Small offset from inner border edge
+            textX = button.x + button.borderWidth + 2f; // Position just inside border
         } else {
+            // Center text within the available padded width
             textX = button.x + horizontalPadding + (availableWidthForText - textWidth) / 2f;
         }
 
-        // Vertical Centering (Revised for PressStart2P style fonts)
-        // We want to center the block of pixels that the font occupies.
-        // Ascent is the distance from baseline to top.
-        // For PressStart2P, visual top is roughly ascent, visual bottom is roughly baseline.
+        // Vertical Centering (Refined for fonts like PressStart2P where ascent is main visual height)
         float availableHeightForText = button.height - (2 * verticalPadding);
+
         if (fontAscent >= availableHeightForText && availableHeightForText > 0) {
-            // If font is too tall, align top of font with top padding
+            // If font is too tall for padded area, align its baseline so its top is at verticalPadding
             textY = button.y + verticalPadding + fontAscent;
         } else if (availableHeightForText <= 0) {
-            // Not enough space, position near top border
-            textY = button.y + button.borderWidth + fontAscent + 2f;
+            // Not enough space for padding, position baseline near top inner border
+            textY = button.y + button.borderWidth + fontAscent + 2f; // +2f for a small gap
         } else {
-            // Center the font's ascent block within the available padded height
+            // Center the font's ascent block within the available padded height.
+            // textY is the baseline.
+            // 1. Start at the top of the padded area: (button.y + verticalPadding)
+            // 2. Add half of the remaining space (after subtracting fontAscent from availableHeightForText): ((availableHeightForText - fontAscent) / 2f)
+            // 3. Then add fontAscent to get to the baseline position for drawText.
             textY = button.y + verticalPadding + ((availableHeightForText - fontAscent) / 2f) + fontAscent;
         }
 
-        // uiFont.drawText positions text from its baseline.
-        // No further manual nudge should be strictly necessary if the above is right,
-        // but small tweaks might be needed for visual perfection.
-        // textY -= fontAscent * 0.05f; // Remove or adjust this based on visual result
+        // Optional: A small manual nudge if needed for "PressStart2P" visual centering.
+        // If text still appears slightly too high, add a small positive value to textY.
+        // If too low, subtract. For "PressStart2P", it often looks better nudged down a tiny bit.
+        textY += -15f; // Example: nudge text down by 1 pixel. Start with 0f.
 
         if (uiFont != null && uiFont.isInitialized()){
             uiFont.drawText(textX, textY, button.text, currentTextColor[0], currentTextColor[1], currentTextColor[2]);
         }
     }
 
-    public void renderInventoryUI(PlayerModel player) {
-        if (uiFont == null || !uiFont.isInitialized() || player == null) {
-            System.err.println("Renderer: Cannot render inventory UI. Font or player not available.");
+    // Add a Z-offset for hotbar elements if needed, slightly in front of other UI if any overlap
+    // For now, using Z_OFFSET_UI_ELEMENT is fine as it's screen space UI.
+
+    public void renderHotbar(PlayerModel player, int currentlySelectedHotbarSlot) {
+        if (uiFont == null || !uiFont.isInitialized() || player == null || defaultShader == null || camera == null) {
             return;
         }
+        float slotSize = 50f;
+        float slotMargin = 5f;
+        float itemRenderSize = slotSize * 0.7f;
+        float itemOffset = (slotSize - itemRenderSize) / 2f;
+        int hotbarSlotsToDisplay = Constants.HOTBAR_SIZE;
+        if (hotbarSlotsToDisplay <= 0) return;
+        float totalHotbarWidth = (hotbarSlotsToDisplay * slotSize) + ((Math.max(0, hotbarSlotsToDisplay - 1)) * slotMargin);
+        float hotbarX = (camera.getScreenWidth() - totalHotbarWidth) / 2.0f;
+        float hotbarY = camera.getScreenHeight() - slotSize - (slotMargin * 2);
 
-        Game game = null;
-        if (this.inputHandler != null) {
-            game = this.inputHandler.getGameInstance();
+        defaultShader.bind();
+        defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
+        defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
+        defaultShader.setUniform("uIsFont", 0);
+
+        glBindVertexArray(spriteVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+        float dummyU = 0f, dummyV = 0f, dummyLight = 1f;
+        List<InventorySlot> playerInventorySlots = player.getInventorySlots();
+
+        for (int i = 0; i < hotbarSlotsToDisplay; i++) {
+            spriteVertexBuffer.clear();
+            int verticesForThisSlotElement = 0;
+            float currentSlotDrawX = hotbarX + i * (slotSize + slotMargin);
+            float[] slotBgColor = (i == currentlySelectedHotbarSlot) ? new float[]{0.7f, 0.7f, 0.5f, 0.9f} : new float[]{0.3f, 0.3f, 0.35f, 0.85f};
+            defaultShader.setUniform("uHasTexture", 0);
+
+            spriteVertexBuffer.put(currentSlotDrawX).put(hotbarY).put(Z_OFFSET_UI_PANEL).put(slotBgColor).put(dummyU).put(dummyV).put(dummyLight);
+            spriteVertexBuffer.put(currentSlotDrawX).put(hotbarY + slotSize).put(Z_OFFSET_UI_PANEL).put(slotBgColor).put(dummyU).put(dummyV).put(dummyLight);
+            spriteVertexBuffer.put(currentSlotDrawX + slotSize).put(hotbarY).put(Z_OFFSET_UI_PANEL).put(slotBgColor).put(dummyU).put(dummyV).put(dummyLight);
+            verticesForThisSlotElement +=3;
+            spriteVertexBuffer.put(currentSlotDrawX + slotSize).put(hotbarY).put(Z_OFFSET_UI_PANEL).put(slotBgColor).put(dummyU).put(dummyV).put(dummyLight);
+            spriteVertexBuffer.put(currentSlotDrawX).put(hotbarY + slotSize).put(Z_OFFSET_UI_PANEL).put(slotBgColor).put(dummyU).put(dummyV).put(dummyLight);
+            spriteVertexBuffer.put(currentSlotDrawX + slotSize).put(hotbarY + slotSize).put(Z_OFFSET_UI_PANEL).put(slotBgColor).put(dummyU).put(dummyV).put(dummyLight);
+            verticesForThisSlotElement +=3;
+
+            if (i < playerInventorySlots.size()) {
+                InventorySlot slot = playerInventorySlots.get(i);
+                if (!slot.isEmpty()) {
+                    Item item = slot.getItem();
+                    float[] itemColor = item.getPlaceholderColor();
+                    float itemX = currentSlotDrawX + itemOffset;
+                    float itemY = hotbarY + itemOffset;
+                    float itemZ = Z_OFFSET_UI_ELEMENT;
+                    spriteVertexBuffer.put(itemX).put(itemY).put(itemZ).put(itemColor).put(dummyU).put(dummyV).put(dummyLight);
+                    spriteVertexBuffer.put(itemX).put(itemY + itemRenderSize).put(itemZ).put(itemColor).put(dummyU).put(dummyV).put(dummyLight);
+                    spriteVertexBuffer.put(itemX + itemRenderSize).put(itemY).put(itemZ).put(itemColor).put(dummyU).put(dummyV).put(dummyLight);
+                    verticesForThisSlotElement +=3;
+                    spriteVertexBuffer.put(itemX + itemRenderSize).put(itemY).put(itemZ).put(itemColor).put(dummyU).put(dummyV).put(dummyLight);
+                    spriteVertexBuffer.put(itemX).put(itemY + itemRenderSize).put(itemZ).put(itemColor).put(dummyU).put(dummyV).put(dummyLight);
+                    spriteVertexBuffer.put(itemX + itemRenderSize).put(itemY + itemRenderSize).put(itemZ).put(itemColor).put(dummyU).put(dummyV).put(dummyLight);
+                    verticesForThisSlotElement +=3;
+                }
+            }
+            if (verticesForThisSlotElement > 0) {
+                spriteVertexBuffer.flip();
+                glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+                glDrawArrays(GL_TRIANGLES, 0, verticesForThisSlotElement);
+            }
+            if (i < playerInventorySlots.size()) {
+                InventorySlot slot = playerInventorySlots.get(i);
+                if (!slot.isEmpty() && slot.getQuantity() > 1) {
+                    String quantityStr = String.valueOf(slot.getQuantity());
+                    float qtyTextWidth = uiFont.getTextWidth(quantityStr);
+                    float qtyTextX = currentSlotDrawX + slotSize - qtyTextWidth - 3f;
+                    float qtyTextY = hotbarY + slotSize - 3f;
+                    uiFont.drawText(qtyTextX, qtyTextY, quantityStr, 1f, 1f, 1f);
+                }
+            }
         }
-        int selectedSlotIndex = (game != null) ? game.getSelectedInventorySlotIndex() : -1; // Use Game's selected slot
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
 
 
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glDisable(GL_DEPTH_TEST);
+    public void renderInventoryUI(PlayerModel player) {
+        if (uiFont == null || !uiFont.isInitialized() || player == null || camera == null || defaultShader == null) {
+            return;
+        }
+        Game game = (this.inputHandler != null) ? this.inputHandler.getGameInstance() : null;
+        int selectedSlotIndex = (game != null) ? game.getSelectedInventorySlotIndex() : player.getSelectedHotbarSlotIndex();
 
         defaultShader.bind();
         defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
@@ -379,92 +487,66 @@ public class Renderer {
         defaultShader.setUniform("uHasTexture", 0);
         defaultShader.setUniform("uIsFont", 0);
 
-
         int slotsPerRow = 5;
-        float slotSize = 50f;
-        float slotMargin = 10f;
-        float itemRenderSize = slotSize * 0.7f;
-        float itemOffset = (slotSize - itemRenderSize) / 2f;
-
+        float slotSize = 50f, slotMargin = 10f, itemRenderSize = slotSize * 0.7f, itemOffset = (slotSize - itemRenderSize) / 2f;
         List<InventorySlot> slots = player.getInventorySlots();
-        int numRows = (int) Math.ceil((double) slots.size() / slotsPerRow);
-        if (slots.isEmpty()) numRows = 1;
-
+        int numRows = slots.isEmpty() ? 1 : (int) Math.ceil((double) slots.size() / slotsPerRow);
         float panelWidth = (slotsPerRow * slotSize) + ((slotsPerRow + 1) * slotMargin);
         float panelHeight = (numRows * slotSize) + ((numRows + 1) * slotMargin);
         float panelX = (camera.getScreenWidth() - panelWidth) / 2.0f;
         float panelY = (camera.getScreenHeight() - panelHeight) / 2.0f;
 
-
         glBindVertexArray(spriteVaoId);
         glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
         spriteVertexBuffer.clear();
-
         float[] panelColor = {0.2f, 0.2f, 0.25f, 0.85f};
         float dummyU = 0f, dummyV = 0f, dummyLight = 1f;
-
-
-        spriteVertexBuffer.put(panelX).put(panelY).put(Z_OFFSET_UI_ELEMENT).put(panelColor).put(dummyU).put(dummyV).put(dummyLight);
-        spriteVertexBuffer.put(panelX).put(panelY + panelHeight).put(Z_OFFSET_UI_ELEMENT).put(panelColor).put(dummyU).put(dummyV).put(dummyLight);
-        spriteVertexBuffer.put(panelX + panelWidth).put(panelY).put(Z_OFFSET_UI_ELEMENT).put(panelColor).put(dummyU).put(dummyV).put(dummyLight);
-
-        spriteVertexBuffer.put(panelX + panelWidth).put(panelY).put(Z_OFFSET_UI_ELEMENT).put(panelColor).put(dummyU).put(dummyV).put(dummyLight);
-        spriteVertexBuffer.put(panelX).put(panelY + panelHeight).put(Z_OFFSET_UI_ELEMENT).put(panelColor).put(dummyU).put(dummyV).put(dummyLight);
-        spriteVertexBuffer.put(panelX + panelWidth).put(panelY + panelHeight).put(Z_OFFSET_UI_ELEMENT).put(panelColor).put(dummyU).put(dummyV).put(dummyLight);
-
+        spriteVertexBuffer.put(panelX).put(panelY).put(Z_OFFSET_UI_PANEL).put(panelColor).put(dummyU).put(dummyV).put(dummyLight);
+        spriteVertexBuffer.put(panelX).put(panelY + panelHeight).put(Z_OFFSET_UI_PANEL).put(panelColor).put(dummyU).put(dummyV).put(dummyLight);
+        spriteVertexBuffer.put(panelX + panelWidth).put(panelY).put(Z_OFFSET_UI_PANEL).put(panelColor).put(dummyU).put(dummyV).put(dummyLight);
+        spriteVertexBuffer.put(panelX + panelWidth).put(panelY).put(Z_OFFSET_UI_PANEL).put(panelColor).put(dummyU).put(dummyV).put(dummyLight);
+        spriteVertexBuffer.put(panelX).put(panelY + panelHeight).put(Z_OFFSET_UI_PANEL).put(panelColor).put(dummyU).put(dummyV).put(dummyLight);
+        spriteVertexBuffer.put(panelX + panelWidth).put(panelY + panelHeight).put(Z_OFFSET_UI_PANEL).put(panelColor).put(dummyU).put(dummyV).put(dummyLight);
         spriteVertexBuffer.flip();
         glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-
         float[] slotColorDefault = {0.4f, 0.4f, 0.45f, 0.9f};
         float[] slotColorSelected = {0.8f, 0.8f, 0.3f, 0.95f};
-
-        float currentSlotDrawX = panelX + slotMargin;
-        float currentSlotDrawY = panelY + slotMargin;
+        float currentSlotDrawX = panelX + slotMargin, currentSlotDrawY = panelY + slotMargin;
         int colCount = 0;
-
-
         for (int i = 0; i < slots.size(); i++) {
             InventorySlot slot = slots.get(i);
             float[] actualSlotColor = (i == selectedSlotIndex) ? slotColorSelected : slotColorDefault;
-
             spriteVertexBuffer.clear();
             int verticesForThisSlot = 0;
-
             spriteVertexBuffer.put(currentSlotDrawX).put(currentSlotDrawY).put(Z_OFFSET_UI_ELEMENT).put(actualSlotColor).put(dummyU).put(dummyV).put(dummyLight);
             spriteVertexBuffer.put(currentSlotDrawX).put(currentSlotDrawY + slotSize).put(Z_OFFSET_UI_ELEMENT).put(actualSlotColor).put(dummyU).put(dummyV).put(dummyLight);
             spriteVertexBuffer.put(currentSlotDrawX + slotSize).put(currentSlotDrawY).put(Z_OFFSET_UI_ELEMENT).put(actualSlotColor).put(dummyU).put(dummyV).put(dummyLight);
-
+            verticesForThisSlot += 6; // Should be +=3 for first triangle
             spriteVertexBuffer.put(currentSlotDrawX + slotSize).put(currentSlotDrawY).put(Z_OFFSET_UI_ELEMENT).put(actualSlotColor).put(dummyU).put(dummyV).put(dummyLight);
             spriteVertexBuffer.put(currentSlotDrawX).put(currentSlotDrawY + slotSize).put(Z_OFFSET_UI_ELEMENT).put(actualSlotColor).put(dummyU).put(dummyV).put(dummyLight);
             spriteVertexBuffer.put(currentSlotDrawX + slotSize).put(currentSlotDrawY + slotSize).put(Z_OFFSET_UI_ELEMENT).put(actualSlotColor).put(dummyU).put(dummyV).put(dummyLight);
-            verticesForThisSlot += 6;
-
+            verticesForThisSlot += 6; // Should be +=3 for second triangle, total 6 for the quad
             if (!slot.isEmpty()) {
                 Item item = slot.getItem();
                 float[] itemColor = item.getPlaceholderColor();
-                float itemX = currentSlotDrawX + itemOffset;
-                float itemY = currentSlotDrawY + itemOffset;
-                float itemZ = Z_OFFSET_UI_ELEMENT - 0.01f;
-
+                float itemX = currentSlotDrawX + itemOffset, itemY = currentSlotDrawY + itemOffset;
+                float itemZ = Z_OFFSET_UI_ELEMENT + 0.01f;
                 spriteVertexBuffer.put(itemX).put(itemY).put(itemZ).put(itemColor).put(dummyU).put(dummyV).put(dummyLight);
                 spriteVertexBuffer.put(itemX).put(itemY + itemRenderSize).put(itemZ).put(itemColor).put(dummyU).put(dummyV).put(dummyLight);
                 spriteVertexBuffer.put(itemX + itemRenderSize).put(itemY).put(itemZ).put(itemColor).put(dummyU).put(dummyV).put(dummyLight);
-
+                verticesForThisSlot += 6; // Same here, +=3
                 spriteVertexBuffer.put(itemX + itemRenderSize).put(itemY).put(itemZ).put(itemColor).put(dummyU).put(dummyV).put(dummyLight);
                 spriteVertexBuffer.put(itemX).put(itemY + itemRenderSize).put(itemZ).put(itemColor).put(dummyU).put(dummyV).put(dummyLight);
                 spriteVertexBuffer.put(itemX + itemRenderSize).put(itemY + itemRenderSize).put(itemZ).put(itemColor).put(dummyU).put(dummyV).put(dummyLight);
-                verticesForThisSlot += 6;
+                verticesForThisSlot += 6; // Same here, +=3, total 6 for item quad
             }
-
             if (verticesForThisSlot > 0) {
                 spriteVertexBuffer.flip();
                 glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
                 glDrawArrays(GL_TRIANGLES, 0, verticesForThisSlot);
             }
-
-
             currentSlotDrawX += slotSize + slotMargin;
             colCount++;
             if (colCount >= slotsPerRow) {
@@ -473,25 +555,20 @@ public class Renderer {
                 currentSlotDrawY += slotSize + slotMargin;
             }
         }
-
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
-
-
         currentSlotDrawX = panelX + slotMargin;
         currentSlotDrawY = panelY + slotMargin;
         colCount = 0;
-        float textOffsetX = 5f; // Padding from slot edge for quantity text
-
+        float textOffsetX = 5f;
         for (InventorySlot slot : slots) {
-            if (!slot.isEmpty() && slot.getQuantity() > 0) {
+            if (!slot.isEmpty() && slot.getQuantity() > 1) {
                 String quantityStr = String.valueOf(slot.getQuantity());
                 float qtyTextWidth = uiFont.getTextWidth(quantityStr);
                 float qtyTextX = currentSlotDrawX + slotSize - qtyTextWidth - textOffsetX;
-                float qtyTextY = currentSlotDrawY + slotSize - uiFont.getAscent() - textOffsetX / 2f; // Align bottom-right-ish
+                float qtyTextY = currentSlotDrawY + slotSize - uiFont.getAscent() - (textOffsetX / 2f) + uiFont.getAscent();
                 uiFont.drawText(qtyTextX, qtyTextY, quantityStr, 1f, 1f, 1f);
             }
-
             currentSlotDrawX += slotSize + slotMargin;
             colCount++;
             if (colCount >= slotsPerRow) {
@@ -500,8 +577,6 @@ public class Renderer {
                 currentSlotDrawY += slotSize + slotMargin;
             }
         }
-        defaultShader.unbind();
-        glEnable(GL_DEPTH_TEST);
     }
 
     public Shader getDefaultShader() { return defaultShader; }
@@ -910,155 +985,137 @@ public class Renderer {
     }
 
     public void render() {
-        defaultShader.bind(); //
-        defaultShader.setUniform("uProjectionMatrix", projectionMatrix); //
-        defaultShader.setUniform("uModelViewMatrix", camera.getViewMatrix()); //
-        defaultShader.setUniform("uIsFont", 0); //
-
-        if (tileAtlasTexture != null && tileAtlasTexture.getId() != 0) { //
-            glActiveTexture(GL_TEXTURE0); //
-            tileAtlasTexture.bind(); //
-            defaultShader.setUniform("uTextureSampler", 0); //
-            defaultShader.setUniform("uHasTexture", 1); //
-        } else { //
-            defaultShader.setUniform("uHasTexture", 0); //
+        defaultShader.bind();
+        defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
+        defaultShader.setUniform("uModelViewMatrix", camera.getViewMatrix());
+        defaultShader.setUniform("uIsFont", 0);
+        if (tileAtlasTexture != null && tileAtlasTexture.getId() != 0) {
+            glActiveTexture(GL_TEXTURE0);
+            tileAtlasTexture.bind();
+            defaultShader.setUniform("uTextureSampler", 0);
+            defaultShader.setUniform("uHasTexture", 1);
+        } else {
+            defaultShader.setUniform("uHasTexture", 0);
         }
-
-        if (mapChunks != null && player != null && camera != null && CHUNK_SIZE_TILES > 0) { //
-            int playerTileCol = player.getTileCol(); //
-            int playerTileRow = player.getTileRow(); //
-            int playerChunkX = playerTileCol / CHUNK_SIZE_TILES; //
-            int playerChunkY = playerTileRow / CHUNK_SIZE_TILES; //
-
-            int actualRenderDistance = Constants.RENDER_DISTANCE_CHUNKS; //
-            if (this.inputHandler != null && this.inputHandler.getGameInstance() != null) { //
-                actualRenderDistance = this.inputHandler.getGameInstance().getCurrentRenderDistanceChunks(); //
+        if (mapChunks != null && player != null && camera != null && CHUNK_SIZE_TILES > 0) {
+            int playerTileCol = player.getTileCol();
+            int playerTileRow = player.getTileRow();
+            int playerChunkX = playerTileCol / CHUNK_SIZE_TILES;
+            int playerChunkY = playerTileRow / CHUNK_SIZE_TILES;
+            int actualRenderDistance = Constants.RENDER_DISTANCE_CHUNKS;
+            if (this.inputHandler != null && this.inputHandler.getGameInstance() != null) {
+                actualRenderDistance = this.inputHandler.getGameInstance().getCurrentRenderDistanceChunks();
             }
-
-            for (int dy = -actualRenderDistance; dy <= actualRenderDistance; dy++) { //
-                for (int dx = -actualRenderDistance; dx <= actualRenderDistance; dx++) { //
-                    int currentChunkGridX = playerChunkX + dx; //
-                    int currentChunkGridY = playerChunkY + dy; //
-
-                    for (Chunk chunk : mapChunks) { //
-                        if (chunk.chunkGridX == currentChunkGridX && chunk.chunkGridY == currentChunkGridY) { //
-                            if (camera.isChunkVisible(chunk.getBoundingBox())) { //
-                                chunk.render(); //
+            for (int dy = -actualRenderDistance; dy <= actualRenderDistance; dy++) {
+                for (int dx = -actualRenderDistance; dx <= actualRenderDistance; dx++) {
+                    int currentChunkGridX = playerChunkX + dx;
+                    int currentChunkGridY = playerChunkY + dy;
+                    for (Chunk chunk : mapChunks) {
+                        if (chunk.chunkGridX == currentChunkGridX && chunk.chunkGridY == currentChunkGridY) {
+                            if (camera.isChunkVisible(chunk.getBoundingBox())) {
+                                chunk.render();
                             }
-                            break; //
+                            break;
                         }
                     }
                 }
             }
         }
-
-        if (tileAtlasTexture != null) glBindTexture(GL_TEXTURE_2D, 0); //
-
-        collectWorldEntities(); //
-        defaultShader.setUniform("uHasTexture", 1); //
-        defaultShader.setUniform("uTextureSampler", 0); //
-
-        if (spriteVaoId != 0 && !worldEntities.isEmpty()) { //
-            glBindVertexArray(spriteVaoId); //
-            glBindBuffer(GL_ARRAY_BUFFER, spriteVboId); //
-            spriteVertexBuffer.clear(); //
-            int verticesInBatch = 0; //
-            Texture currentSpriteTexture = null; //
-
-            for (Object entity : worldEntities) { //
-                int verticesAdded = 0; //
-                Texture textureForEntity = null; //
-                if (entity instanceof PlayerModel && playerTexture != null) { //
-                    verticesAdded = addPlayerVerticesToBuffer_WorldSpace((PlayerModel)entity, spriteVertexBuffer); //
-                    textureForEntity = playerTexture; //
-                } else if (entity instanceof TreeData && treeTexture != null) { //
-                    verticesAdded = addTreeVerticesToBuffer_WorldSpace((TreeData)entity, spriteVertexBuffer); //
-                    textureForEntity = treeTexture; //
+        if (tileAtlasTexture != null) glBindTexture(GL_TEXTURE_2D, 0);
+        collectWorldEntities();
+        defaultShader.setUniform("uHasTexture", 1);
+        defaultShader.setUniform("uTextureSampler", 0);
+        if (spriteVaoId != 0 && !worldEntities.isEmpty()) {
+            glBindVertexArray(spriteVaoId);
+            glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+            spriteVertexBuffer.clear();
+            int verticesInBatch = 0;
+            Texture currentSpriteTexture = null;
+            for (Object entity : worldEntities) {
+                int verticesAdded = 0;
+                Texture textureForEntity = null;
+                if (entity instanceof PlayerModel && playerTexture != null) {
+                    verticesAdded = addPlayerVerticesToBuffer_WorldSpace((PlayerModel)entity, spriteVertexBuffer);
+                    textureForEntity = playerTexture;
+                } else if (entity instanceof TreeData && treeTexture != null) {
+                    verticesAdded = addTreeVerticesToBuffer_WorldSpace((TreeData)entity, spriteVertexBuffer);
+                    textureForEntity = treeTexture;
                 }
-
-                if (verticesAdded > 0 && textureForEntity != null) { //
-                    if (currentSpriteTexture == null) currentSpriteTexture = textureForEntity; //
-                    else if (currentSpriteTexture.getId() != textureForEntity.getId()) { //
-                        if (verticesInBatch > 0) { //
-                            spriteVertexBuffer.flip(); //
-                            glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer); //
-                            currentSpriteTexture.bind(); //
-                            glDrawArrays(GL_TRIANGLES, 0, verticesInBatch); //
-                            spriteVertexBuffer.clear(); verticesInBatch = 0; //
+                if (verticesAdded > 0 && textureForEntity != null) {
+                    if (currentSpriteTexture == null) currentSpriteTexture = textureForEntity;
+                    else if (currentSpriteTexture.getId() != textureForEntity.getId()) {
+                        if (verticesInBatch > 0) {
+                            spriteVertexBuffer.flip();
+                            glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+                            currentSpriteTexture.bind();
+                            glDrawArrays(GL_TRIANGLES, 0, verticesInBatch);
+                            spriteVertexBuffer.clear(); verticesInBatch = 0;
                         }
-                        currentSpriteTexture = textureForEntity; //
+                        currentSpriteTexture = textureForEntity;
                     }
-                    verticesInBatch += verticesAdded; //
-                    if (spriteVertexBuffer.position() >= spriteVertexBuffer.capacity() - (6 * FLOATS_PER_VERTEX_SPRITE_TEXTURED)) { //
-                        if (verticesInBatch > 0 && currentSpriteTexture != null) { //
-                            spriteVertexBuffer.flip(); //
-                            glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer); //
-                            currentSpriteTexture.bind(); //
-                            glDrawArrays(GL_TRIANGLES, 0, verticesInBatch); //
-                            spriteVertexBuffer.clear(); verticesInBatch = 0; //
+                    verticesInBatch += verticesAdded;
+                    if (spriteVertexBuffer.position() >= spriteVertexBuffer.capacity() - (6 * FLOATS_PER_VERTEX_SPRITE_TEXTURED)) {
+                        if (verticesInBatch > 0 && currentSpriteTexture != null) {
+                            spriteVertexBuffer.flip();
+                            glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+                            currentSpriteTexture.bind();
+                            glDrawArrays(GL_TRIANGLES, 0, verticesInBatch);
+                            spriteVertexBuffer.clear(); verticesInBatch = 0;
                         }
                     }
                 }
             }
-            if (verticesInBatch > 0 && currentSpriteTexture != null) { //
-                spriteVertexBuffer.flip(); //
-                glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer); //
-                currentSpriteTexture.bind(); //
-                glDrawArrays(GL_TRIANGLES, 0, verticesInBatch); //
+            if (verticesInBatch > 0 && currentSpriteTexture != null) {
+                spriteVertexBuffer.flip();
+                glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+                currentSpriteTexture.bind();
+                glDrawArrays(GL_TRIANGLES, 0, verticesInBatch);
             }
-            glBindTexture(GL_TEXTURE_2D, 0); //
-            glBindBuffer(GL_ARRAY_BUFFER, 0); //
-            glBindVertexArray(0); //
+            glBindTexture(GL_TEXTURE_2D, 0);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+            glBindVertexArray(0);
         }
-        defaultShader.unbind(); //
     }
 
 
     public void renderDebugOverlay(float panelX, float panelY, float panelWidth, float panelHeight, List<String> lines) {
-        if (uiFont == null || !uiFont.isInitialized()) return; //
-        glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); //
-        glDisable(GL_DEPTH_TEST); //
-        defaultShader.bind(); //
-        defaultShader.setUniform("uProjectionMatrix", projectionMatrix); //
-        defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity()); //
-
-        float[] bgColor = {0.1f, 0.1f, 0.1f, 0.8f}; float z = Z_OFFSET_UI_ELEMENT; // Use consistent Z
-        float dummyU = 0f, dummyV = 0f, dummyLight = 1f; // Dummy values for sprite VBO structure
-
-        glBindVertexArray(spriteVaoId); glBindBuffer(GL_ARRAY_BUFFER, spriteVboId); //
-        spriteVertexBuffer.clear(); //
-        spriteVertexBuffer.put(panelX).put(panelY).put(z).put(bgColor).put(dummyU).put(dummyV).put(dummyLight); //
-        spriteVertexBuffer.put(panelX).put(panelY+panelHeight).put(z).put(bgColor).put(dummyU).put(dummyV).put(dummyLight); //
-        spriteVertexBuffer.put(panelX+panelWidth).put(panelY).put(z).put(bgColor).put(dummyU).put(dummyV).put(dummyLight); //
-        spriteVertexBuffer.put(panelX+panelWidth).put(panelY).put(z).put(bgColor).put(dummyU).put(dummyV).put(dummyLight); //
-        spriteVertexBuffer.put(panelX).put(panelY+panelHeight).put(z).put(bgColor).put(dummyU).put(dummyV).put(dummyLight); //
-        spriteVertexBuffer.put(panelX+panelWidth).put(panelY+panelHeight).put(z).put(bgColor).put(dummyU).put(dummyV).put(dummyLight); //
-        spriteVertexBuffer.flip(); //
-        glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer); //
-        defaultShader.setUniform("uHasTexture", 0); defaultShader.setUniform("uIsFont", 0); //
-        glDrawArrays(GL_TRIANGLES, 0, 6); //
-        glBindBuffer(GL_ARRAY_BUFFER, 0); glBindVertexArray(0); //
-
-        float textX = panelX + 5f, textY = panelY + 5f; //
-        if (uiFont.getAscent() > 0) textY += uiFont.getAscent(); //
-        for (String line : lines) { //
-            uiFont.drawText(textX, textY, line, 0.9f, 0.9f, 0.9f); //
-            textY += 18f; //
+        if (uiFont == null || !uiFont.isInitialized()) return;
+        defaultShader.bind();
+        defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
+        defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
+        float[] bgColor = {0.1f, 0.1f, 0.1f, 0.8f}; float z = Z_OFFSET_UI_PANEL;
+        float dummyU = 0f, dummyV = 0f, dummyLight = 1f;
+        glBindVertexArray(spriteVaoId); glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+        spriteVertexBuffer.clear();
+        spriteVertexBuffer.put(panelX).put(panelY).put(z).put(bgColor).put(dummyU).put(dummyV).put(dummyLight);
+        spriteVertexBuffer.put(panelX).put(panelY+panelHeight).put(z).put(bgColor).put(dummyU).put(dummyV).put(dummyLight);
+        spriteVertexBuffer.put(panelX+panelWidth).put(panelY).put(z).put(bgColor).put(dummyU).put(dummyV).put(dummyLight);
+        spriteVertexBuffer.put(panelX+panelWidth).put(panelY).put(z).put(bgColor).put(dummyU).put(dummyV).put(dummyLight);
+        spriteVertexBuffer.put(panelX).put(panelY+panelHeight).put(z).put(bgColor).put(dummyU).put(dummyV).put(dummyLight);
+        spriteVertexBuffer.put(panelX+panelWidth).put(panelY+panelHeight).put(z).put(bgColor).put(dummyU).put(dummyV).put(dummyLight);
+        spriteVertexBuffer.flip();
+        glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+        defaultShader.setUniform("uHasTexture", 0); defaultShader.setUniform("uIsFont", 0);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        glBindBuffer(GL_ARRAY_BUFFER, 0); glBindVertexArray(0);
+        float textX = panelX + 5f, textY = panelY + 5f;
+        if (uiFont.getAscent() > 0) textY += uiFont.getAscent();
+        for (String line : lines) {
+            uiFont.drawText(textX, textY, line, 0.9f, 0.9f, 0.9f);
+            textY += 18f;
         }
-        glEnable(GL_DEPTH_TEST); //
     }
     public void cleanup() {
-        if(playerTexture!=null)playerTexture.delete(); //
-        if(treeTexture!=null)treeTexture.delete(); //
-        if(tileAtlasTexture!=null)tileAtlasTexture.delete(); //
-        if(uiFont!=null)uiFont.cleanup(); //
-        if(defaultShader!=null)defaultShader.cleanup(); //
-        if(mapChunks!=null){for(Chunk ch:mapChunks)ch.cleanup();mapChunks.clear();} //
-        if(spriteVaoId!=0){glDeleteVertexArrays(spriteVaoId);spriteVaoId=0;} //
-        if(spriteVboId!=0){glDeleteBuffers(spriteVboId);spriteVboId=0;} //
-        if(spriteVertexBuffer!=null){MemoryUtil.memFree(spriteVertexBuffer);spriteVertexBuffer=null;} //
+        if(playerTexture!=null)playerTexture.delete();
+        if(treeTexture!=null)treeTexture.delete();
+        if(tileAtlasTexture!=null)tileAtlasTexture.delete();
+        if(uiFont!=null)uiFont.cleanup();
         if (titleFont != null) titleFont.cleanup();
-        if(mainMenuBackgroundTexture != null) mainMenuBackgroundTexture.delete(); // <<<< ADD THIS LINE FOR CLEANUP
-
+        if (mainMenuBackgroundTexture != null) mainMenuBackgroundTexture.delete();
+        if(defaultShader!=null)defaultShader.cleanup();
+        if(mapChunks!=null){for(Chunk ch:mapChunks)ch.cleanup();mapChunks.clear();}
+        if(spriteVaoId!=0){glDeleteVertexArrays(spriteVaoId);spriteVaoId=0;}
+        if(spriteVboId!=0){glDeleteBuffers(spriteVboId);spriteVboId=0;}
+        if(spriteVertexBuffer!=null){MemoryUtil.memFree(spriteVertexBuffer);spriteVertexBuffer=null;}
     }
 }

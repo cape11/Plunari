@@ -114,6 +114,10 @@ public class InputHandler {
                 case GLFW_KEY_I:
                     gameInstance.toggleInventory();
                     break;
+                case GLFW_KEY_H: // Example: 'H' key to toggle hotbar
+                    gameInstance.toggleHotbar();
+                    break;
+
                 // Hotbar Slot Selection (Keys 1-5 for slots 0-4)
                 case GLFW_KEY_1: if (player != null) gameInstance.setSelectedInventorySlotIndex(0); break;
                 case GLFW_KEY_2: if (player != null) gameInstance.setSelectedInventorySlotIndex(1); break;
