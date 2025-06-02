@@ -16,7 +16,7 @@ public class Constants {
 
     // Map generation
     public static final double NOISE_SCALE = 0.02;
-    public static final int ALTURA_MAXIMA = 35;
+    public static final int ALTURA_MAXIMA = 40;
     public static final int NIVEL_MAR = 9;
     public static final int NIVEL_ARENA = 10;
     public static final int NIVEL_ROCA = 30;
@@ -27,51 +27,41 @@ public class Constants {
     public static final int HEIGHT = 720;
 
     // Rendering
-    public static final float DEPTH_SORT_FACTOR = 0.1f; // Affects Z separation based on row/col
+    public static final float DEPTH_SORT_FACTOR = 0.1f;
 
     // Game Loop
     public static final double TARGET_FPS = 60.0;
     public static final double TARGET_TIME_PER_FRAME = 1.0 / TARGET_FPS;
 
     // Player
-    public static final float PLAYER_MOVE_SPEED = 5.0f; // Tiles per second
+    public static final float PLAYER_MAP_GRID_SPEED = 4.0f;
 
     // Camera
-    public static final float CAMERA_PAN_SPEED = 300.0f;
     public static final float CAMERA_ZOOM_SPEED = 0.1f;
     public static final float MIN_ZOOM = 0.25f;
     public static final float MAX_ZOOM = 4.0f;
     public static final float CAMERA_SMOOTH_FACTOR = 0.15f;
-    public static final int RENDER_DISTANCE_CHUNKS = 7; // Render a 5x5 grid of chunks (2 out from player's chunk)
+    public static final int RENDER_DISTANCE_CHUNKS_DEFAULT = 4;
+    public static final int RENDER_DISTANCE_CHUNKS_MIN = 1;
+    public static final int RENDER_DISTANCE_CHUNKS_MAX = 10;
 
 
-    // Resources (These string constants are now largely superseded by Item objects in ItemRegistry for inventory actions)
-    // You might still use them for other string comparisons or data keys if needed.
-    public static final String RESOURCE_DIRT = "Dirt"; // Keep for reference or other uses
-    public static final String RESOURCE_STONE = "Stone";
-    public static final String RESOURCE_SAND = "Sand";
     // Interaction
-    public static final int MAX_INTERACTION_DISTANCE = 1;
+    public static final int MAX_INTERACTION_DISTANCE = 2;
 
-    // --- Lighting Constants ---
+    // Lighting Constants
     public static final int MAX_LIGHT_LEVEL = 15;
     public static final int TORCH_LIGHT_LEVEL = 14;
     public static final int SKY_LIGHT_DAY = 15;
-    public static final int SKY_LIGHT_NIGHT = 4; // Min light for night
+    public static final int SKY_LIGHT_NIGHT = 4;
+    public static final int SKY_LIGHT_NIGHT_MINIMUM = 2;
     public static final int LIGHT_PROPAGATION_COST = 1;
-    public static final float MIN_AMBIENT_LIGHT_FACTOR = 0.2f; // Matches shader
 
     // Inventory / Hotbar
-    public static final int DEFAULT_INVENTORY_SIZE = 20; // Already in PlayerModel, but good to have a central constant if used elsewhere
-    public static final int HOTBAR_SIZE = 5; // Number of slots to display in the hotbar (e.g., for keys 1-5)
+    public static final int DEFAULT_INVENTORY_SIZE = 20;
+    public static final int HOTBAR_SIZE = 5;
 
-
-    // --- Optimization Constants ---
-    // Adjusted for smoother transitions:
-    public static final double DAY_NIGHT_CYCLE_SPEED = 0.0001; // e.g., Full cycle in 100 seconds. Dusk/Dawn (0.2 of cycle) = 20 seconds.
-    // Adjust as needed for desired speed. 0.005 = 200s cycle (40s transition).
-    public static final int SKY_LIGHT_UPDATE_THRESHOLD = 1;  // Update if light changes by at least 1.
-    public static final long GLOBAL_SKY_LIGHT_UPDATE_COOLDOWN_MS = 2000; // Update lighting propagation max every 2 seconds during transition.
-    // Shorter if you want faster visual updates of spreading light.
+    // Optimization Constants
+    public static final double DAY_NIGHT_CYCLE_SPEED = 0.02;
+    public static final int SKY_LIGHT_UPDATE_THRESHOLD = 1;
 }
-//
