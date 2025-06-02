@@ -53,6 +53,11 @@ public class Renderer {
     private int hotbarVertexCount = 0;
     private boolean hotbarDirty = true;
 
+    // VAO/VBO for simple colored UI (non-textured: panel backgrounds, borders, solid color buttons)
+    private int uiColoredVaoId, uiColoredVboId;
+    private FloatBuffer uiColoredVertexBuffer;
+    private static final int MAX_UI_COLORED_QUADS = 512; // Max simple quads per UI draw batch
+
     private Texture tileAtlasTexture;
     private Texture mainMenuBackgroundTexture;
 
@@ -111,9 +116,6 @@ public class Renderer {
     private final float diamondBottomOffsetY = this.tileHalfHeight;
 
 
-    private int uiColoredVaoId, uiColoredVboId;
-    private FloatBuffer uiColoredVertexBuffer;
-
     public static class TreeData { /* ... same ... */
         public Tile.TreeVisualType treeVisualType;
         public float mapCol, mapRow;
@@ -136,7 +138,40 @@ public class Renderer {
         loadAssets();
         initShaders();
         initRenderObjects();
+        initUiColoredResources();
         initHotbarGLResources();
+    }
+
+    private void initUiColoredResources() { // NEW METHOD
+        uiColoredVaoId = glGenVertexArrays();
+        glBindVertexArray(uiColoredVaoId);
+        uiColoredVboId = glGenBuffers();
+        glBindBuffer(GL_ARRAY_BUFFER, uiColoredVboId);
+
+        // Initialize the buffer here
+        int uiBufferCapacityFloats = MAX_UI_COLORED_QUADS * 6 * FLOATS_PER_VERTEX_UI_COLORED;
+        if (uiColoredVertexBuffer != null) { // Should be null first time, but good practice for re-init
+            MemoryUtil.memFree(uiColoredVertexBuffer);
+        }
+        uiColoredVertexBuffer = MemoryUtil.memAllocFloat(uiBufferCapacityFloats); // ALLOCATE THE BUFFER
+        if (uiColoredVertexBuffer == null) {
+            System.err.println("Renderer CRITICAL: Failed to allocate uiColoredVertexBuffer!");
+            // Handle error appropriately, perhaps throw exception
+            return;
+        }
+        glBufferData(GL_ARRAY_BUFFER, (long)uiColoredVertexBuffer.capacity() * Float.BYTES, GL_DYNAMIC_DRAW);
+
+        int stride = FLOATS_PER_VERTEX_UI_COLORED * Float.BYTES;
+        // Position attribute (vec3) - location 0
+        glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, 0L);
+        glEnableVertexAttribArray(0);
+        // Color attribute (vec4) - location 1
+        glVertexAttribPointer(1, 4, GL_FLOAT, false, stride, 3 * Float.BYTES);
+        glEnableVertexAttribArray(1);
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        System.out.println("[Renderer DEBUG] UI Colored Resources Initialized. VAO: " + uiColoredVaoId + ", VBO: " + uiColoredVboId);
     }
 
     // ... (loadAssets, initShaders, initRenderObjects, initHotbarGLResources, setHotbarDirty, chunk management methods, onResize, determineTopSurfaceColor - as in previous correct version)
@@ -797,16 +832,24 @@ public class Renderer {
         buffer.put(x + w).put(y + h).put(z).put(bottomColor);
     }
 
-    public void renderInventoryUI(PlayerModel player) { /* ... same as previous correct version ... */
-        if (uiFont == null || !uiFont.isInitialized() || player == null || camera == null || defaultShader == null) return;
+    public void renderInventoryUI(PlayerModel player) {
+        if (uiFont == null || !uiFont.isInitialized() || player == null || camera == null || defaultShader == null || uiColoredVaoId == 0) return;
         Game game = (this.inputHandler != null) ? this.inputHandler.getGameInstance() : null;
         int selectedSlotIndex = (game != null) ? game.getSelectedInventorySlotIndex() : player.getSelectedHotbarSlotIndex();
 
         defaultShader.bind();
         defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
         defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
-        defaultShader.setUniform("uHasTexture", 0); defaultShader.setUniform("uIsFont", 0);
+        defaultShader.setUniform("uHasTexture", 0);
+        defaultShader.setUniform("uIsFont", 0);
+        defaultShader.setUniform("uIsSimpleUiElement", 1); // Indicate simple UI rendering
 
+        glBindVertexArray(uiColoredVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, uiColoredVboId);
+        uiColoredVertexBuffer.clear();
+        int totalVerticesForInventory = 0;
+
+        // Panel dimensions
         int slotsPerRow = 5;
         float slotSize = 50f, slotMargin = 10f, itemRenderSize = slotSize * 0.7f, itemOffset = (slotSize - itemRenderSize) / 2f;
         List<InventorySlot> slots = player.getInventorySlots();
@@ -816,16 +859,12 @@ public class Renderer {
         float panelX = (camera.getScreenWidth() - panelWidth) / 2.0f;
         float panelY = (camera.getScreenHeight() - panelHeight) / 2.0f;
 
-        glBindVertexArray(spriteVaoId); glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
-        spriteVertexBuffer.clear();
-
+        // Draw Panel Background
         float[] panelColor = {0.2f, 0.2f, 0.25f, 0.85f};
-        // Using the general addQuadToUiBuffer now adapted for spriteVertexBuffer
-        addQuadToUiBuffer(spriteVertexBuffer, panelX, panelY, panelWidth, panelHeight, Z_OFFSET_UI_PANEL, panelColor);
-        spriteVertexBuffer.flip();
-        glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+        addQuadToUiColoredBuffer(uiColoredVertexBuffer, panelX, panelY, panelWidth, panelHeight, Z_OFFSET_UI_PANEL, panelColor);
+        totalVerticesForInventory += 6;
 
+        // Draw Slots and Item Placeholders
         float[] slotColorDefault = {0.4f, 0.4f, 0.45f, 0.9f};
         float[] slotColorSelected = {0.8f, 0.8f, 0.3f, 0.95f};
         float currentSlotDrawX = panelX + slotMargin;
@@ -833,29 +872,36 @@ public class Renderer {
         int colCount = 0;
 
         for (int i = 0; i < slots.size(); i++) {
+            if (totalVerticesForInventory + 12 > MAX_UI_COLORED_QUADS * 6) break; // Prevent buffer overflow for slots
+
             InventorySlot slot = slots.get(i);
             float[] actualSlotColor = (i == selectedSlotIndex) ? slotColorSelected : slotColorDefault;
-            spriteVertexBuffer.clear();
-            int verticesForThisSlot = 0;
-            addQuadToUiBuffer(spriteVertexBuffer, currentSlotDrawX, currentSlotDrawY, slotSize, slotSize, Z_OFFSET_UI_ELEMENT, actualSlotColor);
-            verticesForThisSlot += 6;
+            addQuadToUiColoredBuffer(uiColoredVertexBuffer, currentSlotDrawX, currentSlotDrawY, slotSize, slotSize, Z_OFFSET_UI_ELEMENT, actualSlotColor);
+            totalVerticesForInventory += 6;
 
             if (!slot.isEmpty()) {
                 Item item = slot.getItem(); float[] itemColor = item.getPlaceholderColor();
                 float itemX = currentSlotDrawX + itemOffset; float itemY = currentSlotDrawY + itemOffset;
-                addQuadToUiBuffer(spriteVertexBuffer, itemX, itemY, itemRenderSize, itemRenderSize, Z_OFFSET_UI_ELEMENT + 0.001f, itemColor);
-                verticesForThisSlot += 6;
-            }
-            if (verticesForThisSlot > 0) {
-                spriteVertexBuffer.flip();
-                glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
-                glDrawArrays(GL_TRIANGLES, 0, verticesForThisSlot);
+                addQuadToUiColoredBuffer(uiColoredVertexBuffer, itemX, itemY, itemRenderSize, itemRenderSize, Z_OFFSET_UI_ELEMENT + 0.001f, itemColor);
+                totalVerticesForInventory += 6;
             }
             currentSlotDrawX += slotSize + slotMargin; colCount++;
             if (colCount >= slotsPerRow) {
                 colCount = 0; currentSlotDrawX = panelX + slotMargin; currentSlotDrawY += slotSize + slotMargin;
             }
         }
+
+        if (totalVerticesForInventory > 0) {
+            uiColoredVertexBuffer.flip();
+            glBufferSubData(GL_ARRAY_BUFFER, 0, uiColoredVertexBuffer);
+            glDrawArrays(GL_TRIANGLES, 0, totalVerticesForInventory);
+        }
+
+        glBindVertexArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        defaultShader.setUniform("uIsSimpleUiElement", 0); // Reset for other rendering
+
+        // Render quantities (text) - this uses Font's own VAO/VBO, drawn after quads
         currentSlotDrawX = panelX + slotMargin; currentSlotDrawY = panelY + slotMargin; colCount = 0;
         float textOffsetX = 5f;
         for (InventorySlot slot : slots) {
@@ -871,154 +917,151 @@ public class Renderer {
                 colCount = 0; currentSlotDrawX = panelX + slotMargin; currentSlotDrawY += slotSize + slotMargin;
             }
         }
-        glBindBuffer(GL_ARRAY_BUFFER, 0); glBindVertexArray(0);
     }
 
 
     public Shader getDefaultShader() { return this.defaultShader; }
 
-    public void renderDebugOverlay(float panelX, float panelY, float panelWidth, float panelHeight, List<String> lines) { /* ... Same as previous correct version ... */
-        if (uiFont == null || !uiFont.isInitialized() || defaultShader == null) return;
+    public void renderDebugOverlay(float panelX, float panelY, float panelWidth, float panelHeight, List<String> lines) {
+        if (uiFont == null || !uiFont.isInitialized() || defaultShader == null || uiColoredVaoId == 0) return;
         defaultShader.bind();
         defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
         defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
-        float[] bgColor = {0.1f, 0.1f, 0.1f, 0.8f}; float z = Z_OFFSET_UI_PANEL + 0.1f;
-
-        glBindVertexArray(spriteVaoId);
-        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
-        spriteVertexBuffer.clear();
-
-        addQuadToUiBuffer(spriteVertexBuffer, panelX, panelY, panelWidth, panelHeight, z, bgColor);
-
-        spriteVertexBuffer.flip();
-        glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
         defaultShader.setUniform("uHasTexture", 0);
         defaultShader.setUniform("uIsFont", 0);
+        defaultShader.setUniform("uIsSimpleUiElement", 1);
+
+        glBindVertexArray(uiColoredVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, uiColoredVboId);
+        uiColoredVertexBuffer.clear();
+
+        float[] bgColor = {0.1f, 0.1f, 0.1f, 0.8f};
+        addQuadToUiColoredBuffer(uiColoredVertexBuffer, panelX, panelY, panelWidth, panelHeight, Z_OFFSET_UI_PANEL + 0.1f, bgColor);
+
+        uiColoredVertexBuffer.flip();
+        glBufferSubData(GL_ARRAY_BUFFER, 0, uiColoredVertexBuffer);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        float textX = panelX + 5f;
-        float textY = panelY + 5f;
-        if (uiFont.getAscent() > 0) textY += uiFont.getAscent();
+        glBindVertexArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        defaultShader.setUniform("uIsSimpleUiElement", 0);
 
+        // Text rendering uses Font's own VAO
+        float textX = panelX + 5f; float textY = panelY + 5f;
+        if (uiFont.getAscent() > 0) textY += uiFont.getAscent();
         for (String line : lines) {
             uiFont.drawText(textX, textY, line, 0.9f, 0.9f, 0.9f);
             textY += 18f;
         }
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
     }
-    public void renderMainMenuBackground() { /* ... Same as previous correct version ... */
-        if (mainMenuBackgroundTexture == null || mainMenuBackgroundTexture.getId() == 0 || defaultShader == null || camera == null) return;
+
+
+    public void renderMainMenuBackground() {
+        if (mainMenuBackgroundTexture == null || mainMenuBackgroundTexture.getId() == 0 || defaultShader == null || camera == null || spriteVaoId == 0) return;
         defaultShader.bind();
         defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
         defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
-        defaultShader.setUniform("uHasTexture", 1);
+        defaultShader.setUniform("uHasTexture", 1); // It's textured
         defaultShader.setUniform("uIsFont", 0);
+        defaultShader.setUniform("uIsSimpleUiElement", 0); // Not simple UI if textured
         defaultShader.setUniform("uTextureSampler", 0);
+
         glActiveTexture(GL_TEXTURE0);
         mainMenuBackgroundTexture.bind();
-        glBindVertexArray(spriteVaoId);
+        glBindVertexArray(spriteVaoId); // Use spriteVao for textured quad
         glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
         spriteVertexBuffer.clear();
         float screenWidth = camera.getScreenWidth();
         float screenHeight = camera.getScreenHeight();
-        float dummyLight = 1f;
-        addVertexToSpriteBuffer(spriteVertexBuffer, 0, 0, Z_OFFSET_UI_BACKGROUND, WHITE_TINT, 0f, 0f, dummyLight);
-        addVertexToSpriteBuffer(spriteVertexBuffer, 0, screenHeight, Z_OFFSET_UI_BACKGROUND, WHITE_TINT, 0f, 1f, dummyLight);
-        addVertexToSpriteBuffer(spriteVertexBuffer, screenWidth, 0, Z_OFFSET_UI_BACKGROUND, WHITE_TINT, 1f, 0f, dummyLight);
-        addVertexToSpriteBuffer(spriteVertexBuffer, screenWidth, 0, Z_OFFSET_UI_BACKGROUND, WHITE_TINT, 1f, 0f, dummyLight);
-        addVertexToSpriteBuffer(spriteVertexBuffer, 0, screenHeight, Z_OFFSET_UI_BACKGROUND, WHITE_TINT, 0f, 1f, dummyLight);
-        addVertexToSpriteBuffer(spriteVertexBuffer, screenWidth, screenHeight, Z_OFFSET_UI_BACKGROUND, WHITE_TINT, 1f, 1f, dummyLight);
+        // Textured quad uses Pos, Color (as tint), UV, Light (dummy 1.0 for UI)
+        addVertexToSpriteBuffer(spriteVertexBuffer, 0, 0, Z_OFFSET_UI_BACKGROUND, WHITE_TINT, 0f, 0f, 1f);
+        addVertexToSpriteBuffer(spriteVertexBuffer, 0, screenHeight, Z_OFFSET_UI_BACKGROUND, WHITE_TINT, 0f, 1f, 1f);
+        addVertexToSpriteBuffer(spriteVertexBuffer, screenWidth, 0, Z_OFFSET_UI_BACKGROUND, WHITE_TINT, 1f, 0f, 1f);
+        addVertexToSpriteBuffer(spriteVertexBuffer, screenWidth, 0, Z_OFFSET_UI_BACKGROUND, WHITE_TINT, 1f, 0f, 1f);
+        addVertexToSpriteBuffer(spriteVertexBuffer, 0, screenHeight, Z_OFFSET_UI_BACKGROUND, WHITE_TINT, 0f, 1f, 1f);
+        addVertexToSpriteBuffer(spriteVertexBuffer, screenWidth, screenHeight, Z_OFFSET_UI_BACKGROUND, WHITE_TINT, 1f, 1f, 1f);
         spriteVertexBuffer.flip();
         glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
         glDrawArrays(GL_TRIANGLES, 0, 6);
+
         mainMenuBackgroundTexture.unbind();
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
 
-    public void renderMenuButton(MenuItemButton button) { /* ... Same as previous correct version ... */
-        if (uiFont == null || !uiFont.isInitialized() || defaultShader == null || camera == null) {
-            System.err.println("Renderer: Cannot render menu button, font, shader or camera not ready.");
-            return;
-        }
+    public void renderMenuButton(MenuItemButton button) {
+        if (uiFont == null || !uiFont.isInitialized() || defaultShader == null || camera == null) return;
 
         defaultShader.bind();
         defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
         defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
         defaultShader.setUniform("uIsFont", 0);
 
-        glBindVertexArray(spriteVaoId);
-        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
-
-        float dummyLight = 1f;
-
+        // Border (Simple UI)
         if (button.borderWidth > 0 && button.borderColor != null) {
-            spriteVertexBuffer.clear();
             defaultShader.setUniform("uHasTexture", 0);
-            float bx = button.x - button.borderWidth;
-            float by = button.y - button.borderWidth;
-            float bWidth = button.width + (2 * button.borderWidth);
-            float bHeight = button.height + (2 * button.borderWidth);
-            addQuadToUiBuffer(spriteVertexBuffer, bx, by, bWidth, bHeight, Z_OFFSET_UI_BORDER, button.borderColor);
-            spriteVertexBuffer.flip();
-            glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+            defaultShader.setUniform("uIsSimpleUiElement", 1);
+            glBindVertexArray(uiColoredVaoId);
+            glBindBuffer(GL_ARRAY_BUFFER, uiColoredVboId);
+            uiColoredVertexBuffer.clear();
+            float bx = button.x - button.borderWidth; float by = button.y - button.borderWidth;
+            float bWidth = button.width + (2 * button.borderWidth); float bHeight = button.height + (2 * button.borderWidth);
+            addQuadToUiColoredBuffer(uiColoredVertexBuffer, bx, by, bWidth, bHeight, Z_OFFSET_UI_BORDER, button.borderColor);
+            uiColoredVertexBuffer.flip();
+            glBufferSubData(GL_ARRAY_BUFFER, 0, uiColoredVertexBuffer);
             glDrawArrays(GL_TRIANGLES, 0, 6);
         }
 
-        spriteVertexBuffer.clear();
-        int faceVerticesToDraw = 0;
+
+
+
+        // Face
         if (button.useTexture && tileAtlasTexture != null && tileAtlasTexture.getId() != 0) {
             defaultShader.setUniform("uHasTexture", 1);
+            defaultShader.setUniform("uIsSimpleUiElement", 0); // Textured, so not "simple UI" in shader terms
+            defaultShader.setUniform("uTextureSampler", 0);
             glActiveTexture(GL_TEXTURE0);
             tileAtlasTexture.bind();
+            glBindVertexArray(spriteVaoId); // Use sprite VAO for textured part
+            glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+            spriteVertexBuffer.clear();
+            // ... (logic for tiling texture on button face, adding to spriteVertexBuffer using addVertexToSpriteBuffer) ...
+            // This part needs to be carefully implemented to fill spriteVertexBuffer
+            // Example for a single, non-tiled textured button face:
             float[] tintToUse = button.isHovered ? new float[]{1.05f, 1.05f, 1.02f, 1.0f} : WHITE_TINT;
-            float desiredRepeatCellWidth = 32f; float desiredRepeatCellHeight = 32f;
-            int numCellsX = (int) Math.max(1, Math.ceil(button.width / desiredRepeatCellWidth));
-            int numCellsY = (int) Math.max(1, Math.ceil(button.height / desiredRepeatCellHeight));
-            float actualCellDrawWidth = button.width / numCellsX; float actualCellDrawHeight = button.height / numCellsY;
-            float u0_tile = button.u0, v0_tile = button.v0; float u1_tile = button.u1, v1_tile = button.v1;
-
-            for (int cellY = 0; cellY < numCellsY; cellY++) {
-                for (int cellX = 0; cellX < numCellsX; cellX++) {
-                    if (spriteVertexBuffer.remaining() < 6 * FLOATS_PER_VERTEX_SPRITE_TEXTURED) {
-                        spriteVertexBuffer.flip(); glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
-                        glDrawArrays(GL_TRIANGLES, 0, faceVerticesToDraw);
-                        spriteVertexBuffer.clear(); faceVerticesToDraw = 0;
-                    }
-                    float currentX = button.x + cellX * actualCellDrawWidth;
-                    float currentY = button.y + cellY * actualCellDrawHeight;
-                    spriteVertexBuffer.put(currentX).put(currentY).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u0_tile).put(v0_tile).put(dummyLight);
-                    spriteVertexBuffer.put(currentX).put(currentY + actualCellDrawHeight).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u0_tile).put(v1_tile).put(dummyLight);
-                    spriteVertexBuffer.put(currentX + actualCellDrawWidth).put(currentY).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u1_tile).put(v0_tile).put(dummyLight);
-                    spriteVertexBuffer.put(currentX + actualCellDrawWidth).put(currentY).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u1_tile).put(v0_tile).put(dummyLight);
-                    spriteVertexBuffer.put(currentX).put(currentY + actualCellDrawHeight).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u0_tile).put(v1_tile).put(dummyLight);
-                    spriteVertexBuffer.put(currentX + actualCellDrawWidth).put(currentY + actualCellDrawHeight).put(Z_OFFSET_UI_ELEMENT).put(tintToUse).put(u1_tile).put(v1_tile).put(dummyLight);
-                    faceVerticesToDraw += 6;
-                }
-            }
-            if (tileAtlasTexture != null) tileAtlasTexture.unbind();
-        } else {
-            defaultShader.setUniform("uHasTexture", 0);
-            float[] topQuadColor = button.isHovered ? button.hoverBackgroundColor : button.baseBackgroundColor;
-            float gradientFactor = 0.15f;
-            float[] bottomQuadColor = new float[]{
-                    Math.max(0f, topQuadColor[0] - gradientFactor),
-                    Math.max(0f, topQuadColor[1] - gradientFactor),
-                    Math.max(0f, topQuadColor[2] - gradientFactor),
-                    topQuadColor[3]};
-            addGradientQuadToUiBuffer(spriteVertexBuffer, button.x, button.y, button.width, button.height, Z_OFFSET_UI_ELEMENT, topQuadColor, bottomQuadColor);
-            faceVerticesToDraw += 6;
-        }
-
-        if (faceVerticesToDraw > 0) {
+            addVertexToSpriteBuffer(spriteVertexBuffer, button.x, button.y, Z_OFFSET_UI_ELEMENT, tintToUse, button.u0, button.v0, 1f);
+            addVertexToSpriteBuffer(spriteVertexBuffer, button.x, button.y + button.height, Z_OFFSET_UI_ELEMENT, tintToUse, button.u0, button.v1, 1f);
+            addVertexToSpriteBuffer(spriteVertexBuffer, button.x + button.width, button.y, Z_OFFSET_UI_ELEMENT, tintToUse, button.u1, button.v0, 1f);
+            addVertexToSpriteBuffer(spriteVertexBuffer, button.x + button.width, button.y, Z_OFFSET_UI_ELEMENT, tintToUse, button.u1, button.v0, 1f);
+            addVertexToSpriteBuffer(spriteVertexBuffer, button.x, button.y + button.height, Z_OFFSET_UI_ELEMENT, tintToUse, button.u0, button.v1, 1f);
+            addVertexToSpriteBuffer(spriteVertexBuffer, button.x + button.width, button.y + button.height, Z_OFFSET_UI_ELEMENT, tintToUse, button.u1, button.v1, 1f);
             spriteVertexBuffer.flip();
             glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
-            glDrawArrays(GL_TRIANGLES, 0, faceVerticesToDraw);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+            tileAtlasTexture.unbind();
+        } else { // Solid color button face
+            defaultShader.setUniform("uHasTexture", 0);
+            defaultShader.setUniform("uIsSimpleUiElement", 1);
+            glBindVertexArray(uiColoredVaoId);
+            glBindBuffer(GL_ARRAY_BUFFER, uiColoredVboId);
+            uiColoredVertexBuffer.clear();
+            float[] topQuadColor = button.isHovered ? button.hoverBackgroundColor : button.baseBackgroundColor;
+            float gradientFactor = 0.15f;
+            float[] bottomQuadColor = new float[]{ Math.max(0f, topQuadColor[0] - gradientFactor), Math.max(0f, topQuadColor[1] - gradientFactor), Math.max(0f, topQuadColor[2] - gradientFactor), topQuadColor[3] };
+            addGradientQuadToUiColoredBuffer(uiColoredVertexBuffer, button.x, button.y, button.width, button.height, Z_OFFSET_UI_ELEMENT, topQuadColor, bottomQuadColor);
+            uiColoredVertexBuffer.flip();
+            glBufferSubData(GL_ARRAY_BUFFER, 0, uiColoredVertexBuffer);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
         }
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
 
+
+
+
+        glBindVertexArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        defaultShader.setUniform("uIsSimpleUiElement", 0); // Reset
+
+        // Text rendering
         float[] currentTextColor = button.isHovered ? button.hoverTextColor : button.baseTextColor;
         float textWidth = uiFont.getTextWidthScaled(button.text, 1.0f);
         float textX = button.x + (button.width - textWidth) / 2f;
@@ -1027,7 +1070,30 @@ public class Renderer {
             uiFont.drawText(textX, textY, button.text, currentTextColor[0], currentTextColor[1], currentTextColor[2]);
         }
     }
-
+    private void addQuadToUiColoredBuffer(FloatBuffer buffer, float x, float y, float w, float h, float z, float[] color) {
+        // TL
+        buffer.put(x).put(y).put(z).put(color[0]).put(color[1]).put(color[2]).put(color[3]);
+        // BL
+        buffer.put(x).put(y + h).put(z).put(color[0]).put(color[1]).put(color[2]).put(color[3]);
+        // TR
+        buffer.put(x + w).put(y).put(z).put(color[0]).put(color[1]).put(color[2]).put(color[3]);
+        // Second triangle: TR, BL, BR
+        buffer.put(x + w).put(y).put(z).put(color[0]).put(color[1]).put(color[2]).put(color[3]);
+        buffer.put(x).put(y + h).put(z).put(color[0]).put(color[1]).put(color[2]).put(color[3]);
+        buffer.put(x + w).put(y + h).put(z).put(color[0]).put(color[1]).put(color[2]).put(color[3]);
+    }
+    private void addGradientQuadToUiColoredBuffer(FloatBuffer buffer, float x, float y, float w, float h, float z, float[] topColor, float[] bottomColor) {
+        // TL
+        buffer.put(x).put(y).put(z).put(topColor[0]).put(topColor[1]).put(topColor[2]).put(topColor[3]);
+        // BL
+        buffer.put(x).put(y + h).put(z).put(bottomColor[0]).put(bottomColor[1]).put(bottomColor[2]).put(bottomColor[3]);
+        // TR
+        buffer.put(x + w).put(y).put(z).put(topColor[0]).put(topColor[1]).put(topColor[2]).put(topColor[3]);
+        // Second triangle
+        buffer.put(x + w).put(y).put(z).put(topColor[0]).put(topColor[1]).put(topColor[2]).put(topColor[3]);
+        buffer.put(x).put(y + h).put(z).put(bottomColor[0]).put(bottomColor[1]).put(bottomColor[2]).put(bottomColor[3]);
+        buffer.put(x + w).put(y + h).put(z).put(bottomColor[0]).put(bottomColor[1]).put(bottomColor[2]).put(bottomColor[3]);
+    }
     public void cleanup() {
         // ... (same as previous correct version)
         if(playerTexture!=null) playerTexture.delete(); playerTexture = null;

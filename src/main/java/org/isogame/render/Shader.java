@@ -70,7 +70,6 @@ public class Shader {
             GL20.glDeleteShader(fragmentShaderId);
         }
 
-        // Validate program (optional, but good for debugging)
         GL20.glValidateProgram(programId);
         if (GL20.glGetProgrami(programId, GL_VALIDATE_STATUS) == GL11.GL_FALSE) {
             System.err.println("Warning validating Shader code: " + GL20.glGetProgramInfoLog(programId, 1024));
@@ -80,32 +79,45 @@ public class Shader {
     public void createUniform(String uniformName) throws IOException {
         int uniformLocation = GL20.glGetUniformLocation(programId, uniformName);
         if (uniformLocation < 0) {
-            throw new IOException("Could not find uniform:" + uniformName);
+            // Don't throw an exception if a uniform is not found, it might be optimized out by the GLSL compiler if unused.
+            // System.err.println("Warning: Could not find uniform: " + uniformName + " in shader program " + programId + ". It might be unused or misspelled.");
+            // Instead, store -1 or handle it gracefully when setUniform is called.
+            // For simplicity, we'll still put it, but check before using in setUniform.
         }
         uniforms.put(uniformName, uniformLocation);
     }
 
     public void setUniform(String uniformName, Matrix4f value) {
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            FloatBuffer fb = stack.mallocFloat(16);
-            value.get(fb);
-            GL20.glUniformMatrix4fv(uniforms.get(uniformName), false, fb);
+        Integer location = uniforms.get(uniformName);
+        if (location != null && location >= 0) {
+            try (MemoryStack stack = MemoryStack.stackPush()) {
+                FloatBuffer fb = stack.mallocFloat(16);
+                value.get(fb);
+                GL20.glUniformMatrix4fv(location, false, fb);
+            }
         }
     }
 
     public void setUniform(String uniformName, org.joml.Vector4f value) {
-        GL20.glUniform4f(uniforms.get(uniformName), value.x, value.y, value.z, value.w);
+        Integer location = uniforms.get(uniformName);
+        if (location != null && location >= 0) {
+            GL20.glUniform4f(location, value.x, value.y, value.z, value.w);
+        }
     }
 
-
     public void setUniform(String uniformName, int value) {
-        GL20.glUniform1i(uniforms.get(uniformName), value);
+        Integer location = uniforms.get(uniformName);
+        if (location != null && location >= 0) {
+            GL20.glUniform1i(location, value);
+        }
     }
 
     public void setUniform(String uniformName, float value) {
-        GL20.glUniform1f(uniforms.get(uniformName), value);
+        Integer location = uniforms.get(uniformName);
+        if (location != null && location >= 0) {
+            GL20.glUniform1f(location, value);
+        }
     }
-
 
     public void bind() {
         GL20.glUseProgram(programId);
@@ -126,12 +138,15 @@ public class Shader {
         StringBuilder result = new StringBuilder();
         try (InputStream in = Shader.class.getResourceAsStream(resourcePath);
              BufferedReader reader = new BufferedReader(new InputStreamReader(in))) {
+            if (in == null) {
+                throw new IOException("Resource not found: " + resourcePath);
+            }
             String line;
             while ((line = reader.readLine()) != null) {
                 result.append(line).append("\n");
             }
         } catch (NullPointerException e) {
-            throw new IOException("Resource not found: " + resourcePath, e);
+            throw new IOException("Resource not found (NPE): " + resourcePath, e);
         }
         return result.toString();
     }
