@@ -10,8 +10,8 @@ public class Constants {
     public static final float PLAYER_WORLD_RENDER_HEIGHT = TILE_HEIGHT * 1.25f;
 
     // Map dimensions
-    public static final int MAP_WIDTH = 500;
-    public static final int MAP_HEIGHT = 500;
+    public static final int MAP_WIDTH = 200;
+    public static final int MAP_HEIGHT = 200;
     public static final int CHUNK_SIZE_TILES = 16;
 
     // Map generation
@@ -45,7 +45,6 @@ public class Constants {
     public static final int RENDER_DISTANCE_CHUNKS_MIN = 1;
     public static final int RENDER_DISTANCE_CHUNKS_MAX = 10;
 
-
     // Interaction
     public static final int MAX_INTERACTION_DISTANCE = 2;
 
@@ -62,6 +61,7 @@ public class Constants {
     public static final int HOTBAR_SIZE = 5;
 
     // Optimization Constants
-    public static final double DAY_NIGHT_CYCLE_SPEED = 0.02;
+    // Slowed down further to allow lighting transitions to visually complete
+    public static final double DAY_NIGHT_CYCLE_SPEED = 0.005; // Was 0.02, then 0.005 suggested
     public static final int SKY_LIGHT_UPDATE_THRESHOLD = 1;
 }
