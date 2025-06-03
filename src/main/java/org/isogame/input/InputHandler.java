@@ -20,125 +20,145 @@ public class InputHandler {
 
     private final long window;
     private final CameraManager cameraManager;
-    private final Map map;
-    private final PlayerModel player;
+    private Map map; // Made non-final to be updated
+    private PlayerModel player; // Made non-final to be updated
     private final Game gameInstance;
 
     public int selectedRow = 0;
     public int selectedCol = 0;
     private final Set<Integer> keysDown = new HashSet<>();
 
-    private static final float PLAYER_CAMERA_Y_SCREEN_OFFSET = -75.0f; // Visual offset for camera focus
+    private static final float PLAYER_CAMERA_Y_SCREEN_OFFSET = -75.0f;
 
     public InputHandler(long window, CameraManager cameraManager, Map map, PlayerModel player, Game gameInstance) {
         this.window = window;
         this.cameraManager = cameraManager;
-        this.map = map;
-        this.player = player;
+        this.map = map; // Can be null initially (for main menu)
+        this.player = player; // Can be null initially
         this.gameInstance = gameInstance;
-        if (player != null) {
+        if (this.player != null && this.map != null) { // Only set selected if player/map are valid
             this.selectedRow = player.getTileRow();
             this.selectedCol = player.getTileCol();
         }
+        System.out.println("InputHandler: Initialized. GameInstance: " + (gameInstance != null) + ", Map: " + (map != null) + ", Player: " + (player != null));
     }
+
+    /**
+     * Updates the internal map and player references.
+     * Called when the game starts or loads a new world.
+     * @param map The current game map.
+     * @param player The current player model.
+     */
+    public void updateGameReferences(Map map, PlayerModel player) {
+        this.map = map;
+        this.player = player;
+        if (this.player != null && this.map != null) {
+            this.selectedRow = player.getTileRow();
+            this.selectedCol = player.getTileCol();
+        } else {
+            this.selectedRow = 0;
+            this.selectedCol = 0;
+        }
+        System.out.println("InputHandler: Updated game references. Map: " + (this.map != null) + ", Player: " + (this.player != null));
+    }
+
 
     public void registerCallbacks(Runnable requestFullMapRegenerationCallback) {
         glfwSetKeyCallback(window, (win, key, scancode, action, mods) -> {
+            if (gameInstance == null) { // Should not happen if gameInstance is final and set in constructor
+                System.err.println("InputHandler (KeyCallback): gameInstance is null!");
+                return;
+            }
+
             if (key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE) {
-                if (gameInstance != null && gameInstance.getCurrentGameState() == Game.GameState.IN_GAME) {
+                if (gameInstance.getCurrentGameState() == Game.GameState.IN_GAME) {
                     gameInstance.setCurrentGameState(Game.GameState.MAIN_MENU);
-                } else if (gameInstance != null && gameInstance.getCurrentGameState() == Game.GameState.MAIN_MENU) {
+                } else if (gameInstance.getCurrentGameState() == Game.GameState.MAIN_MENU) {
                     glfwSetWindowShouldClose(window, true);
-                } else { // Should not happen, but as a fallback
+                } else {
                     glfwSetWindowShouldClose(window, true);
                 }
                 return;
             }
 
-            // Handle key presses relevant only when in game
-            if (gameInstance != null && gameInstance.getCurrentGameState() == Game.GameState.IN_GAME) {
+            if (gameInstance.getCurrentGameState() == Game.GameState.IN_GAME) {
+                if (player == null || map == null) { // Guard for in-game actions
+                    // System.err.println("InputHandler (KeyCallback): In-game key event but player or map is null.");
+                    return;
+                }
                 if (action == GLFW_PRESS) {
                     keysDown.add(key);
-                    handleSingleKeyPressInGame(key, requestFullMapRegenerationCallback); // Renamed for clarity
+                    handleSingleKeyPressInGame(key, requestFullMapRegenerationCallback);
                 } else if (action == GLFW_RELEASE) {
                     keysDown.remove(key);
-                    // Player movement input reset
-                    if ((key == GLFW_KEY_W || key == GLFW_KEY_S || key == GLFW_KEY_A || key == GLFW_KEY_D) && player != null) {
+                    if ((key == GLFW_KEY_W || key == GLFW_KEY_S || key == GLFW_KEY_A || key == GLFW_KEY_D)) {
                         boolean stillPressingMovementKey = keysDown.stream().anyMatch(k ->
                                 k == GLFW_KEY_W || k == GLFW_KEY_S || k == GLFW_KEY_A || k == GLFW_KEY_D);
                         if (!stillPressingMovementKey) {
                             player.setMovementInput(0f, 0f);
-                            // PlayerModel.update will set Action to IDLE if it was WALK and no input
                         }
                     }
                 }
-            } else if (action == GLFW_PRESS) { // Handle global key presses even if not in game (e.g., for menu)
-                keysDown.add(key); // Still track keys for potential menu interactions later
-            } else if (action == GLFW_RELEASE) {
-                keysDown.remove(key);
+            } else { // Not IN_GAME (e.g., MAIN_MENU)
+                if (action == GLFW_PRESS) {
+                    keysDown.add(key);
+                } else if (action == GLFW_RELEASE) {
+                    keysDown.remove(key);
+                }
             }
         });
     }
 
-    // Renamed to clarify it's for in-game actions
     private void handleSingleKeyPressInGame(int key, Runnable requestFullMapRegenerationCallback) {
-        // This method is only called if gameInstance.getCurrentGameState() == Game.GameState.IN_GAME
+        // This method assumes player and map are not null, guarded by the caller.
         switch (key) {
             case GLFW_KEY_J:
                 performPlayerActionOnCurrentlySelectedTile();
                 break;
             case GLFW_KEY_C:
-                if (player != null && cameraManager != null && map != null) {
-                    cameraManager.stopManualPan(); // Stop any manual panning
-                    // Recalculate focus point based on current player position
+                if (cameraManager != null) { // player and map are already checked by caller
+                    cameraManager.stopManualPan();
                     float[] focusPoint = calculateCameraFocusPoint(player.getMapCol(), player.getMapRow());
                     cameraManager.setTargetPositionInstantly(focusPoint[0], focusPoint[1]);
                 }
                 break;
             case GLFW_KEY_G: if (requestFullMapRegenerationCallback != null) requestFullMapRegenerationCallback.run(); break;
-            case GLFW_KEY_F: if (player != null) player.toggleLevitate(); break;
+            case GLFW_KEY_F: player.toggleLevitate(); break;
             case GLFW_KEY_Q: modifySelectedTileElevation(-1); break;
             case GLFW_KEY_E: modifySelectedTileElevation(1); break;
-            case GLFW_KEY_L: if (map != null) map.toggleTorch(selectedRow, selectedCol); break;
-            case GLFW_KEY_H: if(gameInstance != null) gameInstance.toggleHotbar(); break; // Ensure gameInstance check
-            case GLFW_KEY_F5: if(gameInstance != null) gameInstance.toggleShowDebugOverlay(); break;
-            case GLFW_KEY_F6: if(gameInstance != null) gameInstance.decreaseRenderDistance(); break;
-            case GLFW_KEY_F7: if(gameInstance != null) gameInstance.increaseRenderDistance(); break;
+            case GLFW_KEY_L: map.toggleTorch(selectedRow, selectedCol); break;
+            case GLFW_KEY_H: gameInstance.toggleHotbar(); break;
+            case GLFW_KEY_F5: gameInstance.toggleShowDebugOverlay(); break;
+            case GLFW_KEY_F6: gameInstance.decreaseRenderDistance(); break;
+            case GLFW_KEY_F7: gameInstance.increaseRenderDistance(); break;
             case GLFW_KEY_F9:
-                if (gameInstance != null) {
-                    String currentWorld = gameInstance.getCurrentWorldName();
-                    if (currentWorld != null && !currentWorld.trim().isEmpty()) {
-                        gameInstance.saveGame(currentWorld);
-                    } else {
-                        System.out.println("InputHandler: Cannot save, no current world name set in Game.");
-                        // Optionally, prompt for a name or save to a default if desired.
-                    }
+                String currentWorld = gameInstance.getCurrentWorldName();
+                if (currentWorld != null && !currentWorld.trim().isEmpty()) {
+                    gameInstance.saveGame(currentWorld);
+                } else {
+                    System.out.println("InputHandler: Cannot save, no current world name set in Game.");
                 }
                 break;
-            case GLFW_KEY_I: if(gameInstance != null) gameInstance.toggleInventory(); break;
-            // Hotbar selection keys
-            case GLFW_KEY_1: if(gameInstance != null) gameInstance.setSelectedInventorySlotIndex(0); break;
-            case GLFW_KEY_2: if(gameInstance != null) gameInstance.setSelectedInventorySlotIndex(1); break;
-            case GLFW_KEY_3: if(gameInstance != null) gameInstance.setSelectedInventorySlotIndex(2); break;
-            case GLFW_KEY_4: if(gameInstance != null) gameInstance.setSelectedInventorySlotIndex(3); break;
-            case GLFW_KEY_5: if(gameInstance != null) gameInstance.setSelectedInventorySlotIndex(4); break;
-            // Add more for larger hotbars if Constants.HOTBAR_SIZE allows
-            case GLFW_KEY_6: if(gameInstance != null && Constants.HOTBAR_SIZE > 5) gameInstance.setSelectedInventorySlotIndex(5); break;
-            case GLFW_KEY_7: if(gameInstance != null && Constants.HOTBAR_SIZE > 6) gameInstance.setSelectedInventorySlotIndex(6); break;
-            case GLFW_KEY_8: if(gameInstance != null && Constants.HOTBAR_SIZE > 7) gameInstance.setSelectedInventorySlotIndex(7); break;
-            case GLFW_KEY_9: if(gameInstance != null && Constants.HOTBAR_SIZE > 8) gameInstance.setSelectedInventorySlotIndex(8); break;
-            // GLFW_KEY_0 maps to slot 9 (index) if hotbar is size 10
-            case GLFW_KEY_0: if(gameInstance != null && Constants.HOTBAR_SIZE > 9) gameInstance.setSelectedInventorySlotIndex(9); break;
+            case GLFW_KEY_I: gameInstance.toggleInventory(); break;
+            case GLFW_KEY_1: gameInstance.setSelectedHotbarSlotIndex(0); break;
+            case GLFW_KEY_2: gameInstance.setSelectedHotbarSlotIndex(1); break;
+            case GLFW_KEY_3: gameInstance.setSelectedHotbarSlotIndex(2); break;
+            case GLFW_KEY_4: gameInstance.setSelectedHotbarSlotIndex(3); break;
+            case GLFW_KEY_5: gameInstance.setSelectedHotbarSlotIndex(4); break;
+            case GLFW_KEY_6: if(Constants.HOTBAR_SIZE > 5) gameInstance.setSelectedHotbarSlotIndex(5); break;
+            case GLFW_KEY_7: if(Constants.HOTBAR_SIZE > 6) gameInstance.setSelectedHotbarSlotIndex(6); break;
+            case GLFW_KEY_8: if(Constants.HOTBAR_SIZE > 7) gameInstance.setSelectedHotbarSlotIndex(7); break;
+            case GLFW_KEY_9: if(Constants.HOTBAR_SIZE > 8) gameInstance.setSelectedHotbarSlotIndex(8); break;
+            case GLFW_KEY_0: if(Constants.HOTBAR_SIZE > 9) gameInstance.setSelectedHotbarSlotIndex(9); break;
         }
     }
 
-    // Made public so Game class can call it
     public float[] calculateCameraFocusPoint(float playerMapCol, float playerMapRow) {
+        // This method assumes player, cameraManager, and map are not null when called for in-game.
         float targetFocusCol = playerMapCol;
         float targetFocusRow = playerMapRow;
 
-        if (player == null || cameraManager == null || map == null) {
-            // Return player's direct map coordinates if essential components are missing
+        if (player == null || cameraManager == null || map == null) { // Should be guarded by caller if in-game
             return new float[]{playerMapCol, playerMapRow};
         }
 
@@ -148,32 +168,8 @@ public class InputHandler {
             playerElevation = playerTile.getElevation();
         }
 
-        // Calculate the Y offset in world space to center the player's visual representation
-        // This considers player sprite height and the desired screen offset.
         float playerVisualCenterWorldYOffset = (-playerElevation * TILE_THICKNESS) - (PLAYER_WORLD_RENDER_HEIGHT / 2.0f);
         float totalWorldYOffsetToCenterPlayerVisually = playerVisualCenterWorldYOffset - (PLAYER_CAMERA_Y_SCREEN_OFFSET / cameraManager.getZoom());
-
-        // Convert this world Y offset back into map grid units.
-        // In isometric projection: worldY = (mapCol + mapRow) * TILE_HEIGHT_HALF
-        // So, delta_worldY = (delta_mapCol + delta_mapRow) * TILE_HEIGHT_HALF
-        // If we want to shift focus equally in mapCol and mapRow: delta_mapCol = delta_mapRow = D
-        // delta_worldY = 2 * D * TILE_HEIGHT_HALF = D * TILE_HEIGHT
-        // D = delta_worldY / TILE_HEIGHT
-        // However, our camera moves by adjusting targetX (mapCol) and targetY (mapRow) for the *center* of the screen.
-        // The translation (-camVisualX, -camVisualY, 0) in updateViewMatrix uses:
-        // camVisualX = (cameraX - cameraY) * TILE_WIDTH_HALF
-        // camVisualY = (cameraX + cameraY) * TILE_HEIGHT_HALF
-        // We want to adjust cameraX and cameraY (our targetFocusCol, targetFocusRow)
-        // such that the player appears at a certain screen position.
-        // The offset `totalWorldYOffsetToCenterPlayerVisually` is in the direction of positive screen Y.
-        // An increase in mapRow moves the world "down-left" on screen (positive screen Y for iso Y part).
-        // An increase in mapCol moves the world "down-right" on screen (positive screen Y for iso Y part).
-        // So, to compensate for a positive `totalWorldYOffsetToCenterPlayerVisually` (player is too high on screen,
-        // or rather, camera is looking too "low" on the map), we need to increase both mapCol and mapRow components of camera target.
-        // delta_map_units_sum = totalWorldYOffsetToCenterPlayerVisually / (TILE_HEIGHT / 2.0f)
-        // delta_map_col = delta_map_units_sum / 2.0f
-        // delta_map_row = delta_map_units_sum / 2.0f
-
         float deltaMapUnitsSumForCentering = totalWorldYOffsetToCenterPlayerVisually / (TILE_HEIGHT / 2.0f);
         targetFocusCol += deltaMapUnitsSumForCentering / 2.0f;
         targetFocusRow += deltaMapUnitsSumForCentering / 2.0f;
@@ -184,7 +180,10 @@ public class InputHandler {
 
     public void handleContinuousInput(double deltaTime) {
         if (gameInstance != null && gameInstance.getCurrentGameState() == Game.GameState.IN_GAME) {
-            if (player == null || cameraManager == null) return;
+            if (player == null || cameraManager == null || map == null) { // Guard for in-game actions
+                // System.err.println("InputHandler (ContinuousInput): player, cameraManager or map is null.");
+                return;
+            }
 
             float dCol = 0f;
             float dRow = 0f;
@@ -202,7 +201,7 @@ public class InputHandler {
 
                 if (dCol != 0f || dRow != 0f) {
                     float length = (float)Math.sqrt(dCol * dCol + dRow * dRow);
-                    if (length != 0) {
+                    if (length != 0) { // Avoid division by zero
                         dCol /= length;
                         dRow /= length;
                     }
@@ -223,9 +222,8 @@ public class InputHandler {
                 } else if (keysDown.contains(GLFW_KEY_A)) {
                     player.setDirection(PlayerModel.Direction.WEST);
                 }
-            } else { // No WASD movement keys are being pressed
+            } else {
                 player.setMovementInput(0f, 0f);
-                // PlayerModel.update() will set Action to IDLE if it was WALK and no input now
             }
 
             if (!cameraManager.isManuallyPanning()) {
@@ -236,75 +234,66 @@ public class InputHandler {
     }
 
     public void performPlayerActionOnCurrentlySelectedTile() {
-        if (player == null || map == null || gameInstance == null) return;
-        // Allow re-triggering HIT/CHOP to restart animation, or return if action must complete.
-        // if (player.getCurrentAction() == PlayerModel.Action.HIT || player.getCurrentAction() == PlayerModel.Action.CHOPPING) {
-        //      return; // Or allow restarting. Current PlayerModel.setAction allows restart.
-        // }
+        if (player == null || map == null || gameInstance == null) {
+            System.err.println("InputHandler: Cannot perform action, critical component (player, map, or gameInstance) is null.");
+            return;
+        }
 
         int targetR = this.selectedRow;
         int targetC = this.selectedCol;
-        if (!map.isValid(targetR, targetC)){ return; }
-
-        // Determine player facing direction towards the target tile
-        float dColPlayerToTarget = targetC - player.getMapCol(); // More positive means target is East-ish
-        float dRowPlayerToTarget = targetR - player.getMapRow(); // More positive means target is South-ish
-
-        // Crude determination of facing direction based on largest component
-        if (Math.abs(dColPlayerToTarget) > Math.abs(dRowPlayerToTarget)) { // Horizontal difference is greater
-            if (dColPlayerToTarget > 0) player.setDirection(PlayerModel.Direction.EAST);  // Target is East
-            else player.setDirection(PlayerModel.Direction.WEST); // Target is West
-        } else if (Math.abs(dRowPlayerToTarget) > Math.abs(dColPlayerToTarget)) { // Vertical difference is greater or equal
-            if (dRowPlayerToTarget > 0) player.setDirection(PlayerModel.Direction.SOUTH); // Target is South
-            else player.setDirection(PlayerModel.Direction.NORTH); // Target is North
-        } else if (dColPlayerToTarget != 0 || dRowPlayerToTarget != 0) { // Equidistant diagonal, prioritize one (e.g. South/East)
-            if (dRowPlayerToTarget > 0) player.setDirection(PlayerModel.Direction.SOUTH);
-            else if (dColPlayerToTarget > 0) player.setDirection(PlayerModel.Direction.EAST);
-                // Add more specific diagonal handling if needed, or default to a primary like South.
-            else player.setDirection(PlayerModel.Direction.SOUTH); // Fallback
-        }
-        // If target is player's current tile, direction doesn't need to change based on target.
 
         Tile targetTile = map.getTile(targetR, targetC);
+        if (targetTile == null){
+            System.err.println("InputHandler: Cannot perform action, target tile at ("+targetR+","+targetC+") is null or could not be generated.");
+            return;
+        }
+
+        float dColPlayerToTarget = targetC - player.getMapCol();
+        float dRowPlayerToTarget = targetR - player.getMapRow();
+
+        if (Math.abs(dColPlayerToTarget) > Math.abs(dRowPlayerToTarget)) {
+            if (dColPlayerToTarget > 0) player.setDirection(PlayerModel.Direction.EAST);
+            else player.setDirection(PlayerModel.Direction.WEST);
+        } else if (Math.abs(dRowPlayerToTarget) > Math.abs(dColPlayerToTarget)) {
+            if (dRowPlayerToTarget > 0) player.setDirection(PlayerModel.Direction.SOUTH);
+            else player.setDirection(PlayerModel.Direction.NORTH);
+        } else if (dColPlayerToTarget != 0 || dRowPlayerToTarget != 0) {
+            if (dRowPlayerToTarget > 0) player.setDirection(PlayerModel.Direction.SOUTH);
+            else if (dColPlayerToTarget > 0) player.setDirection(PlayerModel.Direction.EAST);
+            else player.setDirection(PlayerModel.Direction.SOUTH);
+        }
+
         Item selectedItem = null;
-        int selectedSlotIndex = gameInstance.getSelectedInventorySlotIndex(); // Game holds the UI selection
-        if (selectedSlotIndex >= 0 && selectedSlotIndex < player.getInventorySlots().size()) {
-            InventorySlot currentSlot = player.getInventorySlots().get(selectedSlotIndex);
+        int selectedSlotIndexInGame = gameInstance.getSelectedHotbarSlotIndex();
+        if (selectedSlotIndexInGame >= 0 && selectedSlotIndexInGame < player.getInventorySlots().size()) {
+            InventorySlot currentSlot = player.getInventorySlots().get(selectedSlotIndexInGame);
             if (currentSlot != null && !currentSlot.isEmpty()) {
                 selectedItem = currentSlot.getItem();
             }
         }
 
-        if (targetTile != null) {
-            player.setAction(PlayerModel.Action.HIT); // Default action for interaction
-            if (targetTile.getTreeType() != Tile.TreeVisualType.NONE) {
-                gameInstance.interactWithTree(targetR, targetC, player, selectedItem);
-            } else { // No tree, interact with the ground (digging)
-                if (targetTile.getElevation() >= NIVEL_MAR) { // Can only dig land, not water tiles directly
-                    Tile.TileType originalType = targetTile.getType();
-                    int originalElevation = targetTile.getElevation();
+        player.setAction(PlayerModel.Action.HIT);
+        if (targetTile.getTreeType() != Tile.TreeVisualType.NONE) {
+            gameInstance.interactWithTree(targetR, targetC, player, selectedItem);
+        } else {
+            if (targetTile.getElevation() >= NIVEL_MAR) {
+                Tile.TileType originalType = targetTile.getType();
+                int originalElevation = targetTile.getElevation();
+                int newElevation = Math.max(0, originalElevation - 1);
 
-                    // Digging lowers elevation by 1, down to elevation 0.
-                    // It won't turn land into water by digging below NIVEL_MAR.
-                    int newElevation = Math.max(0, originalElevation - 1);
+                if (originalElevation > newElevation || (originalElevation == newElevation && originalElevation > 0 && originalElevation >= NIVEL_MAR) ) {
+                    map.setTileElevation(targetR, targetC, newElevation);
 
-                    // Ensure digging actually changes something or is above minimum diggable level
-                    if (originalElevation > newElevation || (originalElevation == newElevation && originalElevation > 0 && originalElevation >= NIVEL_MAR) ) {
-                        map.setTileElevation(targetR, targetC, newElevation); // This will update tile type via determineTileTypeFromElevation
-
-                        Item receivedItem = null;
-                        switch (originalType) { // Item received is based on the *original* tile type
-                            case GRASS: receivedItem = ItemRegistry.DIRT; break; // Grass yields dirt
-                            case SAND:  receivedItem = ItemRegistry.SAND; break;
-                            case ROCK:  receivedItem = ItemRegistry.STONE; break;
-                            case DIRT:  receivedItem = ItemRegistry.DIRT; break;
-                            case SNOW:  receivedItem = ItemRegistry.DIRT; break; // Snow on rock/dirt might yield that
-                        }
-                        if (receivedItem != null) {
-                            player.addItemToInventory(receivedItem, 1);
-                        }
-                        // map.setTileElevation already marks chunks dirty via LightManager
-                        // gameInstance.requestTileRenderUpdate(targetR, targetC); // Redundant if setTileElevation handles it
+                    Item receivedItem = null;
+                    switch (originalType) {
+                        case GRASS: receivedItem = ItemRegistry.DIRT; break;
+                        case SAND:  receivedItem = ItemRegistry.SAND; break;
+                        case ROCK:  receivedItem = ItemRegistry.STONE; break;
+                        case DIRT:  receivedItem = ItemRegistry.DIRT; break;
+                        case SNOW:  receivedItem = ItemRegistry.DIRT; break;
+                    }
+                    if (receivedItem != null) {
+                        player.addItemToInventory(receivedItem, 1);
                     }
                 }
             }
@@ -312,29 +301,43 @@ public class InputHandler {
     }
 
     private void modifySelectedTileElevation(int amount) {
-        if (map == null || gameInstance == null) return;
+        if (map == null || gameInstance == null) {
+            System.err.println("InputHandler: Cannot modify elevation, map or gameInstance is null.");
+            return;
+        }
         Tile tile = map.getTile(selectedRow, selectedCol);
         if (tile != null) {
             int currentElevation = tile.getElevation();
             int newElevation = Math.max(0, Math.min(ALTURA_MAXIMA, currentElevation + amount));
             if (newElevation != currentElevation) {
-                map.setTileElevation(selectedRow, selectedCol, newElevation); // This method should handle render updates
+                map.setTileElevation(selectedRow, selectedCol, newElevation);
             }
+        } else {
+            System.err.println("InputHandler: Cannot modify elevation, tile at ("+selectedRow+","+selectedCol+") is null or could not be generated.");
         }
     }
 
     public void setSelectedTile(int col, int row) {
-        if (map == null) return;
-        if (!map.isValid(row, col)) {
+        if (map == null) { // Map might be null if called during menu state before game world init
+            // System.out.println("InputHandler: setSelectedTile called but map is null (likely menu state).");
             return;
         }
+
+        Tile newSelectedTile = map.getTile(row, col);
+        if (newSelectedTile == null) {
+            // System.out.println("InputHandler: Cannot select tile at (" + row + "," + col + "), not a valid map location or failed to generate.");
+            return;
+        }
+
         if (this.selectedRow != row || this.selectedCol != col) {
             int oldSelectedRow = this.selectedRow;
             int oldSelectedCol = this.selectedCol;
             this.selectedRow = row;
             this.selectedCol = col;
-            if (gameInstance != null) { // gameInstance might be null during very early init
-                if (map.isValid(oldSelectedRow, oldSelectedCol)) {
+
+            if (gameInstance != null) {
+                Tile oldTile = map.getTile(oldSelectedRow, oldSelectedCol);
+                if (oldTile != null) { // Only request update if old tile was valid
                     gameInstance.requestTileRenderUpdate(oldSelectedRow, oldSelectedCol);
                 }
                 gameInstance.requestTileRenderUpdate(this.selectedRow, this.selectedCol);

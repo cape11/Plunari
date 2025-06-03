@@ -1,17 +1,25 @@
 package org.isogame.map; // Or org.isogame.pathfinding
 
-import org.isogame.tile.Tile; // Assuming Tile.TileType is used for walkability
+import org.isogame.tile.Tile;
 
 import java.util.*;
 
 public class AStarPathfinder {
 
-    private static final int MOVE_STRAIGHT_COST = 10; // Cost for moving straight (scaled by 10 for integer math if preferred)
+    private static final int MOVE_STRAIGHT_COST = 10;
     // private static final int MOVE_DIAGONAL_COST = 14; // For diagonal movement later
 
     public List<PathNode> findPath(int startRow, int startCol, int endRow, int endCol, Map map) {
         PathNode startNode = new PathNode(startRow, startCol);
         PathNode endNode = new PathNode(endRow, endCol);
+
+        // Check if start or end nodes are even walkable before starting
+        // map.getTile() will generate chunk data if needed.
+        if (!isWalkableNode(map, startNode) || !isWalkableNode(map, endNode)) {
+            // System.out.println("AStar: Start or End node is not walkable.");
+            return Collections.emptyList();
+        }
+
 
         PriorityQueue<PathNode> openList = new PriorityQueue<>(Comparator.comparingDouble(node -> node.fCost));
         HashSet<PathNode> closedList = new HashSet<>();
@@ -21,7 +29,18 @@ public class AStarPathfinder {
         startNode.calculateFCost();
         openList.add(startNode);
 
+        int iterations = 0; // Safety break for very long paths or issues
+        int maxIterations = (Math.abs(startRow - endRow) + Math.abs(startCol - endCol)) * 10; // Heuristic limit
+        if (maxIterations < 2000) maxIterations = 2000; // Minimum iteration cap
+        if (maxIterations > 20000) maxIterations = 20000; // Maximum iteration cap to prevent freezing
+
         while (!openList.isEmpty()) {
+            iterations++;
+            if (iterations > maxIterations) {
+                System.err.println("AStar: Exceeded max iterations (" + maxIterations + "). Aborting pathfind.");
+                return Collections.emptyList(); // Path too long or no path found within reasonable effort
+            }
+
             PathNode currentNode = openList.poll();
 
             if (currentNode.equals(endNode)) {
@@ -31,48 +50,43 @@ public class AStarPathfinder {
             closedList.add(currentNode);
 
             // Explore neighbors (4-directional for now: Up, Down, Left, Right)
-            int[] dRow = {-1, 1, 0, 0};
+            // These are offsets for global coordinates
+            int[] dRow = {-1, 1, 0, 0}; // N, S, W, E
             int[] dCol = {0, 0, -1, 1};
 
             for (int i = 0; i < 4; i++) {
                 int neighborRow = currentNode.row + dRow[i];
                 int neighborCol = currentNode.col + dCol[i];
 
-                if (!map.isValid(neighborRow, neighborCol)) {
-                    continue; // Neighbor is outside map bounds
-                }
+                // For an infinite map, map.isValid is not used.
+                // Instead, we check if the tile itself is walkable.
+                // map.getTile(neighborRow, neighborCol) will generate chunk data if needed.
 
                 PathNode neighborNode = new PathNode(neighborRow, neighborCol);
                 if (closedList.contains(neighborNode)) {
                     continue; // Already evaluated
                 }
 
-                // Check walkability and elevation difference
-                if (!isWalkable(map, currentNode, neighborNode)) {
+                // Check walkability and elevation difference using the specific map instance
+                if (!isWalkableBetween(map, currentNode, neighborNode)) {
                     closedList.add(neighborNode); // Treat as unwalkable and explored
                     continue;
                 }
 
+                double tentativeGCost = currentNode.gCost + MOVE_STRAIGHT_COST;
 
-                double tentativeGCost = currentNode.gCost + MOVE_STRAIGHT_COST; // Add movement cost from Map if variable
+                boolean inOpenList = openList.contains(neighborNode); // Check if already in open list
 
-                if (tentativeGCost < neighborNode.gCost) {
+                if (tentativeGCost < neighborNode.gCost || !inOpenList) {
                     neighborNode.parent = currentNode;
                     neighborNode.gCost = tentativeGCost;
                     neighborNode.hCost = calculateHeuristic(neighborNode, endNode);
                     neighborNode.calculateFCost();
 
-                    if (!openList.contains(neighborNode)) {
-                        openList.add(neighborNode);
-                    } else {
-                        // Update priority queue if node already exists with higher fCost
-                        // Java's PriorityQueue doesn't have an efficient update.
-                        // A common workaround is to re-add, or use a custom PriorityQueue.
-                        // For simplicity, re-adding might lead to duplicates but A* handles it.
-                        // Better: remove and re-add, or use a structure that supports decrease-key.
-                        openList.remove(neighborNode); // Inefficient, but for demonstration
-                        openList.add(neighborNode);
+                    if (inOpenList) {
+                        openList.remove(neighborNode); // Remove and re-add to update priority
                     }
+                    openList.add(neighborNode);
                 }
             }
         }
@@ -95,19 +109,34 @@ public class AStarPathfinder {
         return (Math.abs(from.row - to.row) + Math.abs(from.col - to.col)) * MOVE_STRAIGHT_COST;
     }
 
-    // Helper for walkability, considering elevation
-    private boolean isWalkable(Map map, PathNode fromNode, PathNode toNode) {
-        Tile toTile = map.getTile(toNode.row, toNode.col);
-        Tile fromTile = map.getTile(fromNode.row, fromNode.col);
+    /**
+     * Checks if a single node (tile) is inherently walkable (not water, etc.).
+     */
+    private boolean isWalkableNode(Map map, PathNode node) {
+        Tile tile = map.getTile(node.row, node.col); // map.getTile handles chunk generation
+        if (tile == null) return false; // Should not happen if map.getTile works
+        if (tile.getType() == Tile.TileType.WATER || tile.getType() == Tile.TileType.AIR) return false;
+        // Add other non-walkable tile types if necessary (e.g., lava, very high cliffs if elevation isn't checked elsewhere)
+        return true;
+    }
 
-        if (toTile == null || fromTile == null) return false;
-        if (toTile.getType() == Tile.TileType.WATER) return false; // Cannot walk on water
+
+    /**
+     * Helper for walkability, considering transition FROM fromNode TO toNode.
+     * This includes checking the destination tile type and elevation difference.
+     */
+    private boolean isWalkableBetween(Map map, PathNode fromNode, PathNode toNode) {
+        Tile toTile = map.getTile(toNode.row, toNode.col);       // map.getTile handles chunk generation
+        Tile fromTile = map.getTile(fromNode.row, fromNode.col); // for these coordinates.
+
+        if (toTile == null || fromTile == null) return false; // Should not happen if map.getTile is robust
+        if (toTile.getType() == Tile.TileType.WATER || toTile.getType() == Tile.TileType.AIR) return false; // Cannot walk into water or air
 
         // Check elevation difference (e.g., can only step up/down 1 unit)
         int elevationDiff = Math.abs(toTile.getElevation() - fromTile.getElevation());
-        if (elevationDiff > 1) { // Adjust this threshold as needed
+        if (elevationDiff > 1) { // Adjust this threshold as needed (e.g., player step height)
             return false;
         }
-        return true; // Add other conditions like rocks being unwalkable if needed
+        return true; // Add other conditions like specific rocks being unwalkable if needed
     }
 }
