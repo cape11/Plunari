@@ -273,6 +273,8 @@ public class Renderer {
             defaultShader.createUniform("uHasTexture");
             defaultShader.createUniform("uIsFont");
             defaultShader.createUniform("uIsSimpleUiElement");
+            defaultShader.createUniform("u_time");             // NEW
+            defaultShader.createUniform("u_isSelectedIcon");   // NEW
         } catch (Exception e) {
             System.err.println("Renderer CRITICAL: Error initializing shaders: " + e.getMessage());
             throw new RuntimeException("Failed to init shaders", e);
@@ -753,7 +755,6 @@ public class Renderer {
     // This is the closing brace } of addTreeVerticesToBuffer_WorldSpace
     // ... (ensure you are outside the addTreeVerticesToBuffer_WorldSpace method)
 
-    // --- ADD THIS NEW METHOD ---
     private int addLooseRockVerticesToBuffer_WorldSpace(LooseRockData rock, FloatBuffer buffer) {
         // Ensure the texture for rocks (treeTexture in this case) is loaded
         if (treeTexture == null || rock.rockVisualType == Tile.LooseRockType.NONE || camera == null || map == null || treeTexture.getWidth() == 0) {
@@ -785,13 +786,6 @@ public class Renderer {
         float texTotalWidth = treeTexture.getWidth();
         float texTotalHeight = treeTexture.getHeight();
 
-        // Using the constants we discussed earlier.
-        // LOOSE_ROCK_SPRITE_X_PIX, LOOSE_ROCK_SPRITE_Y_PIX,
-        // LOOSE_ROCK_SPRITE_W_PIX, LOOSE_ROCK_SPRITE_H_PIX
-        // should be defined as static final floats in your Renderer class.
-        // If you haven't added them yet (step 2 of Renderer modification), you might want to,
-        // or you can hardcode the pixel values here temporarily.
-        // For now, assuming they are defined as constants in Renderer:
         float u0 = LOOSE_ROCK_SPRITE_X_PIX / texTotalWidth;
         float v0 = LOOSE_ROCK_SPRITE_Y_PIX / texTotalHeight;
         float u1 = (LOOSE_ROCK_SPRITE_X_PIX + LOOSE_ROCK_SPRITE_W_PIX) / texTotalWidth;
@@ -900,6 +894,7 @@ public class Renderer {
         defaultShader.setUniform("uModelViewMatrix", camera.getViewMatrix());
         defaultShader.setUniform("uIsFont", 0);
         defaultShader.setUniform("uIsSimpleUiElement", 0);
+        defaultShader.setUniform("u_isSelectedIcon", 0); // <-- ADD THIS LINE HERE
 
         if (map != null && tileAtlasTexture != null && tileAtlasTexture.getId() != 0) {
             glActiveTexture(GL_TEXTURE0);
@@ -1058,13 +1053,13 @@ public class Renderer {
                 }
 
                 // Draw slot border
-                if (currentSlotBorderWidth > 0) {
-                    addQuadToUiColoredBuffer(hotbarVertexDataBuffer,
-                            currentSlotDrawX - currentSlotBorderWidth, hotbarY - currentSlotBorderWidth,
-                            slotSize + (2 * currentSlotBorderWidth), slotSize + (2 * currentSlotBorderWidth),
-                            Z_OFFSET_UI_BORDER, slotSlotBorderColor); // e.g., Z = 0.03f
-                    hotbarVertexCount += 6;
-                }
+               // if (currentSlotBorderWidth > 0) {
+                   // addQuadToUiColoredBuffer(hotbarVertexDataBuffer,
+                    //        currentSlotDrawX - currentSlotBorderWidth, hotbarY - currentSlotBorderWidth,
+                    //        slotSize + (2 * currentSlotBorderWidth), slotSize + (2 * currentSlotBorderWidth),
+                   //         Z_OFFSET_UI_BORDER, slotSlotBorderColor); // e.g., Z = 0.03f
+                 //   hotbarVertexCount += 6;
+               // }
 
                 // Draw slot background (gradient)
                 float gradientFactor = 0.1f;
@@ -1077,10 +1072,10 @@ public class Renderer {
             }
 
             // Second pass (still using hotbarVertexDataBuffer): Add white borders for icons
-            float itemRenderSize = slotSize * 0.8f;
+            float itemRenderSize = slotSize * 0.9f;
             float itemOffset = (slotSize - itemRenderSize) / 2f;
             float iconBorderSize = 1.0f; // How many pixels thick the border should be around the icon
-            float[] iconBorderColor = WHITE_TINT; // Or new float[]{1f,1f,1f, 0.8f} for a slightly transparent white
+            float[] iconBorderColor = new float[]{1.0f, 1.0f, 1.0f, 0.0f}; // Fully transparent white
 
             for (int i = 0; i < hotbarSlotsToDisplay; i++) {
                 InventorySlot slot = (i < playerInventorySlots.size()) ? playerInventorySlots.get(i) : null;
@@ -1121,6 +1116,7 @@ public class Renderer {
         defaultShader.setUniform("uIsSimpleUiElement", 0);
         defaultShader.setUniform("uTextureSampler", 0);
 
+
         if (treeTexture != null && treeTexture.getId() != 0) {
             glActiveTexture(GL_TEXTURE0);
             treeTexture.bind();
@@ -1131,7 +1127,7 @@ public class Renderer {
             int iconTextureVerticesCount = 0; // Renamed for clarity
 
             float slotSize = 55f; float slotMargin = 6f; // Redefine for clarity or pass from above
-            float itemRenderSize = slotSize * 0.8f;
+            float itemRenderSize = slotSize * 0.99f;
             float itemOffset = (slotSize - itemRenderSize) / 2f;
             int hotbarSlotsToDisplay = Constants.HOTBAR_SIZE;
             float totalHotbarWidth = (hotbarSlotsToDisplay * slotSize) + ((Math.max(0, hotbarSlotsToDisplay - 1)) * slotMargin);
@@ -1145,15 +1141,17 @@ public class Renderer {
                 if (slot != null && !slot.isEmpty()) {
                     Item item = slot.getItem();
                     if (item.hasIconTexture()) {
-                        if (spriteVertexBuffer.remaining() < 6 * FLOATS_PER_VERTEX_SPRITE_TEXTURED) {
-                            if (iconTextureVerticesCount > 0) {
-                                spriteVertexBuffer.flip();
-                                glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
-                                glDrawArrays(GL_TRIANGLES, 0, iconTextureVerticesCount);
-                                spriteVertexBuffer.clear();
-                                iconTextureVerticesCount = 0;
-                            }
+                        boolean isActuallyTheSelectedIcon = (i == currentlySelectedHotbarSlot); // Check if this is the selected one
+
+                        if (isActuallyTheSelectedIcon) {
+                            defaultShader.setUniform("u_isSelectedIcon", 1); // 1 for true
+                            defaultShader.setUniform("u_time", (float) org.lwjgl.glfw.GLFW.glfwGetTime());
+                        } else {
+                            defaultShader.setUniform("u_isSelectedIcon", 0); // 0 for false
+                            // u_time doesn't matter if u_isSelectedIcon is false, but can set to 0
+                            // defaultShader.setUniform("u_time", 0.0f);
                         }
+
 
                         float currentSlotDrawX = hotbarX + i * (slotSize + slotMargin);
                         float iconX = currentSlotDrawX + itemOffset;
@@ -1340,7 +1338,7 @@ public class Renderer {
             spriteVertexBuffer.clear();
             int iconVerticesCount = 0;
 
-            float itemRenderSizeInv = slotSize * 0.8f; // Icon size
+            float itemRenderSizeInv = slotSize * 0.99f; // Icon size
             float itemOffsetInv = (slotSize - itemRenderSizeInv) / 2f;
 
             currentSlotDrawX = panelX + slotMargin; // Reset draw positions

@@ -56,6 +56,7 @@ public class ItemRegistry {
 
 
     // --- NEW ITEM DEFINITION FOR LOOSE ROCK ---
+    // --- NEW ITEM DEFINITION FOR LOOSE ROCK ---
     public static final Item LOOSE_ROCK = registerItem(new Item(
             "loose_rock",
             "Loose Rock",
@@ -64,7 +65,11 @@ public class ItemRegistry {
             64,
             LOOSE_ROCK_PLACEHOLDER_COLOR,
             // hasIconTexture, iconU0, iconV0, iconU1, iconV1
-            true, 0.029296875f, 0.3662109375f, 0.060546875f, 0.3740234375f
+            true,
+            0.0927734375f,    // u0 (95 / 1024)
+            0.37255859375f,  // v0 (1526 / 4096)
+            0.16015625f,    // u1 ( (95 + 69) / 1024 = 164 / 1024 )
+            0.389404296875f  // v1 ( (1526 + 69) / 4096 = 1595 / 4096 )
     ));
 // --- END OF NEW ITEM DEFINITIONS ---
 

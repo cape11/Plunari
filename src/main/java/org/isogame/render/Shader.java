@@ -85,6 +85,7 @@ public class Shader {
             // For simplicity, we'll still put it, but check before using in setUniform.
         }
         uniforms.put(uniformName, uniformLocation);
+
     }
 
     public void setUniform(String uniformName, Matrix4f value) {

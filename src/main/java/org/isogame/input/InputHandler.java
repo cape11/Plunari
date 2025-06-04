@@ -248,6 +248,13 @@ public class InputHandler {
             return;
         }
 
+        // Check if the target tile is within interaction range of the player
+        float distance = Math.abs(targetR - player.getMapRow()) + Math.abs(targetC - player.getMapCol());
+        if (distance > MAX_INTERACTION_DISTANCE) {
+            // Player is too far to interact with this tile
+            return;
+        }
+
         float dColPlayerToTarget = targetC - player.getMapCol();
         float dRowPlayerToTarget = targetR - player.getMapRow();
 
@@ -263,38 +270,52 @@ public class InputHandler {
             else player.setDirection(PlayerModel.Direction.SOUTH);
         }
 
-        Item selectedItem = null;
-        int selectedSlotIndexInGame = gameInstance.getSelectedHotbarSlotIndex();
-        if (selectedSlotIndexInGame >= 0 && selectedSlotIndexInGame < player.getInventorySlots().size()) {
-            InventorySlot currentSlot = player.getInventorySlots().get(selectedSlotIndexInGame);
-            if (currentSlot != null && !currentSlot.isEmpty()) {
-                selectedItem = currentSlot.getItem();
-            }
+        // Set player action
+        player.setAction(PlayerModel.Action.HIT);
+
+        // --- NEW LOGIC FOR LOOSE ROCKS AND TREES ---
+        // Prioritize picking up loose rocks over interacting with trees or digging
+        if (targetTile.getLooseRockType() != Tile.LooseRockType.NONE) {
+            player.addItemToInventory(ItemRegistry.LOOSE_ROCK, 1); // Add loose rock to inventory
+            targetTile.setLooseRockType(Tile.LooseRockType.NONE); // Remove the loose rock from the tile
+            map.markChunkAsModified(Math.floorDiv(targetC, CHUNK_SIZE_TILES), Math.floorDiv(targetR, CHUNK_SIZE_TILES));
+            gameInstance.requestTileRenderUpdate(targetR, targetC); // Request render update for the tile
+            return; // Action handled, exit method
         }
 
-        player.setAction(PlayerModel.Action.HIT);
         if (targetTile.getTreeType() != Tile.TreeVisualType.NONE) {
+            Item selectedItem = null;
+            int selectedSlotIndexInGame = gameInstance.getSelectedHotbarSlotIndex();
+            if (selectedSlotIndexInGame >= 0 && selectedSlotIndexInGame < player.getInventorySlots().size()) {
+                InventorySlot currentSlot = player.getInventorySlots().get(selectedSlotIndexInGame);
+                if (currentSlot != null && !currentSlot.isEmpty()) {
+                    selectedItem = currentSlot.getItem();
+                }
+            }
             gameInstance.interactWithTree(targetR, targetC, player, selectedItem);
-        } else {
-            if (targetTile.getElevation() >= NIVEL_MAR) {
-                Tile.TileType originalType = targetTile.getType();
-                int originalElevation = targetTile.getElevation();
-                int newElevation = Math.max(0, originalElevation - 1);
+            return; // Action handled, exit method
+        }
+        // --- END NEW LOGIC ---
 
-                if (originalElevation > newElevation || (originalElevation == newElevation && originalElevation > 0 && originalElevation >= NIVEL_MAR) ) {
-                    map.setTileElevation(targetR, targetC, newElevation);
+        // Original digging logic, only proceeds if no loose rock or tree was found
+        if (targetTile.getElevation() >= NIVEL_MAR) {
+            Tile.TileType originalType = targetTile.getType();
+            int originalElevation = targetTile.getElevation();
+            int newElevation = Math.max(0, originalElevation - 1);
 
-                    Item receivedItem = null;
-                    switch (originalType) {
-                        case GRASS: receivedItem = ItemRegistry.DIRT; break;
-                        case SAND:  receivedItem = ItemRegistry.SAND; break;
-                        case ROCK:  receivedItem = ItemRegistry.STONE; break;
-                        case DIRT:  receivedItem = ItemRegistry.DIRT; break;
-                        case SNOW:  receivedItem = ItemRegistry.DIRT; break;
-                    }
-                    if (receivedItem != null) {
-                        player.addItemToInventory(receivedItem, 1);
-                    }
+            if (originalElevation > newElevation || (originalElevation == newElevation && originalElevation > 0 && originalElevation >= NIVEL_MAR) ) {
+                map.setTileElevation(targetR, targetC, newElevation);
+
+                Item receivedItem = null;
+                switch (originalType) {
+                    case GRASS: receivedItem = ItemRegistry.DIRT; break;
+                    case SAND:  receivedItem = ItemRegistry.SAND; break;
+                    case ROCK:  receivedItem = ItemRegistry.STONE; break;
+                    case DIRT:  receivedItem = ItemRegistry.DIRT; break;
+                    case SNOW:  receivedItem = ItemRegistry.DIRT; break;
+                }
+                if (receivedItem != null) {
+                    player.addItemToInventory(receivedItem, 1);
                 }
             }
         }
