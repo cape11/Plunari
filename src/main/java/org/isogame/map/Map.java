@@ -68,6 +68,7 @@ public class Map {
         LightManager.ChunkCoordinate coord = new LightManager.ChunkCoordinate(chunkX, chunkY);
         if (loadedChunkTiles.containsKey(coord)) {
             return loadedChunkTiles.get(coord);
+
         }
 
         // Chunk not loaded, generate it
@@ -99,11 +100,19 @@ public class Map {
                 chunkTiles[y][x].setHasTorch(false);
                 chunkTiles[y][x].setTreeType(Tile.TreeVisualType.NONE);
 
-                // Simple tree generation logic (can be expanded)
+                // Simple tree generationF logic (can be expanded)
                 if (type == Tile.TileType.GRASS && elevation >= NIVEL_ARENA && elevation < NIVEL_ROCA) {
                     if (random.nextFloat() < 0.08) { // 8% chance for a tree on suitable grass tiles
                         chunkTiles[y][x].setTreeType(random.nextBoolean() ? Tile.TreeVisualType.APPLE_TREE_FRUITING : Tile.TreeVisualType.PINE_TREE_SMALL);
                     }
+                }
+                if (chunkTiles[y][x].getTreeType() == Tile.TreeVisualType.NONE && // No tree here
+                        (type == Tile.TileType.GRASS || type == Tile.TileType.DIRT || type == Tile.TileType.ROCK || type == Tile.TileType.SAND) && // Suitable ground
+                        elevation >= NIVEL_MAR && // Above sea level
+                        random.nextFloat() < 0.03) { // 3% chance for a loose rock on suitable tiles (adjust as you like)
+                    chunkTiles[y][x].setLooseRockType(Tile.LooseRockType.TYPE_1);
+                } else {
+                    chunkTiles[y][x].setLooseRockType(Tile.LooseRockType.NONE); // Ensure it's explicitly NONE otherwise
                 }
             }
         }
@@ -335,6 +344,7 @@ public class Map {
                 tsd.skyLightLevel = tile.getSkyLightLevel();
                 tsd.blockLightLevel = tile.getBlockLightLevel();
                 tsd.treeTypeOrdinal = tile.getTreeType().ordinal();
+                tsd.looseRockTypeOrdinal = tile.getLooseRockType().ordinal();
                 savedCols.add(tsd);
             }
             savedRows.add(savedCols);
@@ -391,6 +401,8 @@ public class Map {
                     tile.setSkyLightLevel(tsd.skyLightLevel);
                     tile.setBlockLightLevel(tsd.blockLightLevel);
                     tile.setTreeType(Tile.TreeVisualType.values()[tsd.treeTypeOrdinal]);
+                    tile.setLooseRockType(Tile.LooseRockType.values()[tsd.looseRockTypeOrdinal]);
+
                     chunkTiles[y][x] = tile;
                 }
             }
@@ -456,7 +468,7 @@ public class Map {
         targetTile.setElevation(newElevation);
         targetTile.setType(newType);
         targetTile.setTreeType(Tile.TreeVisualType.NONE); // Placing a block removes any tree
-
+        targetTile.setLooseRockType(Tile.LooseRockType.NONE); // Placing a block removes any loose rock
         int chunkX = Math.floorDiv(globalC, CHUNK_SIZE_TILES);
         int chunkY = Math.floorDiv(globalR, CHUNK_SIZE_TILES);
         markChunkAsModified(chunkX, chunkY);
@@ -483,6 +495,9 @@ public class Map {
 
         if (clampedElevation != oldElevation && tile.getTreeType() != Tile.TreeVisualType.NONE) {
             tile.setTreeType(Tile.TreeVisualType.NONE); // Elevation change removes trees
+        }
+        if (clampedElevation != oldElevation && tile.getLooseRockType() != Tile.LooseRockType.NONE) {
+            tile.setLooseRockType(Tile.LooseRockType.NONE); // Elevation change removes loose rocks
         }
 
         if (oldElevation != clampedElevation || oldType != tile.getType() || (oldTorchState != tile.hasTorch() && !oldTorchState) ) { // Check if torch was added or removed

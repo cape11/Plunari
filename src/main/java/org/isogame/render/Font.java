@@ -492,7 +492,15 @@ public class Font {
         }
         return width; //
     }
-
+    public float getFontHeight() {
+        // If you have a specific calculated height, return that.
+        // Otherwise, fontSize or ascent can be a good approximation.
+        // For example, if STBTTFontinfo gives you ascent/descent/linegap:
+        // return (ascent - descent + linegap) * scale;
+        // For now, let's assume fontSize is a reasonable proxy or you have another way to get it.
+        // If 'size' is the field holding the font size passed in the constructor:
+        return this.fontSize; // Or whatever field holds your font's point size or pixel height
+    }
 
     public void cleanup() { //
         System.out.println("[Font DEBUG] Cleanup called. Texture ID: " + this.textureID + ", VAO ID: " + vaoId + ", VBO ID: " + vboId); //

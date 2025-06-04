@@ -28,6 +28,7 @@ public class Chunk {
 
     private BoundingBox boundingBox;
     private List<Renderer.TreeData> treesInChunk = new ArrayList<>();
+    private List<Renderer.LooseRockData> looseRocksInChunk = new ArrayList<>(); // <-- ADD THIS LINE
 
     private boolean vboInitialized = false;
     private int vboCapacityFloats = 0; // Stores capacity in number of floats
@@ -97,6 +98,10 @@ public class Chunk {
         return treesInChunk;
     }
 
+    public List<Renderer.LooseRockData> getLooseRocksInChunk() { // <-- ADD THIS METHOD
+        return looseRocksInChunk;
+    }
+
     /**
      * Uploads geometry for this chunk to the GPU.
      * Retrieves tile data from the Map object, which may generate it on demand.
@@ -112,6 +117,8 @@ public class Chunk {
         }
 
         treesInChunk.clear();
+        looseRocksInChunk.clear(); // <-- ADD THIS LINE
+
         FloatBuffer chunkDataBuffer = null;
         int currentFloatsInThisUpload = 0;
 
@@ -158,6 +165,18 @@ public class Chunk {
                                 (float) (globalStartTileC + c_local),
                                 (float) (globalStartTileR + r_local),
                                 tile.getElevation()));
+                    }
+                    // Check for and store loose rocks  <-- ADD THIS BLOCK STARTING HERE
+                    if (tile != null && tile.getLooseRockType() != Tile.LooseRockType.NONE &&
+                            tile.getType() != Tile.TileType.WATER && tile.getType() != Tile.TileType.AIR) { // Don't place rocks in water/air or on non-existent tiles
+                        // Assuming Renderer.LooseRockData will have a constructor like: (Type, col, row, elevation)
+                        // We'll define LooseRockData in Renderer.java later.
+                        looseRocksInChunk.add(new Renderer.LooseRockData(
+                                tile.getLooseRockType(),
+                                (float) (globalStartTileC + c_local),
+                                (float) (globalStartTileR + r_local),
+                                tile.getElevation()
+                        ));
                     }
                 }
                 if (chunkDataBuffer.remaining() < (MAX_VERTICES_PER_TILE_COLUMN * Renderer.FLOATS_PER_VERTEX_TERRAIN_TEXTURED)) {
@@ -223,6 +242,7 @@ public class Chunk {
         vboInitialized = false;
         vboCapacityFloats = 0;
         treesInChunk.clear();
+        looseRocksInChunk.clear();
     }
 
     public static class BoundingBox {

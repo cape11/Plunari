@@ -21,6 +21,7 @@ public class ItemRegistry {
     public static final Item DIRT = registerItem(new Item("dirt", "Dirt", "A block of common soil.", Item.ItemType.RESOURCE, 64, DIRT_COLOR));
     public static final Item STONE = registerItem(new Item("stone", "Stone", "A hard piece of rock.", Item.ItemType.RESOURCE, 64, STONE_COLOR));
     public static final Item SAND = registerItem(new Item("sand", "Sand", "Fine grains of sand.", Item.ItemType.RESOURCE, 64, SAND_COLOR));
+    private static final float[] LOOSE_ROCK_PLACEHOLDER_COLOR = {0.4f, 0.4f, 0.4f, 1.0f}; // Darker Gray for Loose Rock
 
     // --- ADD THESE NEW ITEM DEFINITIONS ---
     public static final Item WOOD = registerItem(new Item(
@@ -36,9 +37,11 @@ public class ItemRegistry {
             "stick",
             "Stick",
             "A simple wooden stick, a basic crafting material.",
-            Item.ItemType.RESOURCE, // Sticks are resources
-            64,                     // Max stack size
-            STICK_PLACEHOLDER_COLOR
+            Item.ItemType.RESOURCE,
+            64,
+            STICK_PLACEHOLDER_COLOR,
+            // hasIconTexture, iconU0, iconV0, iconU1, iconV1
+            true, 0.0234375f, 0.390625f, 0.0859375f, 0.40625f // <-- UPDATED UVs for STICK
     ));
 
     public static final Item CRUDE_AXE = registerItem(new Item(
@@ -50,8 +53,22 @@ public class ItemRegistry {
             AXE_PLACEHOLDER_COLOR
             // If you later add icon UVs to Item constructor, you'd add them here too.
     ));
-    // --- END OF NEW ITEM DEFINITIONS ---
 
+
+    // --- NEW ITEM DEFINITION FOR LOOSE ROCK ---
+    public static final Item LOOSE_ROCK = registerItem(new Item(
+            "loose_rock",
+            "Loose Rock",
+            "A small rock, easily picked up. Might be useful.",
+            Item.ItemType.RESOURCE,
+            64,
+            LOOSE_ROCK_PLACEHOLDER_COLOR,
+            // hasIconTexture, iconU0, iconV0, iconU1, iconV1
+            true, 0.029296875f, 0.3662109375f, 0.060546875f, 0.3740234375f
+    ));
+// --- END OF NEW ITEM DEFINITIONS ---
+
+    /// //////////////////////////////
 
     private static Item registerItem(Item item) {
         items.put(item.getItemId().toLowerCase(), item); // Store with lowercase ID for consistent retrieval
