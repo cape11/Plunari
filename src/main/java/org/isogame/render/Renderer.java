@@ -13,7 +13,9 @@ import org.isogame.map.Map;
 import org.isogame.tile.Tile;
 import org.isogame.ui.MenuItemButton;
 import org.joml.Matrix4f;
+import org.lwjgl.glfw.GLFW;
 import org.lwjgl.system.MemoryUtil;
+import static org.lwjgl.glfw.GLFW.*; // <<< ADD THIS LINE
 
 import java.io.IOException;
 import java.nio.FloatBuffer;
@@ -90,6 +92,24 @@ public class Renderer {
     public static final float LOOSE_ROCK_SPRITE_W_PIX = 50.0f;    // Assuming still 32px wide
     public static final float LOOSE_ROCK_SPRITE_H_PIX = 50.0f;    // Assuming still 32px high
 
+    // UVs for Rock Type 2
+    public static final float LOOSE_ROCK_2_X_PIX = 75.0f;
+    public static final float LOOSE_ROCK_2_Y_PIX = 1550.0f;
+    // UVs for Rock Type 3
+    public static final float LOOSE_ROCK_3_X_PIX = 125.0f;
+    public static final float LOOSE_ROCK_3_Y_PIX = 1550.0f;
+    // UVs for Rock Type 4
+    public static final float LOOSE_ROCK_4_X_PIX = 175.0f;
+    public static final float LOOSE_ROCK_4_Y_PIX = 1550.0f;
+    // UVs for Rock Type 5
+    public static final float LOOSE_ROCK_5_X_PIX = 225.0f;
+    public static final float LOOSE_ROCK_5_Y_PIX = 1550.0f;
+    // UVs for Rock Type 6
+    public static final float LOOSE_ROCK_6_X_PIX = 275.0f;
+    public static final float LOOSE_ROCK_6_Y_PIX = 1550.0f;
+
+
+
     private static final float SIDE_TEXTURE_DENSITY_FACTOR = 1.0f;
     private static final float DUMMY_U = 0.0f, DUMMY_V = 0.0f;
     private static final float[] SELECTED_TINT = {1.0f, 0.8f, 0.0f, 0.8f};
@@ -112,8 +132,8 @@ public class Renderer {
     private static final float Z_OFFSET_UI_BORDER = 0.03f;
     private static final float Z_OFFSET_UI_ELEMENT = 0.02f;
 
-    private final float tileHalfWidth = Constants.TILE_WIDTH / 2.0f;
-    private final float tileHalfHeight = Constants.TILE_HEIGHT / 2.0f;
+    private final float tileHalfWidth = TILE_WIDTH / 2.0f;
+    private final float tileHalfHeight = TILE_HEIGHT / 2.0f;
     private final float diamondTopOffsetY = -this.tileHalfHeight;
     private final float diamondLeftOffsetX = -this.tileHalfWidth;
     private final float diamondSideOffsetY = 0;
@@ -182,11 +202,7 @@ public class Renderer {
         }
         System.out.println("Renderer: Game context set. Active chunks and entities cleared.");
     }
-
-    /**
-     * Clears game-specific context from the renderer.
-     * Called when returning to the main menu.
-     */
+    
     public void clearGameContext() {
         System.out.println("Renderer: Clearing game context.");
         if (this.activeMapChunks != null && !this.activeMapChunks.isEmpty()) {
@@ -311,7 +327,7 @@ public class Renderer {
         hotbarVboId = glGenBuffers();
         glBindBuffer(GL_ARRAY_BUFFER, hotbarVboId);
 
-        int maxHotbarVertices = Constants.HOTBAR_SIZE * 3 * 6;
+        int maxHotbarVertices = HOTBAR_SIZE * 3 * 6;
         int hotbarBufferCapacityFloats = maxHotbarVertices * FLOATS_PER_VERTEX_UI_COLORED;
 
         if (hotbarVertexDataBuffer != null) {
@@ -343,7 +359,7 @@ public class Renderer {
         LightManager.ChunkCoordinate coord = new LightManager.ChunkCoordinate(chunkGridX, chunkGridY);
         Chunk chunk = activeMapChunks.get(coord);
         if (chunk == null) {
-            chunk = new Chunk(chunkGridX, chunkGridY, Constants.CHUNK_SIZE_TILES);
+            chunk = new Chunk(chunkGridX, chunkGridY, CHUNK_SIZE_TILES);
             chunk.setupGLResources();
             activeMapChunks.put(coord, chunk);
         }
@@ -402,7 +418,7 @@ public class Renderer {
 
     private float[] determineTopSurfaceColor(Tile.TileType surfaceType, boolean isSelected) {
         if (isSelected) {
-            float pulseFactor = (float) (Math.sin(org.lwjgl.glfw.GLFW.glfwGetTime() * 6.0) + 1.0) / 2.0f;
+            float pulseFactor = (float) (Math.sin(GLFW.glfwGetTime() * 6.0) + 1.0) / 2.0f;
             float baseAlpha = SELECTED_TINT[3];
             float minPulseAlpha = baseAlpha * 0.5f;
             float animatedAlpha = minPulseAlpha + (baseAlpha - minPulseAlpha) * pulseFactor;
@@ -755,12 +771,15 @@ public class Renderer {
     // This is the closing brace } of addTreeVerticesToBuffer_WorldSpace
     // ... (ensure you are outside the addTreeVerticesToBuffer_WorldSpace method)
 
+    // ... inside Renderer.java ...
+
     private int addLooseRockVerticesToBuffer_WorldSpace(LooseRockData rock, FloatBuffer buffer) {
         // Ensure the texture for rocks (treeTexture in this case) is loaded
         if (treeTexture == null || rock.rockVisualType == Tile.LooseRockType.NONE || camera == null || map == null || treeTexture.getWidth() == 0) {
             return 0;
         }
 
+        // --- This top part remains the same ---
         float rR = rock.mapRow; // Rock's map row
         float rC = rock.mapCol; // Rock's map column
         int elev = rock.elevation;
@@ -772,30 +791,59 @@ public class Renderer {
         float rockBaseIsoX = (rC - rR) * this.tileHalfWidth;
         float rockBaseIsoY = (rC + rR) * this.tileHalfHeight - (elev * TILE_THICKNESS);
 
-        // Z-depth calculation, similar to trees but maybe slightly different offset if needed
         float tileLogicalZ = (rR + rC) * DEPTH_SORT_FACTOR + (elev * 0.005f);
-        // Using Z_OFFSET_SPRITE_TREE for rocks for now, adjust if they need to appear above/below trees or player
         float rockWorldZ = tileLogicalZ + Z_OFFSET_SPRITE_TREE;
 
-        // Define render dimensions for the rock sprite.
-        // Rocks are 32x32. Let's make them appear a bit smaller than a full tile width.
         float renderWidth = Constants.TILE_WIDTH * 0.4f; // Adjust size as desired
-        float renderHeight = renderWidth; // Assuming square rock sprite from the 32x32 source
+        float renderHeight = renderWidth;
 
-        // UV coordinates for the first rock (X=0, Y=1546, W=32, H=32 on fruit-tree.png)
+        // --- This is the new logic ---
         float texTotalWidth = treeTexture.getWidth();
         float texTotalHeight = treeTexture.getHeight();
+        float spriteX, spriteY, spriteW, spriteH;
 
-        float u0 = LOOSE_ROCK_SPRITE_X_PIX / texTotalWidth;
-        float v0 = LOOSE_ROCK_SPRITE_Y_PIX / texTotalHeight;
-        float u1 = (LOOSE_ROCK_SPRITE_X_PIX + LOOSE_ROCK_SPRITE_W_PIX) / texTotalWidth;
-        float v1 = (LOOSE_ROCK_SPRITE_Y_PIX + LOOSE_ROCK_SPRITE_H_PIX) / texTotalHeight;
+        // Select the correct sprite coordinates based on the rock type
+        switch (rock.rockVisualType) {
+            case TYPE_2:
+                spriteX = LOOSE_ROCK_2_X_PIX;
+                spriteY = LOOSE_ROCK_2_Y_PIX;
+                break;
+            case TYPE_3:
+                spriteX = LOOSE_ROCK_3_X_PIX;
+                spriteY = LOOSE_ROCK_3_Y_PIX;
+                break;
+            case TYPE_4:
+                spriteX = LOOSE_ROCK_4_X_PIX;
+                spriteY = LOOSE_ROCK_4_Y_PIX;
+                break;
+            case TYPE_5:
+                spriteX = LOOSE_ROCK_5_X_PIX;
+                spriteY = LOOSE_ROCK_5_Y_PIX;
+                break;
+            case TYPE_6:
+                spriteX = LOOSE_ROCK_6_X_PIX;
+                spriteY = LOOSE_ROCK_6_Y_PIX;
+                break;
+            case TYPE_1:
+            default: // Default to TYPE_1 if something goes wrong
+                spriteX = LOOSE_ROCK_SPRITE_X_PIX;
+                spriteY = LOOSE_ROCK_SPRITE_Y_PIX;
+                break;
+        }
+        // Assuming all rock sprites have the same dimensions
+        spriteW = LOOSE_ROCK_SPRITE_W_PIX;
+        spriteH = LOOSE_ROCK_SPRITE_H_PIX;
 
-        // Anchor point for the rock sprite (bottom-center of the sprite rests on rockBaseIsoX, rockBaseIsoY)
+        // Calculate final UVs from the selected sprite coordinates
+        float u0 = spriteX / texTotalWidth;
+        float v0 = spriteY / texTotalHeight;
+        float u1 = (spriteX + spriteW) / texTotalWidth;
+        float v1 = (spriteY + spriteH) / texTotalHeight;
+
+        // --- The vertex generation part remains the same ---
         float halfRockRenderWidth = renderWidth / 2.0f;
-        // For rocks, they likely sit flat, so the top Y of the sprite is base - height
         float yTop = rockBaseIsoY - renderHeight;
-        float yBottom = rockBaseIsoY; // Sprite's bottom edge aligns with the tile's calculated Y position
+        float yBottom = rockBaseIsoY;
 
         float xBL = rockBaseIsoX - halfRockRenderWidth;
         float yBL_sprite = yBottom;
@@ -806,8 +854,6 @@ public class Renderer {
         float xBR = rockBaseIsoX + halfRockRenderWidth;
         float yBR_sprite = yBottom;
 
-        // Add vertices (2 triangles to form a quad)
-        // Using addVertexToSpriteBuffer which you should already have for player/trees
         addVertexToSpriteBuffer(buffer, xTL, yTL_sprite, rockWorldZ, WHITE_TINT, u0, v0, lightVal);
         addVertexToSpriteBuffer(buffer, xBL, yBL_sprite, rockWorldZ, WHITE_TINT, u0, v1, lightVal);
         addVertexToSpriteBuffer(buffer, xTR, yTR_sprite, rockWorldZ, WHITE_TINT, u1, v0, lightVal);
@@ -816,9 +862,8 @@ public class Renderer {
         addVertexToSpriteBuffer(buffer, xBL, yBL_sprite, rockWorldZ, WHITE_TINT, u0, v1, lightVal);
         addVertexToSpriteBuffer(buffer, xBR, yBR_sprite, rockWorldZ, WHITE_TINT, u1, v1, lightVal);
 
-        return 6; // 6 vertices added
+        return 6;
     }
-    // --- END OF NEW METHOD ---
 
     private int addTreeVerticesToBuffer_WorldSpace(TreeData tree, FloatBuffer buffer) {
         if (treeTexture == null || tree.treeVisualType == Tile.TreeVisualType.NONE || camera == null || map == null || treeTexture.getWidth() == 0) return 0;
@@ -1021,7 +1066,7 @@ public class Renderer {
 
             float slotSize = 55f;
             float slotMargin = 6f;
-            int hotbarSlotsToDisplay = Constants.HOTBAR_SIZE;
+            int hotbarSlotsToDisplay = HOTBAR_SIZE;
             float totalHotbarWidth = (hotbarSlotsToDisplay * slotSize) + ((Math.max(0, hotbarSlotsToDisplay - 1)) * slotMargin);
             float hotbarX = (camera.getScreenWidth() - totalHotbarWidth) / 2.0f;
             float hotbarY = camera.getScreenHeight() - slotSize - (slotMargin * 3);
@@ -1129,7 +1174,7 @@ public class Renderer {
             float slotSize = 55f; float slotMargin = 6f; // Redefine for clarity or pass from above
             float itemRenderSize = slotSize * 0.99f;
             float itemOffset = (slotSize - itemRenderSize) / 2f;
-            int hotbarSlotsToDisplay = Constants.HOTBAR_SIZE;
+            int hotbarSlotsToDisplay = HOTBAR_SIZE;
             float totalHotbarWidth = (hotbarSlotsToDisplay * slotSize) + ((Math.max(0, hotbarSlotsToDisplay - 1)) * slotMargin);
             float hotbarX = (camera.getScreenWidth() - totalHotbarWidth) / 2.0f;
             float hotbarY = camera.getScreenHeight() - slotSize - (slotMargin * 3);
@@ -1145,7 +1190,7 @@ public class Renderer {
 
                         if (isActuallyTheSelectedIcon) {
                             defaultShader.setUniform("u_isSelectedIcon", 1); // 1 for true
-                            defaultShader.setUniform("u_time", (float) org.lwjgl.glfw.GLFW.glfwGetTime());
+                            defaultShader.setUniform("u_time", (float) GLFW.glfwGetTime());
                         } else {
                             defaultShader.setUniform("u_isSelectedIcon", 0); // 0 for false
                             // u_time doesn't matter if u_isSelectedIcon is false, but can set to 0
@@ -1207,7 +1252,7 @@ public class Renderer {
         }
 
         float slotSize = 55f; float slotMargin = 6f;
-        int hotbarSlotsToDisplay = Constants.HOTBAR_SIZE;
+        int hotbarSlotsToDisplay = HOTBAR_SIZE;
         float totalHotbarWidth = (hotbarSlotsToDisplay * slotSize) + ((Math.max(0, hotbarSlotsToDisplay - 1)) * slotMargin);
         float hotbarX = (camera.getScreenWidth() - totalHotbarWidth) / 2.0f;
         float hotbarY = camera.getScreenHeight() - slotSize - (slotMargin * 3);
@@ -1276,8 +1321,12 @@ public class Renderer {
 
         float panelWidth = (slotsPerRow * slotSize) + ((slotsPerRow + 1) * slotMargin);
         float panelHeight = (numRows * slotSize) + ((numRows + 1) * slotMargin);
-        float panelX = (camera.getScreenWidth() - panelWidth) / 2.0f;
-        float panelY = (camera.getScreenHeight() - panelHeight) / 2.0f;
+
+// --- THIS IS THE MODIFIED SECTION ---
+        float inventoryMarginX = 30f; // A 30-pixel margin from the right edge. You can adjust this value.
+        float panelX = camera.getScreenWidth() - panelWidth - inventoryMarginX; // Position on the right
+        float panelY = (camera.getScreenHeight() - panelHeight) / 2.0f; // Keep it centered vertically
+
 
         float[] panelColor = {0.2f, 0.2f, 0.25f, 0.85f};
         addQuadToUiColoredBuffer(uiColoredVertexBuffer, panelX, panelY, panelWidth, panelHeight, Z_OFFSET_UI_PANEL, panelColor);
@@ -1295,7 +1344,7 @@ public class Renderer {
             // float[] actualSlotColor = (i == selectedSlotIndex) ? slotColorSelected : slotColorDefault; // Adjust if inventory selection is different
             // For now, let's assume selectedSlotIndex highlights the hotbar, and inventory might not have a separate "selected" visual unless clicked.
             // If you want inventory slots to also highlight based on selectedHotbarSlotIndex (if it's one of the first few):
-            boolean isThisSlotSelected = (i == selectedSlotIndex && i < Constants.HOTBAR_SIZE); // Example: only highlight if it's a hotbar slot being shown in full inventory
+            boolean isThisSlotSelected = (i == selectedSlotIndex && i < HOTBAR_SIZE); // Example: only highlight if it's a hotbar slot being shown in full inventory
             float[] actualSlotColor = isThisSlotSelected ? slotColorSelected : slotColorDefault;
 
 
@@ -1461,15 +1510,6 @@ public class Renderer {
         currentSlotDrawY = panelY + slotMargin;
         colCount = 0;
 
-        for (int i = 0; i < slots.size(); i++) {
-            InventorySlot slot = slots.get(i);
-            if (!slot.isEmpty() && slot.getQuantity() > 1) {
-                String quantityStr = String.valueOf(slot.getQuantity());
-                float qtyTextWidth = currentUiFont.getTextWidthScaled(quantityStr, 1.0f);
-                float qtyTextX = currentSlotDrawX + slotSize - qtyTextWidth - textPaddingFromEdge;
-                float qtyTextY = currentSlotDrawY + slotSize - textPaddingFromEdge;
-                currentUiFont.drawText(qtyTextX, qtyTextY, quantityStr, 1f, 1f, 1f);
-            }
             currentSlotDrawX += slotSize + slotMargin;
             colCount++;
             if (colCount >= slotsPerRow) {
@@ -1477,7 +1517,81 @@ public class Renderer {
                 currentSlotDrawX = panelX + slotMargin;
                 currentSlotDrawY += slotSize + slotMargin;
             }
+        // --- ADD THIS NEW SECTION AT THE VERY END OF THE METHOD ---
+
+        // Part 4: Render the item being dragged at the mouse cursor
+        if (game != null && game.isDraggingItem() && game.getDraggedItemStack() != null) {
+
+            // Get mouse position
+            double[] xpos = new double[1];
+            double[] ypos = new double[1];
+            glfwGetCursorPos(game.getWindowHandle(), xpos, ypos); // Assumes you add a getWindowHandle() to Game that returns window
+
+            // Scale mouse coordinates to framebuffer pixels if necessary
+            int[] fbW = new int[1], fbH = new int[1], winW = new int[1], winH = new int[1];
+            // CORRECTED: These now call the new method on the game object
+            glfwGetFramebufferSize(game.getWindowHandle(), fbW, fbH);
+            glfwGetWindowSize(game.getWindowHandle(), winW, winH);
+            double scaleX = (fbW[0] > 0 && winW[0] > 0) ? (double)fbW[0] / winW[0] : 1.0;
+            double scaleY = (fbH[0] > 0 && winH[0] > 0) ? (double)fbH[0] / winH[0] : 1.0;
+            float mouseX_physical = (float)(xpos[0] * scaleX);
+            float mouseY_physical = (float)(ypos[0] * scaleY);
+            InventorySlot draggedSlot = game.getDraggedItemStack();
+            Item draggedItem = draggedSlot.getItem();
+
+            float itemRenderSize = 50f; // Size of the dragged icon
+            // Center the icon on the mouse cursor
+            float iconX = mouseX_physical - (itemRenderSize / 2f);
+            float iconY = mouseY_physical - (itemRenderSize / 2f);
+
+            // Draw the item icon (similar to hotbar/inventory icon drawing)
+            if (draggedItem.hasIconTexture() && treeTexture != null && treeTexture.getId() != 0) {
+                defaultShader.bind(); // Ensure shader is bound
+                defaultShader.setUniform("uHasTexture", 1);
+                defaultShader.setUniform("uIsSimpleUiElement", 0);
+                glActiveTexture(GL_TEXTURE0);
+                treeTexture.bind(); // Bind your texture atlas
+
+                glBindVertexArray(spriteVaoId);
+                glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+                spriteVertexBuffer.clear();
+
+                // Add vertices for the single dragged icon
+                addIconToSpriteBuffer(spriteVertexBuffer, iconX, iconY, itemRenderSize, draggedItem, Z_OFFSET_UI_ELEMENT - 0.005f);
+
+                spriteVertexBuffer.flip();
+                glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+                glDrawArrays(GL_TRIANGLES, 0, 6);
+
+                treeTexture.unbind();
+            }
+
+            // Draw the quantity text for the dragged item
+            if (draggedSlot.getQuantity() > 1) {
+                String quantityStr = String.valueOf(draggedSlot.getQuantity());
+                float textWidth = currentUiFont.getTextWidth(quantityStr);
+                // Position text at the bottom-right of the dragged icon
+                float textX = iconX + itemRenderSize - textWidth - 4f;
+                float textY = iconY + itemRenderSize - 4f;
+                currentUiFont.drawText(textX, textY, quantityStr, 1f, 1f, 1f);
+            }
         }
+
+    }
+
+    private void addIconToSpriteBuffer(FloatBuffer buffer, float x, float y, float size, Item item, float z) {
+        // Top-Left
+        buffer.put(x).put(y).put(z).put(WHITE_TINT).put(item.getIconU0()).put(item.getIconV0()).put(1.0f);
+        // Bottom-Left
+        buffer.put(x).put(y + size).put(z).put(WHITE_TINT).put(item.getIconU0()).put(item.getIconV1()).put(1.0f);
+        // Top-Right
+        buffer.put(x + size).put(y).put(z).put(WHITE_TINT).put(item.getIconU1()).put(item.getIconV0()).put(1.0f);
+        // Top-Right
+        buffer.put(x + size).put(y).put(z).put(WHITE_TINT).put(item.getIconU1()).put(item.getIconV0()).put(1.0f);
+        // Bottom-Left
+        buffer.put(x).put(y + size).put(z).put(WHITE_TINT).put(item.getIconU0()).put(item.getIconV1()).put(1.0f);
+        // Bottom-Right
+        buffer.put(x + size).put(y + size).put(z).put(WHITE_TINT).put(item.getIconU1()).put(item.getIconV1()).put(1.0f);
     }
 
 
@@ -1694,6 +1808,8 @@ public class Renderer {
         if(uiColoredVertexBuffer!=null) { MemoryUtil.memFree(uiColoredVertexBuffer); uiColoredVertexBuffer=null; }
         System.out.println("Renderer: Cleanup complete.");
     }
+
+
 
     // Getters for Game.java to check context
     public Map getMap() { return this.map; }

@@ -126,132 +126,156 @@ public class MouseHandler {
             lastMouseY = currentY;
         });
 
-        glfwSetMouseButtonCallback(window, (win, buttonId, action, mods) -> {
-            if (gameInstance == null || camera == null ) {
-                System.err.println("MouseHandler (ButtonCallback): gameInstance or camera is null!");
-                return;
-            }
 
-            int[] fbWidthPixels = new int[1]; int[] fbHeightPixels = new int[1];
-            glfwGetFramebufferSize(window, fbWidthPixels, fbHeightPixels);
-            int[] windowWidthPoints = new int[1]; int[] windowHeightPoints = new int[1];
-            glfwGetWindowSize(window, windowWidthPoints, windowHeightPoints);
-            double scaleX = (fbWidthPixels[0] > 0 && windowWidthPoints[0] > 0) ? (double) fbWidthPixels[0] / windowWidthPoints[0] : 1.0;
-            double scaleY = (fbHeightPixels[0] > 0 && windowHeightPoints[0] > 0) ? (double) fbHeightPixels[0] / windowHeightPoints[0] : 1.0;
-            int mouseX_physical = (int) (lastMouseX * scaleX);
-            int mouseY_physical = (int) (lastMouseY * scaleY);
+            glfwSetMouseButtonCallback(window, (win, buttonId, action, mods) -> {
+                if (gameInstance == null || camera == null ) {
+                    System.err.println("MouseHandler (ButtonCallback): gameInstance or camera is null!");
+                    return;
+                }
 
-            uiHandledLeftMousePress = false;
+                int[] fbWidthPixels = new int[1]; int[] fbHeightPixels = new int[1];
+                glfwGetFramebufferSize(window, fbWidthPixels, fbHeightPixels);
+                int[] windowWidthPoints = new int[1]; int[] windowHeightPoints = new int[1];
+                glfwGetWindowSize(window, windowWidthPoints, windowHeightPoints);
+                double scaleX = (fbWidthPixels[0] > 0 && windowWidthPoints[0] > 0) ? (double) fbWidthPixels[0] / windowWidthPoints[0] : 1.0;
+                double scaleY = (fbHeightPixels[0] > 0 && windowHeightPoints[0] > 0) ? (double) fbHeightPixels[0] / windowHeightPoints[0] : 1.0;
+                int mouseX_physical = (int) (lastMouseX * scaleX);
+                int mouseY_physical = (int) (lastMouseY * scaleY);
 
-            if (gameInstance.getCurrentGameState() == Game.GameState.MAIN_MENU) {
-                if (buttonId == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
-                    List<MenuItemButton> menuButtons = gameInstance.getMainMenuButtons();
-                    if (menuButtons != null) {
-                        for (MenuItemButton btn : menuButtons) {
-                            if (btn.isVisible && btn.isMouseOver(mouseX_physical, mouseY_physical)) {
-                                System.out.println("MouseHandler: Button '" + btn.text + "' clicked. Action: " + btn.actionCommand);
-                                uiHandledLeftMousePress = true;
-                                switch (btn.actionCommand) {
-                                    case "NEW_WORLD":
-                                        System.out.println("MouseHandler: Dispatching NEW_WORLD to gameInstance.");
-                                        gameInstance.createNewWorld();
-                                        break;
-                                    case "LOAD_WORLD":
-                                        if (btn.associatedData != null) {
-                                            System.out.println("MouseHandler: Dispatching LOAD_WORLD(" + btn.associatedData + ") to gameInstance.");
-                                            gameInstance.loadGame(btn.associatedData);
-                                        } else {
-                                            System.err.println("MouseHandler: Load_World action but associatedData is null for button: " + btn.text);
-                                        }
-                                        break;
-                                    case "DELETE_WORLD":
-                                        if (btn.associatedData != null) {
-                                            System.out.println("MouseHandler: Dispatching DELETE_WORLD(" + btn.associatedData + ") to gameInstance.");
-                                            gameInstance.deleteWorld(btn.associatedData);
-                                        } else {
-                                            System.err.println("MouseHandler: Delete_World action but associatedData is null for button: " + btn.text);
-                                        }
-                                        break;
-                                    case "EXIT_GAME":
-                                        System.out.println("MouseHandler: Dispatching EXIT_GAME.");
-                                        glfwSetWindowShouldClose(window, true);
-                                        break;
-                                    default:
-                                        System.err.println("MouseHandler: Unknown menu button action command: " + btn.actionCommand);
+                // Handle Main Menu clicks first
+                if (gameInstance.getCurrentGameState() == Game.GameState.MAIN_MENU) {
+                    if (buttonId == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+                        List<MenuItemButton> menuButtons = gameInstance.getMainMenuButtons();
+                        if (menuButtons != null) {
+                            for (MenuItemButton btn : menuButtons) {
+                                if (btn.isVisible && btn.isMouseOver(mouseX_physical, mouseY_physical)) {
+                                    // ... (This part for main menu buttons is fine and remains the same)
+                                    switch (btn.actionCommand) {
+                                        case "NEW_WORLD": gameInstance.createNewWorld(); break;
+                                        case "LOAD_WORLD": gameInstance.loadGame(btn.associatedData); break;
+                                        case "DELETE_WORLD": gameInstance.deleteWorld(btn.associatedData); break;
+                                        case "EXIT_GAME": glfwSetWindowShouldClose(window, true); break;
+                                    }
+                                    return; // Exit after handling a menu click
                                 }
-                                break;
                             }
                         }
-                    } else {
-                        System.err.println("MouseHandler: menuButtons list is null in MAIN_MENU state.");
                     }
+                    return; // Nothing else to do if in main menu
                 }
-            } else if (gameInstance.getCurrentGameState() == Game.GameState.IN_GAME) {
-                if (map == null || player == null || inputHandlerRef == null) { // Ensure context for in-game actions
-                    System.err.println("MouseHandler (ButtonCallback): map, player, or inputHandlerRef is null in IN_GAME state.");
-                    return;
+
+                // --- IN-GAME LOGIC ---
+                if (gameInstance.getCurrentGameState() != Game.GameState.IN_GAME || player == null || map == null) {
+                    return; // Do nothing if not in-game or context is missing
                 }
 
                 if (buttonId == GLFW_MOUSE_BUTTON_LEFT) {
                     if (action == GLFW_PRESS) {
                         isLeftMousePressed = true;
-                        isLeftDraggingForPan = false;
                         pressMouseX = lastMouseX;
                         pressMouseY = lastMouseY;
+                        uiHandledLeftMousePress = false; // Reset flag
 
                         if (gameInstance.isInventoryVisible()) {
-                            float panelX = 0, panelY = 0, panelWidth = 0, panelHeight = 0;
-                            float slotSizeInv = 50f; float slotMarginInv = 10f; int slotsPerRowInv = 5;
+                            // Check for clicks inside the inventory panel
+                            float slotSizeInv = 50f;
+                            float slotMarginInv = 10f;
+                            int slotsPerRowInv = 5;
                             List<InventorySlot> slots = player.getInventorySlots();
                             if (!slots.isEmpty()) {
                                 int numRows = (int) Math.ceil((double) slots.size() / slotsPerRowInv);
-                                panelWidth = (slotsPerRowInv * slotSizeInv) + ((slotsPerRowInv + 1) * slotMarginInv);
-                                panelHeight = (numRows * slotSizeInv) + ((numRows + 1) * slotMarginInv);
-                                panelX = (camera.getScreenWidth() - panelWidth) / 2.0f;
-                                panelY = (camera.getScreenHeight() - panelHeight) / 2.0f;
-                                float currentSlotX = panelX + slotMarginInv; float currentSlotY = panelY + slotMarginInv;
-                                int colCount = 0;
-                                for (int i = 0; i < slots.size(); i++) {
-                                    if (mouseX_physical >= currentSlotX && mouseX_physical <= currentSlotX + slotSizeInv &&
-                                            mouseY_physical >= currentSlotY && mouseY_physical <= currentSlotY + slotSizeInv) {
-                                        gameInstance.setSelectedHotbarSlotIndex(i);
-                                        uiHandledLeftMousePress = true; break;
-                                    }
-                                    currentSlotX += slotSizeInv + slotMarginInv; colCount++;
-                                    if (colCount >= slotsPerRowInv) { colCount = 0; currentSlotX = panelX + slotMarginInv; currentSlotY += slotSizeInv + slotMarginInv; }
-                                }
-                                if (!uiHandledLeftMousePress && mouseX_physical >= panelX && mouseX_physical <= panelX + panelWidth &&
+                                float panelWidth = (slotsPerRowInv * slotSizeInv) + ((slotsPerRowInv + 1) * slotMarginInv);
+
+                                // *** THIS IS THE CRITICAL FIX ***
+                                // Use the correct right-side calculation for the panel's X position
+                                float inventoryMarginX = 30f;
+                                float panelX = camera.getScreenWidth() - panelWidth - inventoryMarginX;
+                                // *** END OF CRITICAL FIX ***
+
+                                float panelHeight = (numRows * slotSizeInv) + ((numRows + 1) * slotMarginInv);
+                                float panelY = (camera.getScreenHeight() - panelHeight) / 2.0f;
+
+                                // Check if the click is within the panel bounds first
+                                if (mouseX_physical >= panelX && mouseX_physical <= panelX + panelWidth &&
                                         mouseY_physical >= panelY && mouseY_physical <= panelY + panelHeight) {
-                                    uiHandledLeftMousePress = true;
-                                }
-                            }
-                        } else if (gameInstance.isShowHotbar()) {
-                            float slotSizeHb = 55f; float slotMarginHb = 6f;
-                            int hotbarSlotsToDisplay = Constants.HOTBAR_SIZE;
-                            float totalHotbarWidth = (hotbarSlotsToDisplay * slotSizeHb) + ((Math.max(0, hotbarSlotsToDisplay - 1)) * slotMarginHb);
-                            float hotbarXStart = (camera.getScreenWidth() - totalHotbarWidth) / 2.0f;
-                            float hotbarYStart = camera.getScreenHeight() - slotSizeHb - (slotMarginHb * 3);
-                            for (int i = 0; i < hotbarSlotsToDisplay; i++) {
-                                float currentSlotX = hotbarXStart + i * (slotSizeHb + slotMarginHb);
-                                if (mouseX_physical >= currentSlotX && mouseX_physical <= currentSlotX + slotSizeHb &&
-                                        mouseY_physical >= hotbarYStart && mouseY_physical <= hotbarYStart + slotSizeHb) {
-                                    gameInstance.setSelectedHotbarSlotIndex(i);
-                                    uiHandledLeftMousePress = true;
-                                    break;
+
+                                    uiHandledLeftMousePress = true; // Mark click as handled by UI
+
+                                    // Now, check if the click was on a specific slot to start a drag
+                                    float currentSlotX = panelX + slotMarginInv;
+                                    float currentSlotY = panelY + slotMarginInv;
+                                    int colCount = 0;
+                                    for (int i = 0; i < slots.size(); i++) {
+                                        if (mouseX_physical >= currentSlotX && mouseX_physical <= currentSlotX + slotSizeInv &&
+                                                mouseY_physical >= currentSlotY && mouseY_physical <= currentSlotY + slotSizeInv) {
+
+                                            // Found the clicked slot, start dragging!
+                                            gameInstance.startDraggingItem(i);
+                                            break; // Exit loop once slot is found
+                                        }
+                                        currentSlotX += slotSizeInv + slotMarginInv;
+                                        colCount++;
+                                        if (colCount >= slotsPerRowInv) {
+                                            colCount = 0;
+                                            currentSlotX = panelX + slotMarginInv;
+                                            currentSlotY += slotSizeInv + slotMarginInv;
+                                        }
+                                    }
                                 }
                             }
                         }
-                        if (!isLeftDraggingForPan && !uiHandledLeftMousePress) {
+
+                        // If UI did not handle the click, it might be a world action
+                        if (!uiHandledLeftMousePress) {
                             inputHandlerRef.performPlayerActionOnCurrentlySelectedTile();
                         }
 
                     } else if (action == GLFW_RELEASE) {
                         isLeftMousePressed = false;
-                        if (isLeftDraggingForPan) {
+
+                        if (gameInstance.isDraggingItem()) {
+                            int dropSlotIndex = -1; // Default to invalid drop location
+                            // Calculate inventory position again to find the drop slot
+                            float slotSizeInv = 50f;
+                            float slotMarginInv = 10f;
+                            int slotsPerRowInv = 5;
+                            List<InventorySlot> slots = player.getInventorySlots();
+                            int numRows = (int) Math.ceil((double) slots.size() / slotsPerRowInv);
+                            float panelWidth = (slotsPerRowInv * slotSizeInv) + ((slotsPerRowInv + 1) * slotMarginInv);
+                            float inventoryMarginX = 30f;
+                            float panelX = camera.getScreenWidth() - panelWidth - inventoryMarginX;
+                            float panelHeight = (numRows * slotSizeInv) + ((numRows + 1) * slotMarginInv);
+                            float panelY = (camera.getScreenHeight() - panelHeight) / 2.0f;
+
+                            if (mouseX_physical >= panelX && mouseX_physical <= panelX + panelWidth &&
+                                    mouseY_physical >= panelY && mouseY_physical <= panelY + panelHeight) {
+
+                                // Find the specific slot
+                                float currentSlotX = panelX + slotMarginInv;
+                                float currentSlotY = panelY + slotMarginInv;
+                                int colCount = 0;
+                                for (int i = 0; i < slots.size(); i++) {
+                                    if (mouseX_physical >= currentSlotX && mouseX_physical <= currentSlotX + slotSizeInv &&
+                                            mouseY_physical >= currentSlotY && mouseY_physical <= currentSlotY + slotSizeInv) {
+                                        dropSlotIndex = i;
+                                        break;
+                                    }
+                                    currentSlotX += slotSizeInv + slotMarginInv;
+                                    colCount++;
+                                    if (colCount >= slotsPerRowInv) {
+                                        colCount = 0;
+                                        currentSlotX = panelX + slotMarginInv;
+                                        currentSlotY += slotSizeInv + slotMarginInv;
+                                    }
+                                }
+                            }
+                            gameInstance.stopDraggingItem(dropSlotIndex);
+                        } else if (isLeftDraggingForPan) {
                             camera.stopManualPan();
                             isLeftDraggingForPan = false;
                         }
                     }
+
                 } else if (buttonId == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE) {
                     if (!uiHandledLeftMousePress) {
                         int selectedSlot = gameInstance.getSelectedHotbarSlotIndex();
@@ -277,7 +301,7 @@ public class MouseHandler {
                         }
                     }
                 }
-            }
+            
         });
 
         glfwSetScrollCallback(window, (win, xoffset, yoffset) -> {

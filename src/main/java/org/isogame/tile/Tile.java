@@ -14,7 +14,11 @@ public class Tile {
         ROCK,
         SNOW
     }
-    public enum LooseRockType { NONE, TYPE_1 /* Add more rock types if you have different sprites */ }
+    public enum LooseRockType { NONE, TYPE_1 , TYPE_2,
+        TYPE_3, // New variation 2
+        TYPE_4, // New variation 3
+        TYPE_5, // New variation 4
+        TYPE_6  }
     private LooseRockType looseRockType = LooseRockType.NONE; // New field for loose rocks
 
     public enum TreeVisualType {

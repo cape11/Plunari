@@ -110,8 +110,9 @@ public class Map {
                         (type == Tile.TileType.GRASS || type == Tile.TileType.DIRT || type == Tile.TileType.ROCK || type == Tile.TileType.SAND) && // Suitable ground
                         elevation >= NIVEL_MAR && // Above sea level
                         random.nextFloat() < 0.03) { // 3% chance for a loose rock on suitable tiles (adjust as you like)
-                    chunkTiles[y][x].setLooseRockType(Tile.LooseRockType.TYPE_1);
-                } else {
+                    int rockTypeCount = Tile.LooseRockType.values().length - 1; // Subtract 1 to exclude NONE
+                    int randomRockIndex = random.nextInt(rockTypeCount) + 1; // Generate a random index from 1 to 6
+                    chunkTiles[y][x].setLooseRockType(Tile.LooseRockType.values()[randomRockIndex]);                } else {
                     chunkTiles[y][x].setLooseRockType(Tile.LooseRockType.NONE); // Ensure it's explicitly NONE otherwise
                 }
             }

@@ -85,6 +85,12 @@ public class Game {
     private List<String> availableSaveFiles = new ArrayList<>();
     private static final String SAVES_DIRECTORY = "saves";
 
+    private boolean isDraggingItem = false;
+    private InventorySlot draggedItemStack = null;
+    private int originalDragSlotIndex = -1;
+
+
+
     private List<MenuItemButton> menuButtons = new ArrayList<>();
     private Set<LightManager.ChunkCoordinate> currentlyActiveLogicalChunks = new HashSet<>();
 
@@ -969,6 +975,89 @@ public class Game {
     }
 
 
+    public boolean isDraggingItem() {
+        return this.isDraggingItem;
+    }
+
+    public InventorySlot getDraggedItemStack() {
+        return this.draggedItemStack;
+    }
+    /**
+     * Called by MouseHandler when a drag begins.
+     * @param slotIndex The inventory slot index where the drag started.
+     */
+    public void startDraggingItem(int slotIndex) {
+        if (player == null || slotIndex < 0 || slotIndex >= player.getInventorySlots().size()) {
+            return;
+        }
+        InventorySlot sourceSlot = player.getInventorySlots().get(slotIndex);
+        if (sourceSlot.isEmpty()) {
+            return; // Cannot drag an empty slot
+        }
+
+        this.draggedItemStack = new InventorySlot();
+        this.draggedItemStack.addItem(sourceSlot.getItem(), sourceSlot.getQuantity()); // Create a copy
+        this.originalDragSlotIndex = slotIndex;
+        this.isDraggingItem = true;
+
+        sourceSlot.clearSlot(); // Remove item from the original slot
+        setHotbarDirty(true); // Mark UI for redraw
+    }
+
+    /**
+     * Called by MouseHandler when the mouse button is released.
+     * @param dropSlotIndex The inventory slot index where the item was dropped, or -1 if outside.
+     */
+    public void stopDraggingItem(int dropSlotIndex) {
+        if (!isDraggingItem || player == null) {
+            isDraggingItem = false;
+            return;
+        }
+
+        List<InventorySlot> slots = player.getInventorySlots();
+
+        // Case 1: Dropped on a valid slot
+        if (dropSlotIndex >= 0 && dropSlotIndex < slots.size()) {
+            InventorySlot targetSlot = slots.get(dropSlotIndex);
+
+            // If target slot is empty, just place the item there.
+            if (targetSlot.isEmpty()) {
+                targetSlot.addItem(draggedItemStack.getItem(), draggedItemStack.getQuantity());
+            } else {
+                // If target slot is not empty, swap the items.
+                // Store the target's items temporarily.
+                Item tempItem = targetSlot.getItem();
+                int tempQuantity = targetSlot.getQuantity();
+
+                // Place dragged item in the target slot.
+                targetSlot.clearSlot();
+                targetSlot.addItem(draggedItemStack.getItem(), draggedItemStack.getQuantity());
+
+                // Place the target's original items back in the source slot.
+                slots.get(originalDragSlotIndex).addItem(tempItem, tempQuantity);
+            }
+        }
+        // Case 2: Dropped outside the inventory or on an invalid slot
+        else {
+            // Return the item to its original slot.
+            player.getInventorySlots().get(originalDragSlotIndex).addItem(draggedItemStack.getItem(), draggedItemStack.getQuantity());
+        }
+
+        // Reset drag state
+        this.isDraggingItem = false;
+        this.draggedItemStack = null;
+        this.originalDragSlotIndex = -1;
+        setHotbarDirty(true); // Mark UI for redraw
+    }
+
+    // Helper method to mark hotbar for redraw, if it's not already in Game.java
+    public void setHotbarDirty(boolean dirty) {
+        if (renderer != null) {
+            renderer.setHotbarDirty(true);
+        }
+    }
+
+
     public boolean isShowDebugOverlay() { return this.showDebugOverlay; }
     public void toggleShowDebugOverlay() { this.showDebugOverlay = !this.showDebugOverlay; }
 
@@ -980,7 +1069,10 @@ public class Game {
         System.out.println("Game cleanup complete.");
     }
 
+    public long getWindowHandle() {
+        return this.window;
+    }
+
     public LightManager getLightManager() {
         return (map != null) ? map.getLightManager() : null;
-    }
-}
+    }}
