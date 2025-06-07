@@ -1,43 +1,77 @@
-// In file: org/isogame/item/Item.java
+// In Item.java
+
 package org.isogame.item;
 
 import java.util.Objects;
+import org.isogame.render.Texture; // Import Texture
 
 public class Item {
-    private final String itemId;
-    private final String displayName;
-    private final String description;
-    private final int maxStackSize;
-    private final ItemType type;
-    private final float[] placeholderColor;
+    private String itemId;
+    private String displayName;
+    private String description;
+    private int maxStackSize;
+    private ItemType type;
+    private float[] placeholderColor;
 
-    // Fields for Icon UVs
-    private final boolean hasIconTexture;
-    private final float iconU0, iconV0, iconU1, iconV1;
+    // --- NEW: Add a field for the atlas name ---
+    private String atlasName;
+
+    // These fields will temporarily store pixel coordinates (x, y, w, h)
+    // before being converted to final UVs.
+    private float iconU0, iconV0, iconU1, iconV1;
+    private boolean hasIconTexture;
 
     public enum ItemType {
         RESOURCE, TOOL, EQUIPMENT, CONSUMABLE, MISC
     }
 
-    // Main constructor for items that have an icon
+    // --- MODIFIED CONSTRUCTORS ---
+
+    // Constructor for items WITHOUT a texture icon
+    public Item(String itemId, String displayName, String description, ItemType type, int maxStackSize, float[] placeholderColor) {
+        this(itemId, displayName, description, type, maxStackSize, placeholderColor, false, null, 0, 0, 0, 0);
+    }
+
+    // Main constructor for items WITH a texture icon. It now takes atlas name and PIXEL coordinates.
     public Item(String itemId, String displayName, String description, ItemType type, int maxStackSize, float[] placeholderColor,
-                boolean hasIconTexture, float iconU0, float iconV0, float iconU1, float iconV1) {
+                boolean hasIconTexture, String atlasName, float pixelX, float pixelY, float pixelW, float pixelH) {
         this.itemId = itemId;
         this.displayName = displayName;
         this.description = description;
         this.type = type;
         this.maxStackSize = maxStackSize;
         this.placeholderColor = placeholderColor;
+
         this.hasIconTexture = hasIconTexture;
-        this.iconU0 = iconU0;
-        this.iconV0 = iconV0;
-        this.iconU1 = iconU1;
-        this.iconV1 = iconV1;
+        this.atlasName = atlasName;
+        // Store raw pixel data first. This will be converted to UVs later.
+        this.iconU0 = pixelX;
+        this.iconV0 = pixelY;
+        this.iconU1 = pixelW;
+        this.iconV1 = pixelH;
     }
 
-    // Secondary constructor for items that do NOT have an icon
-    public Item(String itemId, String displayName, String description, ItemType type, int maxStackSize, float[] placeholderColor) {
-        this(itemId, displayName, description, type, maxStackSize, placeholderColor, false, 0f, 0f, 0f, 0f);
+    /**
+     * Converts the stored pixel coordinates into normalized UV coordinates.
+     * This should be called by the ItemRegistry after textures are loaded.
+     */
+    public void calculateUVs(Texture atlas) {
+        if (!hasIconTexture || atlas == null || atlas.getWidth() == 0 || atlas.getHeight() == 0) {
+            return;
+        }
+
+        float atlasWidth = atlas.getWidth();
+        float atlasHeight = atlas.getHeight();
+
+        float pX = this.iconU0;
+        float pY = this.iconV0;
+        float pW = this.iconU1;
+        float pH = this.iconV1;
+
+        this.iconU0 = pX / atlasWidth;
+        this.iconV0 = pY / atlasHeight;
+        this.iconU1 = (pX + pW) / atlasWidth;
+        this.iconV1 = (pY + pH) / atlasHeight;
     }
 
     // --- Getters ---
@@ -47,6 +81,7 @@ public class Item {
     public int getMaxStackSize() { return maxStackSize; }
     public ItemType getType() { return type; }
     public float[] getPlaceholderColor() { return placeholderColor; }
+    public String getAtlasName() { return atlasName; } // Getter for atlas name
 
     public boolean hasIconTexture() { return hasIconTexture; }
     public float getIconU0() { return iconU0; }
@@ -65,5 +100,10 @@ public class Item {
     @Override
     public int hashCode() {
         return Objects.hash(itemId);
+    }
+
+    @Override
+    public String toString() {
+        return "Item{" + "itemId='" + itemId + '\'' + ", displayName='" + displayName + '\'' + '}';
     }
 }

@@ -2,6 +2,7 @@ package org.isogame.game;
 
 import org.isogame.constants.Constants;
 import org.isogame.crafting.CraftingRecipe;
+import org.isogame.crafting.RecipeRegistry;
 import org.isogame.input.InputHandler;
 import org.isogame.input.MouseHandler;
 import org.isogame.camera.CameraManager;
@@ -111,8 +112,11 @@ public class Game {
             // Its internal references to map/player will be set in initializeGameWorldCommonLogic.
             renderer = new Renderer(cameraManager, null, null, null);
             renderer.onResize(initialFramebufferWidth, initialScreenHeight);
-            System.out.println("Game Constructor: Renderer initialized for menu.");
-
+            System.out.println("Game Constructor: Renderer initialized for menu.")
+            ;
+// Initialize registries that depend on loaded assets.
+            ItemRegistry.initializeItemUVs(renderer.getTextureMap());
+            RecipeRegistry.loadRecipes(); // <<< FIX:
             // Input and Mouse Handlers are initialized once. Callbacks are registered once.
             // They will use gameInstance.getCurrentGameState() to determine behavior.
             // Their internal map/player references will be updated.

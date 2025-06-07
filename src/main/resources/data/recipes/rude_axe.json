@@ -1,0 +1,14 @@
+{
+  "outputItemId": "crude_axe",
+  "outputQuantity": 1,
+  "ingredients": [
+    {
+      "itemId": "stick",
+      "quantity": 2
+    },
+    {
+      "itemId": "loose_rock",
+      "quantity": 3
+    }
+  ]
+}

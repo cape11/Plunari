@@ -1,3 +1,5 @@
+// File: Renderer.java
+
 package org.isogame.render;
 
 import org.isogame.camera.CameraManager;
@@ -146,6 +148,10 @@ public class Renderer {
     public static final float CRUDE_AXE_SPRITE_W_PIX = 50.0f;  // Placeholder Width
     public static final float CRUDE_AXE_SPRITE_H_PIX = 100.0f;  // Placeholder Height
 
+    // NEW: Render size for the held crude axe (adjust as needed)
+    public static final float CRUDE_AXE_RENDER_WIDTH = 15.0f; // Smaller width
+    public static final float CRUDE_AXE_RENDER_HEIGHT = 30.0f; // Smaller height, maintaining aspect ratio roughly
+
 
     public static class TreeData {
         public Tile.TreeVisualType treeVisualType;
@@ -209,7 +215,7 @@ public class Renderer {
         }
         System.out.println("Renderer: Game context set. Active chunks and entities cleared.");
     }
-    
+
     public void clearGameContext() {
         System.out.println("Renderer: Clearing game context.");
         if (this.activeMapChunks != null && !this.activeMapChunks.isEmpty()) {
@@ -259,6 +265,16 @@ public class Renderer {
         glBindVertexArray(0);
         System.out.println("[Renderer DEBUG] UI Colored Resources Initialized. VAO: " + uiColoredVaoId + ", VBO: " + uiColoredVboId);
     }
+
+    public java.util.Map<String, Texture> getTextureMap() {
+        java.util.Map<String, Texture> textureMap = new HashMap<>();
+        if (playerTexture != null) textureMap.put("playerTexture", playerTexture);
+        if (treeTexture != null) textureMap.put("treeTexture", treeTexture);
+        // Add other atlases here as they are created
+        return textureMap;
+    }
+
+
 
     private void loadAssets() {
         System.out.println("Renderer: Loading assets...");
@@ -948,28 +964,24 @@ public class Renderer {
         defaultShader.setUniform("uModelViewMatrix", camera.getViewMatrix());
         defaultShader.setUniform("uIsFont", 0);
         defaultShader.setUniform("uIsSimpleUiElement", 0);
-        defaultShader.setUniform("u_isSelectedIcon", 0); // <-- ADD THIS LINE HERE
+        defaultShader.setUniform("u_isSelectedIcon", 0);
 
+        // --- 1. RENDER WORLD TERRAIN ---
         if (map != null && tileAtlasTexture != null && tileAtlasTexture.getId() != 0) {
             glActiveTexture(GL_TEXTURE0);
             tileAtlasTexture.bind();
             defaultShader.setUniform("uTextureSampler", 0);
             defaultShader.setUniform("uHasTexture", 1);
-        } else if (map != null) {
-            defaultShader.setUniform("uHasTexture", 0);
-        } else {
-            defaultShader.setUniform("uHasTexture", 0);
-        }
 
-        if (map != null && activeMapChunks != null && !activeMapChunks.isEmpty()) {
             for (Chunk chunk : activeMapChunks.values()) {
                 if (camera.isChunkVisible(chunk.getBoundingBox())) {
                     chunk.render();
                 }
             }
+            tileAtlasTexture.unbind();
         }
-        if (map != null && tileAtlasTexture != null && tileAtlasTexture.getId() != 0) tileAtlasTexture.unbind();
 
+        // --- 2. RENDER ALL SPRITES (Player, Trees, Rocks, and Held Items) ---
         if (player != null && map != null) {
             collectWorldEntities();
             if (spriteVaoId != 0 && !worldEntities.isEmpty()) {
@@ -982,73 +994,146 @@ public class Renderer {
                 defaultShader.setUniform("uHasTexture", 1);
                 defaultShader.setUniform("uTextureSampler", 0);
 
+                // This loop now collects vertices for a single texture batch.
                 for (Object entity : worldEntities) {
-                    int verticesAddedThisEntity = 0;
                     Texture textureForThisEntity = null;
+                    int verticesAddedThisEntity = 0;
 
+                    // Determine texture and get vertices for the current entity
                     if (entity instanceof PlayerModel) {
-                        if (playerTexture != null && playerTexture.getId() != 0) {
-                            verticesAddedThisEntity = addPlayerVerticesToBuffer_WorldSpace((PlayerModel) entity, spriteVertexBuffer);
-                            textureForThisEntity = playerTexture;
-                        }
+                        textureForThisEntity = playerTexture;
+                        verticesAddedThisEntity = addPlayerVerticesToBuffer_WorldSpace((PlayerModel) entity, spriteVertexBuffer);
                     } else if (entity instanceof TreeData) {
-                        if (treeTexture != null && treeTexture.getId() != 0) {
-                            verticesAddedThisEntity = addTreeVerticesToBuffer_WorldSpace((TreeData) entity, spriteVertexBuffer);
-                            textureForThisEntity = treeTexture;
-                        }
+                        textureForThisEntity = treeTexture;
+                        verticesAddedThisEntity = addTreeVerticesToBuffer_WorldSpace((TreeData) entity, spriteVertexBuffer);
                     } else if (entity instanceof LooseRockData) {
-                        // Rocks use the same texture atlas as trees in this setup (fruit-tree.png)
-                        if (treeTexture != null && treeTexture.getId() != 0) {
-                            verticesAddedThisEntity = addLooseRockVerticesToBuffer_WorldSpace((LooseRockData) entity, spriteVertexBuffer);
-                            textureForThisEntity = treeTexture; // Using treeTexture as it contains the rock sprite
-                        }
-
+                        textureForThisEntity = treeTexture;
+                        verticesAddedThisEntity = addLooseRockVerticesToBuffer_WorldSpace((LooseRockData) entity, spriteVertexBuffer);
                     }
 
-                    if (verticesAddedThisEntity > 0 && textureForThisEntity != null) {
-                        if (currentSpriteTexture == null) {
-                            currentSpriteTexture = textureForThisEntity;
-                        } else if (currentSpriteTexture.getId() != textureForThisEntity.getId()) {
-                            if (verticesInBatch > 0) {
-                                spriteVertexBuffer.flip();
-                                glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
-                                glActiveTexture(GL_TEXTURE0);
-                                currentSpriteTexture.bind();
-                                glDrawArrays(GL_TRIANGLES, 0, verticesInBatch);
-                                spriteVertexBuffer.clear();
-                                verticesInBatch = 0;
-                            }
-                            currentSpriteTexture = textureForThisEntity;
-                        }
-                        verticesInBatch += verticesAddedThisEntity;
-
-                        if (spriteVertexBuffer.remaining() < (6 * FLOATS_PER_VERTEX_SPRITE_TEXTURED) && verticesInBatch > 0) {
-                            spriteVertexBuffer.flip();
-                            glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
-                            glActiveTexture(GL_TEXTURE0);
-                            currentSpriteTexture.bind();
-                            glDrawArrays(GL_TRIANGLES, 0, verticesInBatch);
+                    // If this entity uses a different texture, flush the old batch first.
+                    if (textureForThisEntity != null && currentSpriteTexture != null && textureForThisEntity.getId() != currentSpriteTexture.getId()) {
+                        if (verticesInBatch > 0) {
+                            renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentSpriteTexture);
                             spriteVertexBuffer.clear();
                             verticesInBatch = 0;
                         }
                     }
-                }
-                if (verticesInBatch > 0 && currentSpriteTexture != null) {
-                    spriteVertexBuffer.flip();
-                    glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
-                    glActiveTexture(GL_TEXTURE0);
-                    currentSpriteTexture.bind();
-                    glDrawArrays(GL_TRIANGLES, 0, verticesInBatch);
+
+                    // Add vertices to the current batch
+                    if (verticesAddedThisEntity > 0) {
+                        currentSpriteTexture = textureForThisEntity;
+                        verticesInBatch += verticesAddedThisEntity;
+                    }
                 }
 
-                if (currentSpriteTexture != null) currentSpriteTexture.unbind();
+                // After the loop, draw any remaining vertices in the last batch
+                if (verticesInBatch > 0) {
+                    renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentSpriteTexture);
+                }
+
+                // --- NEW: Separate pass for held items after all world sprites are drawn ---
+                spriteVertexBuffer.clear();
+                Item heldItem = player.getHeldItem();
+                PlayerModel.AnchorPoint anchor = player.getAnchorForCurrentFrame(); // This will now correctly return anchor for IDLE or HIT
+
+                if (heldItem != null && anchor != null && treeTexture != null) {
+                    // This logic specifically targets the axe. We can generalize it later.
+                    if (heldItem.getItemId().equals("crude_axe")) {
+                        int axeVerts = addHeldItemVerticesToBuffer(player, heldItem, anchor, spriteVertexBuffer);
+                        if (axeVerts > 0) {
+                            renderSpriteBatch(spriteVertexBuffer, axeVerts, treeTexture); // <--- This line is critical
+                        }
+                    }
+                }
+
+
                 glBindBuffer(GL_ARRAY_BUFFER, 0);
                 glBindVertexArray(0);
             }
         }
     }
 
+    // NEW HELPER METHOD to avoid repeating batch drawing code
+    private void renderSpriteBatch(FloatBuffer buffer, int vertexCount, Texture texture) {
+        if (vertexCount == 0 || texture == null) return;
 
+        buffer.flip();
+        glBufferSubData(GL_ARRAY_BUFFER, 0, buffer);
+        glActiveTexture(GL_TEXTURE0);
+        texture.bind();
+        glDrawArrays(GL_TRIANGLES, 0, vertexCount);
+    }
+
+    private int addHeldItemVerticesToBuffer(PlayerModel player, Item item, PlayerModel.AnchorPoint anchor, FloatBuffer buffer) {
+        // 1. Calculate the axe sprite's handle offset (relative to its own sprite)
+        // We use the pixel data we stored during item initialization.
+        // item.getIconU0() currently holds pixelX, getIconV0() holds pixelY.
+        float axeSpriteTopLeftX_onAtlas = CRUDE_AXE_SPRITE_X_PIX; // Use constant directly
+        float axeSpriteTopLeftY_onAtlas = CRUDE_AXE_SPRITE_Y_PIX; // Use constant directly
+
+        // The anchor point you provided (58, 1723) is the GLOBAL coordinate on the atlas.
+        // This is confusing. The PlayerModel.AnchorPoint is an offset from the player's base.
+        // The item's texture has a 'handle' point where it should attach to the player's hand.
+        // Let's assume (58, 1723) from original description was *intended* to be a point on the axe sprite itself,
+        // and its relation to the sprite's top-left.
+        // Let's use a simplified approach assuming the pivot is roughly center-right or based on sprite dimensions.
+
+        // Assuming the handle (pivot) point on the axe sprite is roughly:
+        // For a vertical axe (like yours), maybe 3/4 way down, slightly to the right.
+        float axeHandleOffsetX = CRUDE_AXE_SPRITE_W_PIX * 0.75f; // From left of sprite
+        float axeHandleOffsetY = CRUDE_AXE_SPRITE_H_PIX * 0.75f; // From top of sprite
+
+        // 2. Get the player's base position in the world (the bottom-center of the sprite)
+        float pR = player.getVisualRow();
+        float pC = player.getVisualCol();
+        Tile tile = map.getTile(player.getTileRow(), player.getTileCol());
+        int elev = (tile != null) ? tile.getElevation() : 0;
+        float playerBaseIsoX = (pC - pR) * this.tileHalfWidth;
+        float playerBaseIsoY = (pC + pR) * this.tileHalfHeight - (elev * TILE_THICKNESS);
+
+        // 3. Calculate the world position of the player's hand using the anchor
+        float handPosX = playerBaseIsoX + anchor.dx;
+        float handPosY = playerBaseIsoY + anchor.dy;
+
+        // 4. Calculate the final top-left position for drawing the axe sprite
+        // This is the hand position minus the pivot offset (scaled to render size)
+        float itemRenderWidth = CRUDE_AXE_RENDER_WIDTH; // NEW: Use new smaller render size
+        float itemRenderHeight = CRUDE_AXE_RENDER_HEIGHT; // NEW: Use new smaller render size
+
+        // Calculate scaling factor from original sprite size to render size
+        float scaleX = itemRenderWidth / CRUDE_AXE_SPRITE_W_PIX;
+        float scaleY = itemRenderHeight / CRUDE_AXE_SPRITE_H_PIX;
+
+        // Adjusted handle offsets based on the new render size
+        float scaledHandleOffsetX = axeHandleOffsetX * scaleX;
+        float scaledHandleOffsetY = axeHandleOffsetY * scaleY;
+
+        float itemRenderTopLeftX = handPosX - scaledHandleOffsetX;
+        float itemRenderTopLeftY = handPosY - scaledHandleOffsetY;
+
+
+        // 5. Get other rendering data
+        float lightVal = map.getTile(player.getTileRow(), player.getTileCol()).getFinalLightLevel() / (float) MAX_LIGHT_LEVEL;
+        lightVal = Math.max(0.1f, lightVal);
+
+        // Z-depth: Make it appear slightly in front of the player
+        float tileLogicalZ = (pR + pC) * DEPTH_SORT_FACTOR + (elev * 0.005f);
+        float itemWorldZ = tileLogicalZ + Z_OFFSET_SPRITE_PLAYER + 0.005f; // Slightly in front of player sprite
+
+
+        // 6. Add vertices to the buffer (this is standard quad drawing)
+        // Use the new itemRenderWidth and itemRenderHeight
+        addVertexToSpriteBuffer(buffer, itemRenderTopLeftX, itemRenderTopLeftY, itemWorldZ, WHITE_TINT, item.getIconU0(), item.getIconV0(), lightVal);
+        addVertexToSpriteBuffer(buffer, itemRenderTopLeftX, itemRenderTopLeftY + itemRenderHeight, itemWorldZ, WHITE_TINT, item.getIconU0(), item.getIconV1(), lightVal);
+        addVertexToSpriteBuffer(buffer, itemRenderTopLeftX + itemRenderWidth, itemRenderTopLeftY, itemWorldZ, WHITE_TINT, item.getIconU1(), item.getIconV0(), lightVal);
+
+        addVertexToSpriteBuffer(buffer, itemRenderTopLeftX + itemRenderWidth, itemRenderTopLeftY, itemWorldZ, WHITE_TINT, item.getIconU1(), item.getIconV0(), lightVal);
+        addVertexToSpriteBuffer(buffer, itemRenderTopLeftX, itemRenderTopLeftY + itemRenderHeight, itemWorldZ, WHITE_TINT, item.getIconU0(), item.getIconV1(), lightVal);
+        addVertexToSpriteBuffer(buffer, itemRenderTopLeftX + itemRenderWidth, itemRenderTopLeftY + itemRenderHeight, itemWorldZ, WHITE_TINT, item.getIconU1(), item.getIconV1(), lightVal);
+
+        return 6;
+    }
 
 
     public void renderHotbar(PlayerModel playerForHotbar, int currentlySelectedHotbarSlot) {
@@ -1109,13 +1194,13 @@ public class Renderer {
                 }
 
                 // Draw slot border
-               // if (currentSlotBorderWidth > 0) {
-                   // addQuadToUiColoredBuffer(hotbarVertexDataBuffer,
-                    //        currentSlotDrawX - currentSlotBorderWidth, hotbarY - currentSlotBorderWidth,
-                    //        slotSize + (2 * currentSlotBorderWidth), slotSize + (2 * currentSlotBorderWidth),
-                   //         Z_OFFSET_UI_BORDER, slotSlotBorderColor); // e.g., Z = 0.03f
-                 //   hotbarVertexCount += 6;
-               // }
+                // if (currentSlotBorderWidth > 0) {
+                // addQuadToUiColoredBuffer(hotbarVertexDataBuffer,
+                //        currentSlotDrawX - currentSlotBorderWidth, hotbarY - currentSlotBorderWidth,
+                //        slotSize + (2 * currentSlotBorderWidth), slotSize + (2 * currentSlotBorderWidth),
+                //         Z_OFFSET_UI_BORDER, slotSlotBorderColor); // e.g., Z = 0.03f
+                //   hotbarVertexCount += 6;
+                // }
 
                 // Draw slot background (gradient)
                 float gradientFactor = 0.1f;
