@@ -1,99 +1,53 @@
+// In file: org/isogame/item/ItemRegistry.java
 package org.isogame.item;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class ItemRegistry {
-
     private static final Map<String, Item> items = new HashMap<>();
 
-    // --- Define placeholder colors for new items ---
-    private static final float[] DIRT_COLOR = {0.6f, 0.4f, 0.2f, 1.0f};   // Brownish
-    private static final float[] STONE_COLOR = {0.5f, 0.5f, 0.5f, 1.0f};  // Gray
-    private static final float[] SAND_COLOR = {0.9f, 0.8f, 0.6f, 1.0f};   // Light Yellowish
+    // --- Placeholder Colors ---
+    private static final float[] DIRT_COLOR = {0.6f, 0.4f, 0.2f, 1.0f};
+    private static final float[] STONE_COLOR = {0.5f, 0.5f, 0.5f, 1.0f};
+    private static final float[] SAND_COLOR = {0.9f, 0.8f, 0.6f, 1.0f};
+    private static final float[] WOOD_PLACEHOLDER_COLOR = {0.5f, 0.35f, 0.2f, 1.0f};
+    private static final float[] STICK_PLACEHOLDER_COLOR = {0.7f, 0.5f, 0.3f, 1.0f};
+    private static final float[] AXE_PLACEHOLDER_COLOR = {0.6f, 0.65f, 0.7f, 1.0f};
+    private static final float[] LOOSE_ROCK_PLACEHOLDER_COLOR = {0.4f, 0.4f, 0.4f, 1.0f};
 
-    // New colors for new items
-    private static final float[] WOOD_PLACEHOLDER_COLOR = {0.5f, 0.35f, 0.2f, 1.0f};  // Brown for Wood
-    private static final float[] STICK_PLACEHOLDER_COLOR = {0.7f, 0.5f, 0.3f, 1.0f};   // Lighter Brown for Stick
-    private static final float[] AXE_PLACEHOLDER_COLOR = {0.6f, 0.65f, 0.7f, 1.0f}; // Greyish for Axe
+    // --- IMPORTANT: Set these to the actual dimensions of your fruit-trees.png file ---
+    private static final float ATLAS_WIDTH = 1024f;
+    private static final float ATLAS_HEIGHT = 2048f;
 
-    // --- Existing Item Definitions ---
+    // --- Item Definitions ---
     public static final Item DIRT = registerItem(new Item("dirt", "Dirt", "A block of common soil.", Item.ItemType.RESOURCE, 64, DIRT_COLOR));
     public static final Item STONE = registerItem(new Item("stone", "Stone", "A hard piece of rock.", Item.ItemType.RESOURCE, 64, STONE_COLOR));
     public static final Item SAND = registerItem(new Item("sand", "Sand", "Fine grains of sand.", Item.ItemType.RESOURCE, 64, SAND_COLOR));
-    private static final float[] LOOSE_ROCK_PLACEHOLDER_COLOR = {0.4f, 0.4f, 0.4f, 1.0f}; // Darker Gray for Loose Rock
+    public static final Item WOOD = registerItem(new Item("wood", "Wood Log", "A sturdy log of wood.", Item.ItemType.RESOURCE, 64, WOOD_PLACEHOLDER_COLOR));
 
-    // --- ADD THESE NEW ITEM DEFINITIONS ---
-    public static final Item WOOD = registerItem(new Item(
-            "wood",
-            "Wood Log",
-            "A sturdy log of wood, useful for crafting.",
-            Item.ItemType.RESOURCE, // Wood is a resource
-            64,                     // Max stack size
-            WOOD_PLACEHOLDER_COLOR
-    ));
+    public static final Item STICK = registerItem(new Item("stick", "Stick", "A basic crafting material.", Item.ItemType.RESOURCE, 64, STICK_PLACEHOLDER_COLOR,
+            true, 24f/ATLAS_WIDTH, 1600f/ATLAS_HEIGHT, 88f/ATLAS_WIDTH, 1616f/ATLAS_HEIGHT));
 
-    public static final Item STICK = registerItem(new Item(
-            "stick",
-            "Stick",
-            "A simple wooden stick, a basic crafting material.",
-            Item.ItemType.RESOURCE,
-            64,
-            STICK_PLACEHOLDER_COLOR,
-            // hasIconTexture, iconU0, iconV0, iconU1, iconV1
-            true, 0.0234375f, 0.390625f, 0.0859375f, 0.40625f // <-- UPDATED UVs for STICK
-    ));
-
-    public static final Item CRUDE_AXE = registerItem(new Item(
-            "crude_axe",
-            "Crude Axe",
-            "A basic axe, good for chopping down trees.",
-            Item.ItemType.TOOL,     // Axe is a tool
-            1,                      // Tools usually don't stack
-            AXE_PLACEHOLDER_COLOR
-            // If you later add icon UVs to Item constructor, you'd add them here too.
-    ));
-
-
-    // --- NEW ITEM DEFINITION FOR LOOSE ROCK ---
-    // --- NEW ITEM DEFINITION FOR LOOSE ROCK ---
-    public static final Item LOOSE_ROCK = registerItem(new Item(
-            "loose_rock",
-            "Loose Rock",
-            "A small rock, easily picked up. Might be useful.",
-            Item.ItemType.RESOURCE,
-            64,
-            LOOSE_ROCK_PLACEHOLDER_COLOR,
-            // hasIconTexture, iconU0, iconV0, iconU1, iconV1
+    // This uses the coordinates from your GIMP screenshot (X:80, Y:1735, W:60, H:85)
+    public static final Item CRUDE_AXE = registerItem(new Item("crude_axe", "Crude Axe", "Good for chopping trees.", Item.ItemType.TOOL, 1, AXE_PLACEHOLDER_COLOR,
             true,
-            0.0927734375f,    // u0 (95 / 1024)
-            0.37255859375f,  // v0 (1526 / 4096)
-            0.16015625f,    // u1 ( (95 + 69) / 1024 = 164 / 1024 )
-            0.389404296875f  // v1 ( (1526 + 69) / 4096 = 1595 / 4096 )
+            80f / ATLAS_WIDTH,           // X
+            1735f / ATLAS_HEIGHT,         // Y
+            (80f + 60f) / ATLAS_WIDTH,   // X + Width
+            (1735f + 85f) / ATLAS_HEIGHT // Y + Height
     ));
-// --- END OF NEW ITEM DEFINITIONS ---
 
-    /// //////////////////////////////
+    public static final Item LOOSE_ROCK = registerItem(new Item("loose_rock", "Loose Rock", "A small rock.", Item.ItemType.RESOURCE, 64, LOOSE_ROCK_PLACEHOLDER_COLOR,
+            true, 95f/ATLAS_WIDTH, 1526f/ATLAS_HEIGHT, 164f/ATLAS_WIDTH, 1595f/ATLAS_HEIGHT));
 
+    // --- Registry Methods ---
     private static Item registerItem(Item item) {
-        items.put(item.getItemId().toLowerCase(), item); // Store with lowercase ID for consistent retrieval
+        items.put(item.getItemId().toLowerCase(), item);
         return item;
     }
 
     public static Item getItem(String itemId) {
-        return items.get(itemId.toLowerCase()); // Retrieve with lowercase ID
-    }
-
-    static {
-        // This block runs when the class is loaded, ensuring items are registered.
-        // The static final fields above already call registerItem.
-        // This print can be helpful for debugging.
-        if (items.isEmpty()) {
-            //This might happen if static final fields are not initialized before this static block.
-            //However, standard Java execution order should handle it.
-            System.out.println("ItemRegistry static block: Items map is unexpectedly empty before explicit print.");
-        }
-        System.out.println("ItemRegistry initialized. Number of items registered: " + items.size());
-        // items.forEach((id, item) -> System.out.println("Registered: " + id + " -> " + item.getDisplayName())); // For detailed debug
+        return items.get(itemId.toLowerCase());
     }
 }
