@@ -275,6 +275,13 @@ public class PlayerModel {
         return amountLeftToConsume == 0;
     }
 
+    public enum CraftingResult {
+        SUCCESS,
+        INSUFFICIENT_RESOURCES,
+        INSUFFICIENT_SPACE,
+        UNKNOWN_RECIPE
+    }
+
 
     /**
      * Checks if the inventory has space for a given item and quantity.

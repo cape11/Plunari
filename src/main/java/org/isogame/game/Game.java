@@ -617,6 +617,13 @@ public class Game {
      * @param recipe The recipe to craft.
      */
     public void doCraft(CraftingRecipe recipe) {
+        // FIX 1: Check if the player has space for the output item BEFORE consuming ingredients.
+        // The hasSpaceFor method already exists in your PlayerModel.
+        if (!player.hasSpaceFor(recipe.getOutputItem(), recipe.getOutputQuantity())) {
+            System.out.println("Cannot craft " + recipe.getOutputItem().getDisplayName() + ": No inventory space.");
+            return; // Exit without consuming ingredients
+        }
+
         if (!canCraft(recipe)) {
             System.out.println("Cannot craft " + recipe.getOutputItem().getDisplayName() + ": Missing ingredients.");
             return;
@@ -628,7 +635,10 @@ public class Game {
         }
 
         // Add the crafted item to the player's inventory
-        player.addItemToInventory(recipe.getOutputItem(), recipe.getOutputQuantity()); //
+        player.addItemToInventory(recipe.getOutputItem(), recipe.getOutputQuantity());
+
+        // FIX 2: Mark the UI as dirty so it redraws with the new inventory state.
+        setHotbarDirty(true);
 
         System.out.println("Crafted: " + recipe.getOutputItem().getDisplayName());
     }

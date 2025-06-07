@@ -1,5 +1,7 @@
 package org.isogame.item;
 
+import org.isogame.render.Renderer;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -44,15 +46,27 @@ public class ItemRegistry {
             true, 0.0234375f, 0.390625f, 0.0859375f, 0.40625f // <-- UPDATED UVs for STICK
     ));
 
-    public static final Item CRUDE_AXE = registerItem(new Item(
-            "crude_axe",
-            "Crude Axe",
-            "A basic axe, good for chopping down trees.",
-            Item.ItemType.TOOL,     // Axe is a tool
-            1,                      // Tools usually don't stack
-            AXE_PLACEHOLDER_COLOR
-            // If you later add icon UVs to Item constructor, you'd add them here too.
-    ));
+    private static final float ATLAS_WIDTH = 1024.0f;  // Manually enter width of fruit-trees.png
+    private static final float ATLAS_HEIGHT = 4096.0f; // Manually enter height of fruit-trees.png
+
+
+
+
+    public static final Item CRUDE_AXE = registerItem( new Item(
+                    "crude_axe",
+                    "Crude Axe",
+                    "A simple axe made of sticks and rocks.",
+                    Item.ItemType.TOOL,
+                    1, // Max stack size for a tool is 1
+                    new float[]{0.5f, 0.5f, 0.5f, 1.0f}, // Placeholder color (not used if icon exists)
+                    true, // hasIconTexture
+                    // --- FIX: Calculate the correct UV coordinates ---
+                    Renderer.CRUDE_AXE_SPRITE_X_PIX / ATLAS_WIDTH,
+                    Renderer.CRUDE_AXE_SPRITE_Y_PIX / ATLAS_HEIGHT,
+                    (Renderer.CRUDE_AXE_SPRITE_X_PIX + Renderer.CRUDE_AXE_SPRITE_W_PIX) / ATLAS_WIDTH,
+                    (Renderer.CRUDE_AXE_SPRITE_Y_PIX + Renderer.CRUDE_AXE_SPRITE_H_PIX) / ATLAS_HEIGHT
+            )
+    );
 
 
     // --- NEW ITEM DEFINITION FOR LOOSE ROCK ---

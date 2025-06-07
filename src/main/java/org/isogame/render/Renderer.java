@@ -141,10 +141,10 @@ public class Renderer {
     private final float diamondBottomOffsetY = this.tileHalfHeight;
 
     // !!! IMPORTANT: Replace these X and Y values with the real coordinates from your texture file !!!
-    public static final float CRUDE_AXE_SPRITE_X_PIX = 200.0f; // Placeholder X
-    public static final float CRUDE_AXE_SPRITE_Y_PIX = 1600.0f; // Placeholder Y
+    public static final float CRUDE_AXE_SPRITE_X_PIX = 20.0f; // Placeholder X
+    public static final float CRUDE_AXE_SPRITE_Y_PIX = 1660.0f; // Placeholder Y
     public static final float CRUDE_AXE_SPRITE_W_PIX = 50.0f;  // Placeholder Width
-    public static final float CRUDE_AXE_SPRITE_H_PIX = 50.0f;  // Placeholder Height
+    public static final float CRUDE_AXE_SPRITE_H_PIX = 100.0f;  // Placeholder Height
 
 
     public static class TreeData {
