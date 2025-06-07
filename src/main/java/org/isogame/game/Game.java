@@ -1,6 +1,7 @@
 package org.isogame.game;
 
 import org.isogame.constants.Constants;
+import org.isogame.crafting.CraftingRecipe;
 import org.isogame.input.InputHandler;
 import org.isogame.input.MouseHandler;
 import org.isogame.camera.CameraManager;
@@ -73,6 +74,8 @@ public class Game {
     private boolean showHotbar = true;
     private boolean showDebugOverlay = true;
 
+
+
     private final Queue<LightManager.ChunkCoordinate> chunkRenderUpdateQueue = new LinkedList<>();
     private static final int MAX_CHUNK_GEOMETRY_UPDATES_PER_FRAME = 2; // Can be tuned
     private final Queue<LightManager.ChunkCoordinate> globalSkyRefreshNeededQueue = new LinkedList<>();
@@ -88,6 +91,7 @@ public class Game {
     private boolean isDraggingItem = false;
     private InventorySlot draggedItemStack = null;
     private int originalDragSlotIndex = -1;
+    private org.isogame.crafting.CraftingRecipe hoveredRecipe = null;
 
 
 
@@ -589,6 +593,49 @@ public class Game {
         }
     }
 
+    /**
+     * Checks if the player has enough items in their inventory to craft a given recipe.
+     * @param recipe The recipe to check.
+     * @return true if the recipe can be crafted, false otherwise.
+     */
+    public boolean canCraft(CraftingRecipe recipe) {
+        if (player == null || recipe == null) return false;
+
+        for (java.util.Map.Entry<Item, Integer> entry : recipe.getRequiredItems().entrySet()) {
+            Item requiredItem = entry.getKey();
+            int requiredQuantity = entry.getValue();
+            // Use the new helper method in PlayerModel
+            if (player.getInventoryItemCount(requiredItem) < requiredQuantity) {
+                return false; // Player doesn't have enough of this item
+            }
+        }
+        return true; // Player has all required items
+    }
+
+    /**
+     * Executes the craft if possible. Consumes ingredients and adds the output to the player's inventory.
+     * @param recipe The recipe to craft.
+     */
+    public void doCraft(CraftingRecipe recipe) {
+        if (!canCraft(recipe)) {
+            System.out.println("Cannot craft " + recipe.getOutputItem().getDisplayName() + ": Missing ingredients.");
+            return;
+        }
+
+        // Consume ingredients using the new helper method
+        for (java.util.Map.Entry<Item, Integer> entry : recipe.getRequiredItems().entrySet()) {
+            player.consumeItem(entry.getKey(), entry.getValue());
+        }
+
+        // Add the crafted item to the player's inventory
+        player.addItemToInventory(recipe.getOutputItem(), recipe.getOutputQuantity()); //
+
+        System.out.println("Crafted: " + recipe.getOutputItem().getDisplayName());
+    }
+
+
+
+
     public void initOpenGL() {
         System.out.println("Game.initOpenGL() - OpenGL version from context: " + glGetString(GL_VERSION));
         glEnable(GL_BLEND);
@@ -782,6 +829,15 @@ public class Game {
         }
     }
 
+    // Add these new getter and setter methods to the class
+    public org.isogame.crafting.CraftingRecipe getHoveredRecipe() {
+        return this.hoveredRecipe;
+    }
+
+    public void setHoveredRecipe(org.isogame.crafting.CraftingRecipe recipe) {
+        this.hoveredRecipe = recipe;
+    }
+
 
     public List<String> getAvailableSaveFiles() { return availableSaveFiles; }
     public String getCurrentWorldName() { return currentWorldName; }
@@ -895,7 +951,7 @@ public class Game {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-        if (this.showInventory) renderer.renderInventoryUI(player);
+        if (this.showInventory) renderer.renderInventoryAndCraftingUI(player);
         if (this.showHotbar) renderer.renderHotbar(player, player.getSelectedHotbarSlotIndex());
 
         if (this.showDebugOverlay && inputHandler != null) {

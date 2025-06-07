@@ -232,6 +232,94 @@ public class PlayerModel {
         return false;
     }
 
+    /**
+     * Counts the total quantity of a specific item across all inventory slots.
+     * @param itemToCount The item to count.
+     * @return The total number of that item the player possesses.
+     */
+    public int getInventoryItemCount(Item itemToCount) {
+        if (itemToCount == null) return 0;
+        int totalCount = 0;
+        for (InventorySlot slot : this.inventorySlots) { //
+            if (!slot.isEmpty() && slot.getItem().equals(itemToCount)) {
+                totalCount += slot.getQuantity();
+            }
+        }
+        return totalCount;
+    }
+
+    /**
+     * Consumes a specific quantity of an item from the entire inventory,
+     * potentially drawing from multiple stacks.
+     * @param itemToConsume The item to remove.
+     * @param amount The quantity to remove.
+     * @return true if the full amount was successfully consumed, false otherwise.
+     */
+    public boolean consumeItem(Item itemToConsume, int amount) {
+        if (itemToConsume == null || amount <= 0 || getInventoryItemCount(itemToConsume) < amount) {
+            return false; // Cannot consume if we don't have enough
+        }
+
+        int amountLeftToConsume = amount;
+        // Iterate through all slots to remove the required amount
+        for (InventorySlot slot : this.inventorySlots) { //
+            if (!slot.isEmpty() && slot.getItem().equals(itemToConsume)) {
+                int amountToRemoveFromThisStack = Math.min(amountLeftToConsume, slot.getQuantity());
+                slot.removeQuantity(amountToRemoveFromThisStack);
+                amountLeftToConsume -= amountToRemoveFromThisStack;
+                if (amountLeftToConsume == 0) {
+                    break; // We have consumed the full amount
+                }
+            }
+        }
+        return amountLeftToConsume == 0;
+    }
+
+
+    /**
+     * Checks if the inventory has space for a given item and quantity.
+     * It checks for existing stacks with room or for at least one empty slot.
+     * @param itemToAdd The item to check for space.
+     * @param amount The quantity of the item.
+     * @return true if there is enough space, false otherwise.
+     */
+    public boolean hasSpaceFor(Item itemToAdd, int amount) {
+        if (itemToAdd == null || amount <= 0) return false;
+
+        // Clone the inventory slots to simulate adding items without actually changing them.
+        List<InventorySlot> simulatedSlots = new ArrayList<>();
+        for (InventorySlot slot : this.inventorySlots) {
+            InventorySlot newSlot = new InventorySlot();
+            if (!slot.isEmpty()) {
+                newSlot.addItem(slot.getItem(), slot.getQuantity());
+            }
+            simulatedSlots.add(newSlot);
+        }
+
+        int remainingAmountToAdd = amount;
+
+        // First pass: try to stack with existing items
+        for (InventorySlot slot : simulatedSlots) {
+            if (!slot.isEmpty() && slot.getItem().equals(itemToAdd)) {
+                remainingAmountToAdd = slot.addItem(itemToAdd, remainingAmountToAdd);
+                if (remainingAmountToAdd == 0) return true;
+            }
+        }
+
+        // Second pass: find an empty slot
+        for (InventorySlot slot : simulatedSlots) {
+            if (slot.isEmpty()) {
+                remainingAmountToAdd = slot.addItem(itemToAdd, remainingAmountToAdd);
+                if (remainingAmountToAdd == 0) return true;
+            }
+        }
+
+        // If after all checks there's still items left to add, there is no space.
+        return false;
+    }
+
+
+
     public float getMapRow() { return mapRow; }
     public float getMapCol() { return mapCol; }
     public float getVisualRow() { return visualRow; }

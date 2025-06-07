@@ -436,6 +436,15 @@ public class Font {
     }
 
 
+    private void addVertexToFontBuffer(float x, float y, float r, float g, float b, float u, float v) {
+        // The vertex format is: X, Y, Z, R, G, B, A, U, V
+        // Z is hardcoded to 2.0f for UI elements. Alpha (A) is hardcoded to 1.0f.
+        fontVertexBuffer.put(x).put(y).put(2.0f)
+                .put(r).put(g).put(b).put(1.0f)
+                .put(u).put(v);
+    }
+
+
     public void drawText(float x, float y, String text, float rCol, float gCol, float bCol) { //
         renderTextInternal(x, y, text, 1.0f, rCol, gCol, bCol, 1.0f);
     }
@@ -448,6 +457,93 @@ public class Font {
         // For now, it scales the quads; character spacing will be based on the original font size advances.
         renderTextInternal(x, y, text, scale, rCol, gCol, bCol, 1.0f);
     }
+
+    // In Font.java
+
+    /**
+     * Draws text with manual control over letter spacing.
+     * @param x The starting X position.
+     * @param y The starting Y position.
+     * @param text The string to draw.
+     * @param scale The scale of the text.
+     * @param letterSpacing Extra pixels to add/remove between letters. Negative values tighten the spacing.
+     * @param rCol Red color component.
+     * @param gCol Green color component.
+     * @param bCol Blue color component.
+     */
+    public void drawTextWithSpacing(float x, float y, String text, float scale, float letterSpacing, float rCol, float gCol, float bCol) {
+        if (!isInitialized()) {
+            System.err.println("[Font WARNING] Font.drawTextWithSpacing called, but font is not initialized.");
+            return;
+        }
+
+        // Setup shader and textures
+        Shader shader = renderer.getDefaultShader();
+        if (shader == null) return;
+        shader.setUniform("uHasTexture", 1);
+        shader.setUniform("uIsFont", 1);
+        shader.setUniform("uTextureSampler", 0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, this.textureID);
+        glBindVertexArray(vaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, vboId);
+        fontVertexBuffer.clear();
+
+        int verticesToDraw = 0;
+        float currentPenX = x; // Use our own pen position
+
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            FloatBuffer x_buf = stack.floats(0.0f);
+            FloatBuffer y_buf = stack.floats(0.0f);
+
+            for (int i = 0; i < text.length(); i++) {
+                char c = text.charAt(i);
+                if (c < 32 || c >= 128) c = '?';
+
+                // Get the quad for the character at the origin
+                STBTruetype.stbtt_GetPackedQuad(this.charData, bitmapWidth, bitmapHeight, c - 32, x_buf, y_buf, quad, false);
+
+                // Calculate vertex positions manually
+                float x0 = currentPenX + (quad.x0() * scale);
+                float y0 = y + (quad.y0() * scale) + (getAscent() * scale);
+                float x1 = currentPenX + (quad.x1() * scale);
+                float y1 = y + (quad.y1() * scale) + (getAscent() * scale);
+
+                float s0 = quad.s0();
+                float t0 = quad.t0();
+                float s1 = quad.s1();
+                float t1 = quad.t1();
+
+                // Add vertices for the quad
+                addVertexToFontBuffer(x0, y0, rCol, gCol, bCol, s0, t0); // Top-Left
+                addVertexToFontBuffer(x0, y1, rCol, gCol, bCol, s0, t1); // Bottom-Left
+                addVertexToFontBuffer(x1, y0, rCol, gCol, bCol, s1, t0); // Top-Right
+
+                addVertexToFontBuffer(x1, y0, rCol, gCol, bCol, s1, t0); // Top-Right
+                addVertexToFontBuffer(x0, y1, rCol, gCol, bCol, s0, t1); // Bottom-Left
+                addVertexToFontBuffer(x1, y1, rCol, gCol, bCol, s1, t1); // Bottom-Right
+
+                verticesToDraw += 6;
+
+                // --- THIS IS THE CORRECTED LINE ---
+                // Get the advance width from the character data buffer, not the quad.
+                currentPenX += (this.charData.get(c - 32).xadvance() * scale) + letterSpacing;
+            }
+        }
+
+        if (verticesToDraw > 0) {
+            fontVertexBuffer.flip();
+            glBufferSubData(GL_ARRAY_BUFFER, 0, fontVertexBuffer);
+            glDrawArrays(GL_TRIANGLES, 0, verticesToDraw);
+        }
+
+
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
 
 
     public void drawText(float x, float y, String text) { //
