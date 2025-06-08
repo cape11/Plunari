@@ -276,6 +276,8 @@ public class InputHandler {
                 player.addItemToInventory(ItemRegistry.LOOSE_ROCK, 1);
                 targetTile.setLooseRockType(Tile.LooseRockType.NONE);
                 map.markChunkAsModified(Math.floorDiv(targetC, Constants.CHUNK_SIZE_TILES), Math.floorDiv(targetR, Constants.CHUNK_SIZE_TILES));
+                gameInstance.requestTileRenderUpdate(targetR, targetC); // <-- This is the issue
+
                 gameInstance.requestTileRenderUpdate(targetR, targetC);
             } else if (targetTile.getTreeType() != Tile.TreeVisualType.NONE) {
                 // Punching a tree gives a stick

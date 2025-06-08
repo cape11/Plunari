@@ -18,6 +18,9 @@ import org.isogame.entity.PlayerModel;
 import org.isogame.savegame.*;
 import org.isogame.tile.Tile;
 import org.isogame.ui.MenuItemButton;
+import org.isogame.entity.Animal;
+
+
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -76,6 +79,11 @@ public class Game {
     private boolean showHotbar = true;
     private boolean showDebugOverlay = true;
 
+    // --- NEW FIELDS FOR DYNAMIC SPAWNING ---
+    private double spawnTimer = 0.0;
+    private final Random spawnRandom = new Random();
+    private static final double SPAWN_CYCLE_TIME = 5.0; // Try to spawn something every 5 seconds
+    private static final int SPAWN_RADIUS = 32; // How far from the player animals can spawn
 
 
     private final Queue<LightManager.ChunkCoordinate> chunkRenderUpdateQueue = new LinkedList<>();
@@ -357,46 +365,46 @@ public class Game {
 
     private void updateActiveChunksAroundPlayer() {
         if (renderer == null || lightManager == null || map == null || player == null) {
-            // System.out.println("updateActiveChunksAroundPlayer: Skipping, critical component null.");
             return;
         }
-        // System.out.println("updateActiveChunksAroundPlayer: Starting update.");
 
         List<LightManager.ChunkCoordinate> desiredCoords = getDesiredActiveChunkCoordinates();
-        if (desiredCoords.isEmpty() && player == null) { // If player is null, desiredCoords will be empty.
-            // System.out.println("updateActiveChunksAroundPlayer: No player, no desired chunks to process.");
-            // Ensure all previously active chunks are unloaded if player becomes null (e.g., returning to menu conceptually)
-            if (!currentlyActiveLogicalChunks.isEmpty()) {
-                System.out.println("updateActiveChunksAroundPlayer: Player is null, unloading all active chunks.");
-                Iterator<LightManager.ChunkCoordinate> iter = currentlyActiveLogicalChunks.iterator();
-                while(iter.hasNext()){
-                    LightManager.ChunkCoordinate coord = iter.next();
-                    renderer.unloadChunkGraphics(coord.chunkX, coord.chunkY);
-                    map.unloadChunkData(coord.chunkX, coord.chunkY);
-                    iter.remove();
-                }
-            }
-            return;
-        }
-
-
         Set<LightManager.ChunkCoordinate> desiredSet = new HashSet<>(desiredCoords);
 
         Iterator<LightManager.ChunkCoordinate> iterator = currentlyActiveLogicalChunks.iterator();
         while (iterator.hasNext()) {
             LightManager.ChunkCoordinate currentActiveCoord = iterator.next();
             if (!desiredSet.contains(currentActiveCoord)) {
-                // System.out.println("updateActiveChunksAroundPlayer: Unloading chunk " + currentActiveCoord);
+
+                int chunkMinR = currentActiveCoord.chunkY * CHUNK_SIZE_TILES;
+                int chunkMaxR = chunkMinR + CHUNK_SIZE_TILES;
+                int chunkMinC = currentActiveCoord.chunkX * CHUNK_SIZE_TILES;
+                int chunkMaxC = chunkMinC + CHUNK_SIZE_TILES;
+
+                Iterator<Entity> entityIterator = map.getEntities().iterator();
+                while (entityIterator.hasNext()) {
+                    Entity entity = entityIterator.next();
+                    if (entity instanceof PlayerModel) {
+                        continue;
+                    }
+                    int entityR = entity.getTileRow();
+                    int entityC = entity.getTileCol();
+
+                    if (entityR >= chunkMinR && entityR < chunkMaxR && entityC >= chunkMinC && entityC < chunkMaxC) {
+                        entityIterator.remove();
+                    }
+                }
+
+                // --- FIX: Re-added the missing calls to unload the chunk itself ---
                 renderer.unloadChunkGraphics(currentActiveCoord.chunkX, currentActiveCoord.chunkY);
                 map.unloadChunkData(currentActiveCoord.chunkX, currentActiveCoord.chunkY);
-                iterator.remove();
+                iterator.remove(); // This is crucial, it removes the chunk from the currentlyActiveLogicalChunks set
                 globalSkyRefreshNeededQueue.remove(currentActiveCoord);
             }
         }
 
         for (LightManager.ChunkCoordinate newCoord : desiredCoords) {
             if (!currentlyActiveLogicalChunks.contains(newCoord)) {
-                // System.out.println("updateActiveChunksAroundPlayer: Loading new chunk " + newCoord);
                 map.getOrGenerateChunkTiles(newCoord.chunkX, newCoord.chunkY);
                 renderer.ensureChunkGraphicsLoaded(newCoord.chunkX, newCoord.chunkY);
                 lightManager.initializeSkylightForChunk(newCoord);
@@ -419,7 +427,6 @@ public class Game {
                 }
             }
         }
-        // System.out.println("updateActiveChunksAroundPlayer: Finished update. Active: " + currentlyActiveLogicalChunks.size());
     }
 
     private void updateSkyLightBasedOnTimeOfDay(double deltaTime) {
@@ -440,18 +447,45 @@ public class Game {
         }
     }
 
-    private void updateGameLogic(double deltaTime) {
-        if (player == null || map == null || lightManager == null || cameraManager == null || inputHandler == null || renderer == null) {
-            // This state should ideally not be reached if game state transitions are correct.
-            // System.err.println("Game.updateGameLogic: Critical component is null. Skipping update. CurrentState: " + currentGameState);
-            return;
+    private void handleDynamicSpawning(double deltaTime) {
+        if (map == null || player == null) return;
+
+        spawnTimer += deltaTime;
+        if (spawnTimer >= SPAWN_CYCLE_TIME) {
+            spawnTimer = 0;
+
+            // Check if we are under the animal cap
+            if (map.getAnimalCount() < Map.MAX_ANIMALS) {
+                // Attempt to spawn a new animal
+                int spawnTryX = player.getTileCol() + spawnRandom.nextInt(SPAWN_RADIUS * 2) - SPAWN_RADIUS;
+                int spawnTryY = player.getTileRow() + spawnRandom.nextInt(SPAWN_RADIUS * 2) - SPAWN_RADIUS;
+
+                // Check if the target chunk is loaded
+                int chunkX = Math.floorDiv(spawnTryX, CHUNK_SIZE_TILES);
+                int chunkY = Math.floorDiv(spawnTryY, CHUNK_SIZE_TILES);
+
+                if (currentlyActiveLogicalChunks.contains(new LightManager.ChunkCoordinate(chunkX, chunkY))) {
+                    Tile targetTile = map.getTile(spawnTryY, spawnTryX);
+                    // Check if the tile is a valid spawn surface
+                    if (targetTile != null && targetTile.getType() == Tile.TileType.GRASS) {
+                        map.getEntities().add(new Animal(spawnTryY + 0.5f, spawnTryX + 0.5f));
+                    }
+                }
+            }
         }
+    }
+
+
+    private void updateGameLogic(double deltaTime) {
+        if (player == null || map == null || lightManager == null) return;
 
         pseudoTimeOfDay += deltaTime * DAY_NIGHT_CYCLE_SPEED;
         if (pseudoTimeOfDay >= 1.0) pseudoTimeOfDay -= 1.0;
 
         updateActiveChunksAroundPlayer();
         updateSkyLightBasedOnTimeOfDay(deltaTime);
+
+        handleDynamicSpawning(deltaTime);
 
         if (!globalSkyRefreshNeededQueue.isEmpty()) {
             int refreshedThisFrame = 0;
@@ -469,18 +503,15 @@ public class Game {
             entity.update(deltaTime, this);
         }
 
-
         inputHandler.handleContinuousInput(deltaTime);
-        player.update(deltaTime, this);
         cameraManager.update(deltaTime);
-
         lightManager.processLightQueuesIncrementally();
-        Set<LightManager.ChunkCoordinate> newlyDirtyChunksFromLight = lightManager.getDirtyChunksAndClear();
-        if (!newlyDirtyChunksFromLight.isEmpty()) {
-            for (LightManager.ChunkCoordinate coord : newlyDirtyChunksFromLight) {
-                if (!chunkRenderUpdateQueue.contains(coord) && currentlyActiveLogicalChunks.contains(coord)) {
-                    chunkRenderUpdateQueue.offer(coord);
-                }
+
+        Set<LightManager.ChunkCoordinate> dirtyFromLighting = lightManager.getDirtyChunksAndClear();
+        for (LightManager.ChunkCoordinate dirtyCoord : dirtyFromLighting) {
+            // Check if the chunk is still active and not already in the queue
+            if (currentlyActiveLogicalChunks.contains(dirtyCoord) && !chunkRenderUpdateQueue.contains(dirtyCoord)) {
+                chunkRenderUpdateQueue.offer(dirtyCoord);
             }
         }
 

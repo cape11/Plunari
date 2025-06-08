@@ -25,7 +25,7 @@ public class Map {
     private final long worldSeed;
     private final List<Entity> entities;
 
-    private static final int MAX_ANIMALS = 25;
+    public static final int MAX_ANIMALS = 25;
 
     public Map(long seed) {
         this.worldSeed = seed;
@@ -39,6 +39,16 @@ public class Map {
 
     public List<Entity> getEntities() {
         return this.entities;
+    }
+
+    public int getAnimalCount(){
+        int count = 0;
+        for (Entity e : entities){
+            if (e instanceof Animal){
+                count++;
+            }
+        }
+        return count;
     }
 
     public Tile[][] getOrGenerateChunkTiles(int chunkX, int chunkY) {
@@ -60,28 +70,11 @@ public class Map {
                 Tile.TileType type = determineTileTypeFromElevation(elevation);
                 chunkTiles[y][x] = new Tile(type, elevation);
 
+                // --- ANIMAL SPAWNING LOGIC HAS BEEN REMOVED FROM THIS METHOD ---
+
                 if (type == Tile.TileType.GRASS && elevation >= NIVEL_ARENA && elevation < NIVEL_ROCA) {
                     if (random.nextFloat() < 0.08) {
                         chunkTiles[y][x].setTreeType(random.nextBoolean() ? Tile.TreeVisualType.APPLE_TREE_FRUITING : Tile.TreeVisualType.PINE_TREE_SMALL);
-                    }
-
-                    // --- UPDATED ANIMAL SPAWNING LOGIC ---
-                    long currentAnimalCount = entities.stream().filter(e -> e instanceof Animal).count();
-                    // Lowered spawn chance from 0.02 to 0.004 and added a check against the global cap
-                    if (currentAnimalCount < MAX_ANIMALS && random.nextFloat() < 0.004) {
-                        float spawnR = globalStartY + y + 0.5f;
-                        float spawnC = globalStartX + x + 0.5f;
-                        boolean tooClose = false;
-                        for(Entity e : entities) {
-                            float dist = Math.abs(e.getMapRow() - spawnR) + Math.abs(e.getMapCol() - spawnC);
-                            if (dist < 10) {
-                                tooClose = true;
-                                break;
-                            }
-                        }
-                        if (!tooClose) {
-                            entities.add(new Animal(spawnR, spawnC));
-                        }
                     }
                 }
                 if (chunkTiles[y][x].getTreeType() == Tile.TreeVisualType.NONE &&
