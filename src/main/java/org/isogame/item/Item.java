@@ -3,7 +3,11 @@
 package org.isogame.item;
 
 import java.util.Objects;
+
+import org.isogame.entity.PlayerModel;
+import org.isogame.game.Game;
 import org.isogame.render.Texture; // Import Texture
+import org.isogame.tile.Tile;
 
 public class Item {
     private String itemId;
@@ -26,6 +30,12 @@ public class Item {
     }
 
     // --- MODIFIED CONSTRUCTORS ---
+
+
+    public boolean onUse(Game game, PlayerModel player, Tile targetTile, int tileR, int tileC) {
+        // Default behavior for a generic item is to do nothing.
+        return false;
+    }
 
     // Constructor for items WITHOUT a texture icon
     public Item(String itemId, String displayName, String description, ItemType type, int maxStackSize, float[] placeholderColor) {

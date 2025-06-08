@@ -2,17 +2,14 @@ package org.isogame.input;
 
 import org.isogame.camera.CameraManager;
 import org.isogame.constants.Constants;
-import org.isogame.entitiy.PlayerModel;
+import org.isogame.entity.PlayerModel;
 import org.isogame.game.Game;
-import org.isogame.inventory.InventorySlot;
-import org.isogame.item.Item;
 import org.isogame.map.Map;
 import org.isogame.ui.MenuItemButton;
 
 import java.util.List;
 
 import static org.lwjgl.glfw.GLFW.*;
-import static org.isogame.constants.Constants.*;
 
 public class MouseHandler {
     private final long window;

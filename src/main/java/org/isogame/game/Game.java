@@ -3,6 +3,7 @@ package org.isogame.game;
 import org.isogame.constants.Constants;
 import org.isogame.crafting.CraftingRecipe;
 import org.isogame.crafting.RecipeRegistry;
+import org.isogame.entity.Entity;
 import org.isogame.input.InputHandler;
 import org.isogame.input.MouseHandler;
 import org.isogame.camera.CameraManager;
@@ -13,7 +14,7 @@ import org.isogame.map.LightManager;
 import org.isogame.map.Map;
 import org.isogame.render.Font;
 import org.isogame.render.Renderer;
-import org.isogame.entitiy.PlayerModel;
+import org.isogame.entity.PlayerModel;
 import org.isogame.savegame.*;
 import org.isogame.tile.Tile;
 import org.isogame.ui.MenuItemButton;
@@ -151,6 +152,11 @@ public class Game {
             setCurrentGameState(GameState.MAIN_MENU); // Fallback
             return;
         }
+
+        // Add player to the map's entity list when game starts
+        map.getEntities().clear();
+        map.getEntities().add(player);
+
         this.lightManager = map.getLightManager();
         if (this.lightManager == null) {
             System.err.println("FATAL: LightManager is null after map initialization in initializeGameWorldCommonLogic.");
@@ -458,8 +464,14 @@ public class Game {
             }
         }
 
+        List<Entity> currentEntities = new ArrayList<>(map.getEntities());
+        for (Entity entity : currentEntities) {
+            entity.update(deltaTime, this);
+        }
+
+
         inputHandler.handleContinuousInput(deltaTime);
-        player.update(deltaTime);
+        player.update(deltaTime, this);
         cameraManager.update(deltaTime);
 
         lightManager.processLightQueuesIncrementally();
@@ -1028,24 +1040,10 @@ public class Game {
     }
     public boolean isShowHotbar() { return this.showHotbar; }
 
-    public void interactWithTree(int r, int c, PlayerModel playerWhoActed, Item toolUsed) {
-        if (map == null || playerWhoActed == null) return;
 
-        Tile targetTile = map.getTile(r, c);
-        if (targetTile == null || targetTile.getTreeType() == Tile.TreeVisualType.NONE) return;
-
-        boolean usedAxe = toolUsed != null && toolUsed.equals(ItemRegistry.CRUDE_AXE);
-        if (usedAxe) {
-            targetTile.setTreeType(Tile.TreeVisualType.NONE);
-            if (ItemRegistry.WOOD != null) playerWhoActed.addItemToInventory(ItemRegistry.WOOD, 3);
-        } else {
-            if (ItemRegistry.STICK != null) playerWhoActed.addItemToInventory(ItemRegistry.STICK, 1);
-        }
-        map.markChunkAsModified(Math.floorDiv(c, CHUNK_SIZE_TILES), Math.floorDiv(r, CHUNK_SIZE_TILES));
-        if (lightManager != null) map.queueLightUpdateForArea(r, c, 1, lightManager);
-        requestTileRenderUpdate(r,c);
+    public Map getMap() {
+        return this.map;
     }
-
 
     public boolean isDraggingItem() {
         return this.isDraggingItem;

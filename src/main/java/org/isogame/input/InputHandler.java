@@ -2,9 +2,8 @@ package org.isogame.input;
 
 import org.isogame.camera.CameraManager;
 import org.isogame.constants.Constants;
-import org.isogame.entitiy.PlayerModel;
+import org.isogame.entity.PlayerModel;
 import org.isogame.game.Game;
-import org.isogame.inventory.InventorySlot;
 import org.isogame.item.Item;
 import org.isogame.item.ItemRegistry;
 import org.isogame.map.Map;
@@ -233,89 +232,65 @@ public class InputHandler {
         }
     }
 
+
     public void performPlayerActionOnCurrentlySelectedTile() {
         if (player == null || map == null || gameInstance == null) {
-            System.err.println("InputHandler: Cannot perform action, critical component (player, map, or gameInstance) is null.");
             return;
         }
 
         int targetR = this.selectedRow;
         int targetC = this.selectedCol;
-
         Tile targetTile = map.getTile(targetR, targetC);
-        if (targetTile == null){
-            System.err.println("InputHandler: Cannot perform action, target tile at ("+targetR+","+targetC+") is null or could not be generated.");
-            return;
-        }
 
-        // Check if the target tile is within interaction range of the player
+        if (targetTile == null) return;
+
+        // Check interaction range
         float distance = Math.abs(targetR - player.getMapRow()) + Math.abs(targetC - player.getMapCol());
-        if (distance > MAX_INTERACTION_DISTANCE) {
-            // Player is too far to interact with this tile
+        if (distance > Constants.MAX_INTERACTION_DISTANCE) {
             return;
         }
 
+        // 1. Get the item the player is holding.
+        Item heldItem = player.getHeldItem();
+
+        // 2. Set player animation and direction to face the target.
+        player.setAction(PlayerModel.Action.HIT);
         float dColPlayerToTarget = targetC - player.getMapCol();
         float dRowPlayerToTarget = targetR - player.getMapRow();
-
         if (Math.abs(dColPlayerToTarget) > Math.abs(dRowPlayerToTarget)) {
-            if (dColPlayerToTarget > 0) player.setDirection(PlayerModel.Direction.EAST);
-            else player.setDirection(PlayerModel.Direction.WEST);
-        } else if (Math.abs(dRowPlayerToTarget) > Math.abs(dColPlayerToTarget)) {
-            if (dRowPlayerToTarget > 0) player.setDirection(PlayerModel.Direction.SOUTH);
-            else player.setDirection(PlayerModel.Direction.NORTH);
-        } else if (dColPlayerToTarget != 0 || dRowPlayerToTarget != 0) {
-            if (dRowPlayerToTarget > 0) player.setDirection(PlayerModel.Direction.SOUTH);
-            else if (dColPlayerToTarget > 0) player.setDirection(PlayerModel.Direction.EAST);
-            else player.setDirection(PlayerModel.Direction.SOUTH);
+            player.setDirection(dColPlayerToTarget > 0 ? PlayerModel.Direction.EAST : PlayerModel.Direction.WEST);
+        } else {
+            player.setDirection(dRowPlayerToTarget > 0 ? PlayerModel.Direction.SOUTH : PlayerModel.Direction.NORTH);
         }
 
-        // Set player action
-        player.setAction(PlayerModel.Action.HIT);
-
-        // --- NEW LOGIC FOR LOOSE ROCKS AND TREES ---
-        // Prioritize picking up loose rocks over interacting with trees or digging
-        if (targetTile.getLooseRockType() != Tile.LooseRockType.NONE) {
-            player.addItemToInventory(ItemRegistry.LOOSE_ROCK, 1); // Add loose rock to inventory
-            targetTile.setLooseRockType(Tile.LooseRockType.NONE); // Remove the loose rock from the tile
-            map.markChunkAsModified(Math.floorDiv(targetC, CHUNK_SIZE_TILES), Math.floorDiv(targetR, CHUNK_SIZE_TILES));
-            gameInstance.requestTileRenderUpdate(targetR, targetC); // Request render update for the tile
-            return; // Action handled, exit method
+        // 3. Attempt to use the item. Its onUse method will contain the specific logic.
+        boolean actionConsumed = false;
+        if (heldItem != null) {
+            // The onUse method now correctly gets the game instance and tile coordinates
+            actionConsumed = heldItem.onUse(gameInstance, player, targetTile, targetR, targetC);
         }
 
-        if (targetTile.getTreeType() != Tile.TreeVisualType.NONE) {
-            Item selectedItem = null;
-            int selectedSlotIndexInGame = gameInstance.getSelectedHotbarSlotIndex();
-            if (selectedSlotIndexInGame >= 0 && selectedSlotIndexInGame < player.getInventorySlots().size()) {
-                InventorySlot currentSlot = player.getInventorySlots().get(selectedSlotIndexInGame);
-                if (currentSlot != null && !currentSlot.isEmpty()) {
-                    selectedItem = currentSlot.getItem();
-                }
-            }
-            gameInstance.interactWithTree(targetR, targetC, player, selectedItem);
-            return; // Action handled, exit method
-        }
-        // --- END NEW LOGIC ---
-
-        // Original digging logic, only proceeds if no loose rock or tree was found
-        if (targetTile.getElevation() >= NIVEL_MAR) {
-            Tile.TileType originalType = targetTile.getType();
-            int originalElevation = targetTile.getElevation();
-            int newElevation = Math.max(0, originalElevation - 1);
-
-            if (originalElevation > newElevation || (originalElevation == newElevation && originalElevation > 0 && originalElevation >= NIVEL_MAR) ) {
-                map.setTileElevation(targetR, targetC, newElevation);
-
-                Item receivedItem = null;
-                switch (originalType) {
-                    case GRASS: receivedItem = ItemRegistry.DIRT; break;
-                    case SAND:  receivedItem = ItemRegistry.SAND; break;
-                    case ROCK:  receivedItem = ItemRegistry.STONE; break;
-                    case DIRT:  receivedItem = ItemRegistry.DIRT; break;
-                    case SNOW:  receivedItem = ItemRegistry.DIRT; break;
-                }
-                if (receivedItem != null) {
-                    player.addItemToInventory(receivedItem, 1);
+        // 4. If the item's action was not consumed, perform the default "punch" action.
+        if (!actionConsumed) {
+            if (targetTile.getLooseRockType() != Tile.LooseRockType.NONE) {
+                player.addItemToInventory(ItemRegistry.LOOSE_ROCK, 1);
+                targetTile.setLooseRockType(Tile.LooseRockType.NONE);
+                map.markChunkAsModified(Math.floorDiv(targetC, Constants.CHUNK_SIZE_TILES), Math.floorDiv(targetR, Constants.CHUNK_SIZE_TILES));
+                gameInstance.requestTileRenderUpdate(targetR, targetC);
+            } else if (targetTile.getTreeType() != Tile.TreeVisualType.NONE) {
+                // Punching a tree gives a stick
+                player.addItemToInventory(ItemRegistry.STICK, 1);
+            } else if (targetTile.getElevation() >= Constants.NIVEL_MAR) {
+                // Default digging action for non-rock tiles
+                if (targetTile.getType() != Tile.TileType.ROCK) {
+                    Tile.TileType originalType = targetTile.getType();
+                    map.setTileElevation(targetR, targetC, targetTile.getElevation() - 1);
+                    // Give appropriate item for punching the ground
+                    if (originalType == Tile.TileType.SAND) {
+                        player.addItemToInventory(ItemRegistry.SAND, 1);
+                    } else {
+                        player.addItemToInventory(ItemRegistry.DIRT, 1);
+                    }
                 }
             }
         }

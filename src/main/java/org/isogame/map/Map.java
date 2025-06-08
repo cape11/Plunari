@@ -1,124 +1,100 @@
 package org.isogame.map;
 
 import org.isogame.constants.Constants;
+import org.isogame.entity.Animal;
+import org.isogame.entity.Entity;
 import org.isogame.item.Item;
 import org.isogame.item.ItemRegistry;
-// Import for save/load will need to be re-evaluated for per-chunk saving later
 import org.isogame.savegame.MapSaveData;
 import org.isogame.savegame.TileSaveData;
 import org.isogame.tile.Tile;
-
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Random;
-import java.util.HashMap; // To store loaded chunk data
-import java.util.Map.Entry; // For iterating HashMap if needed for saving
-import java.util.ArrayList; // For save/load placeholders
-import java.util.List; // For save/load placeholders
-
-
 import static org.isogame.constants.Constants.*;
 
 public class Map {
-
-    // Stores Tile arrays for currently loaded/generated chunks.
     private final HashMap<LightManager.ChunkCoordinate, Tile[][]> loadedChunkTiles;
-    // Tracks if a chunk's data has been modified by the player (for future saving).
     private final HashMap<LightManager.ChunkCoordinate, Boolean> chunkModificationStatus;
-
     private final SimplexNoise noiseGenerator;
-    private final Random random = new Random(); // For things like tree placement
+    private final Random random = new Random();
     private int characterSpawnRow;
-    private int characterSpawnCol; // Corrected variable name
-
+    private int characterSpawnCol;
     private final LightManager lightManager;
-    private final long worldSeed; // Store the world seed for consistent generation
+    private final long worldSeed;
+    private final List<Entity> entities;
 
-    /**
-     * Constructor for an infinitely generating map.
-     * @param seed The seed for the world's procedural generation.
-     */
+    private static final int MAX_ANIMALS = 25;
+
     public Map(long seed) {
         this.worldSeed = seed;
-        this.noiseGenerator = new SimplexNoise((int) this.worldSeed); // FIX: Cast long to int
+        this.noiseGenerator = new SimplexNoise((int) this.worldSeed);
         this.loadedChunkTiles = new HashMap<>();
         this.chunkModificationStatus = new HashMap<>();
         this.lightManager = new LightManager(this);
-
-        // Determine initial character spawn.
-        // For simplicity, let's spawn near chunk 0,0 initially and find a good spot there.
+        this.entities = new ArrayList<>();
         findSuitableCharacterPositionInChunk(0, 0);
-        System.out.println("Map initialized with seed: " + this.worldSeed + ". Player spawn: " + characterSpawnRow + "," + characterSpawnCol);
     }
 
-    /**
-     * Overloaded constructor that generates a random seed if none is provided.
-     */
-    public Map() {
-        this(new Random().nextLong());
+    public List<Entity> getEntities() {
+        return this.entities;
     }
 
-    /**
-     * Ensures the tile data for a specific chunk is generated and loaded into memory.
-     * If already loaded, returns the existing data. If not, generates it.
-     *
-     * @param chunkX The chunk's X coordinate (in chunk units).
-     * @param chunkY The chunk's Y coordinate (in chunk units).
-     * @return The Tile[][] array for the specified chunk.
-     */
     public Tile[][] getOrGenerateChunkTiles(int chunkX, int chunkY) {
         LightManager.ChunkCoordinate coord = new LightManager.ChunkCoordinate(chunkX, chunkY);
         if (loadedChunkTiles.containsKey(coord)) {
             return loadedChunkTiles.get(coord);
-
         }
 
-        // Chunk not loaded, generate it
-        // System.out.println("Generating tile data for chunk: (" + chunkX + ", " + chunkY + ")");
         Tile[][] chunkTiles = new Tile[CHUNK_SIZE_TILES][CHUNK_SIZE_TILES];
-        int[][] rawElevations = new int[CHUNK_SIZE_TILES][CHUNK_SIZE_TILES];
-
         int globalStartX = chunkX * CHUNK_SIZE_TILES;
         int globalStartY = chunkY * CHUNK_SIZE_TILES;
 
-        for (int y = 0; y < CHUNK_SIZE_TILES; y++) { // y is local to chunk (0 to CHUNK_SIZE_TILES-1)
-            for (int x = 0; x < CHUNK_SIZE_TILES; x++) { // x is local to chunk
-                // Pass global coordinates to noise function
-                double noiseValue = calculateCombinedNoise(globalStartX + x, globalStartY + y);
-                int elevation = (int) (((noiseValue + 1.0) / 2.0) * (ALTURA_MAXIMA + 1)) - 1;
-                rawElevations[y][x] = Math.max(0, Math.min(ALTURA_MAXIMA, elevation));
-            }
-        }
-        smoothChunkTerrain(rawElevations); // Smooth only within this chunk's elevation data
-
         for (int y = 0; y < CHUNK_SIZE_TILES; y++) {
             for (int x = 0; x < CHUNK_SIZE_TILES; x++) {
-                int elevation = rawElevations[y][x];
+                double noiseValue = calculateCombinedNoise(globalStartX + x, globalStartY + y);
+                int elevation = (int) (((noiseValue + 1.0) / 2.0) * (ALTURA_MAXIMA + 1)) - 1;
+                elevation = Math.max(0, Math.min(ALTURA_MAXIMA, elevation));
+
                 Tile.TileType type = determineTileTypeFromElevation(elevation);
                 chunkTiles[y][x] = new Tile(type, elevation);
-                // Initial light values will be set by LightManager when chunk becomes active and sky light is calculated.
-                chunkTiles[y][x].setSkyLightLevel((byte) 0); // Default to dark, LightManager will update
-                chunkTiles[y][x].setBlockLightLevel((byte) 0);
-                chunkTiles[y][x].setHasTorch(false);
-                chunkTiles[y][x].setTreeType(Tile.TreeVisualType.NONE);
 
-                // Simple tree generationF logic (can be expanded)
                 if (type == Tile.TileType.GRASS && elevation >= NIVEL_ARENA && elevation < NIVEL_ROCA) {
-                    if (random.nextFloat() < 0.08) { // 8% chance for a tree on suitable grass tiles
+                    if (random.nextFloat() < 0.08) {
                         chunkTiles[y][x].setTreeType(random.nextBoolean() ? Tile.TreeVisualType.APPLE_TREE_FRUITING : Tile.TreeVisualType.PINE_TREE_SMALL);
                     }
+
+                    // --- UPDATED ANIMAL SPAWNING LOGIC ---
+                    long currentAnimalCount = entities.stream().filter(e -> e instanceof Animal).count();
+                    // Lowered spawn chance from 0.02 to 0.004 and added a check against the global cap
+                    if (currentAnimalCount < MAX_ANIMALS && random.nextFloat() < 0.004) {
+                        float spawnR = globalStartY + y + 0.5f;
+                        float spawnC = globalStartX + x + 0.5f;
+                        boolean tooClose = false;
+                        for(Entity e : entities) {
+                            float dist = Math.abs(e.getMapRow() - spawnR) + Math.abs(e.getMapCol() - spawnC);
+                            if (dist < 10) {
+                                tooClose = true;
+                                break;
+                            }
+                        }
+                        if (!tooClose) {
+                            entities.add(new Animal(spawnR, spawnC));
+                        }
+                    }
                 }
-                if (chunkTiles[y][x].getTreeType() == Tile.TreeVisualType.NONE && // No tree here
-                        (type == Tile.TileType.GRASS || type == Tile.TileType.DIRT || type == Tile.TileType.ROCK || type == Tile.TileType.SAND) && // Suitable ground
-                        elevation >= NIVEL_MAR && // Above sea level
-                        random.nextFloat() < 0.03) { // 3% chance for a loose rock on suitable tiles (adjust as you like)
-                    int rockTypeCount = Tile.LooseRockType.values().length - 1; // Subtract 1 to exclude NONE
-                    int randomRockIndex = random.nextInt(rockTypeCount) + 1; // Generate a random index from 1 to 6
-                    chunkTiles[y][x].setLooseRockType(Tile.LooseRockType.values()[randomRockIndex]);                } else {
-                    chunkTiles[y][x].setLooseRockType(Tile.LooseRockType.NONE); // Ensure it's explicitly NONE otherwise
+                if (chunkTiles[y][x].getTreeType() == Tile.TreeVisualType.NONE &&
+                        (type == Tile.TileType.GRASS || type == Tile.TileType.DIRT || type == Tile.TileType.ROCK || type == Tile.TileType.SAND) &&
+                        elevation >= NIVEL_MAR && random.nextFloat() < 0.03) {
+                    int rockTypeCount = Tile.LooseRockType.values().length - 1;
+                    int randomRockIndex = random.nextInt(rockTypeCount) + 1;
+                    chunkTiles[y][x].setLooseRockType(Tile.LooseRockType.values()[randomRockIndex]);
                 }
             }
         }
         loadedChunkTiles.put(coord, chunkTiles);
-        chunkModificationStatus.put(coord, false); // Newly generated, not yet modified by player
+        chunkModificationStatus.put(coord, false);
         return chunkTiles;
     }
 
@@ -321,7 +297,7 @@ public class Map {
         // For now, let's imagine it saves a few loaded & modified chunks.
         saveData.explicitlySavedChunks = new ArrayList<>();
         int numSaved = 0;
-        for (Entry<LightManager.ChunkCoordinate, Boolean> entry : chunkModificationStatus.entrySet()) {
+        for (java.util.Map.Entry<LightManager.ChunkCoordinate, Boolean> entry : chunkModificationStatus.entrySet()) {
             if (entry.getValue() && loadedChunkTiles.containsKey(entry.getKey())) { // If modified and loaded
                 MapSaveData.ChunkDiskData cdd = new MapSaveData.ChunkDiskData(entry.getKey().chunkX, entry.getKey().chunkY);
                 cdd.tiles = convertChunkTilesToSaveFormat(loadedChunkTiles.get(entry.getKey()));

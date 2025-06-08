@@ -4,7 +4,9 @@ package org.isogame.render;
 
 import org.isogame.camera.CameraManager;
 import org.isogame.constants.Constants;
-import org.isogame.entitiy.PlayerModel;
+import org.isogame.entity.Animal;
+import org.isogame.entity.Entity;
+import org.isogame.entity.PlayerModel;
 // import org.isogame.game.Game; // Removed to reduce coupling
 import org.isogame.game.Game;
 import org.isogame.input.InputHandler;
@@ -19,13 +21,8 @@ import org.lwjgl.glfw.GLFW;
 import org.lwjgl.system.MemoryUtil;
 import static org.lwjgl.glfw.GLFW.*; // <<< ADD THIS LINE
 
-import java.io.IOException;
 import java.nio.FloatBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
-import java.util.HashMap;
-import java.util.Iterator;
+import java.util.*;
 
 import static org.isogame.constants.Constants.*;
 import static org.lwjgl.opengl.GL11.*;
@@ -124,8 +121,12 @@ public class Renderer {
     private static final float[] DEFAULT_TOP_COLOR = {1f,0f,1f,1f};
     private static final float[] WHITE_TINT = {1.0f, 1.0f, 1.0f, 1.0f};
 
-    private static final float Z_OFFSET_SPRITE_PLAYER = +0.1f;
-    private static final float Z_OFFSET_SPRITE_TREE = +0.05f;
+
+
+
+    private static final float Z_OFFSET_SPRITE_PLAYER = 0.1f;
+    private static final float Z_OFFSET_SPRITE_ANIMAL = 0.09f;
+    private static final float Z_OFFSET_SPRITE_TREE = 0.05f;
     private static final float Z_OFFSET_TILE_TOP_SURFACE = 0.0f;
     private static final float Z_OFFSET_TILE_SIDES = 0.01f;
     private static final float Z_OFFSET_TILE_PEDESTAL = 0.02f;
@@ -141,6 +142,9 @@ public class Renderer {
     private final float diamondSideOffsetY = 0;
     private final float diamondRightOffsetX = this.tileHalfWidth;
     private final float diamondBottomOffsetY = this.tileHalfHeight;
+
+
+
 
     // !!! IMPORTANT: Replace these X and Y values with the real coordinates from your texture file !!!
     public static final float CRUDE_AXE_SPRITE_X_PIX = 20.0f; // Placeholder X
@@ -182,7 +186,6 @@ public class Renderer {
         this.map = map;
         this.player = player;
         this.inputHandler = inputHandler;
-
         this.tileDetailRandom = new Random();
         this.projectionMatrix = new Matrix4f();
         this.activeMapChunks = new HashMap<>();
@@ -191,6 +194,7 @@ public class Renderer {
         initRenderObjects();
         initUiColoredResources();
         initHotbarGLResources();
+
         System.out.println("Renderer: Initialized. Map: " + (this.map != null) + ", Player: " + (this.player != null));
     }
 
@@ -719,19 +723,34 @@ public class Renderer {
 
     private void collectWorldEntities() {
         worldEntities.clear();
-        if (player != null) {
-            worldEntities.add(player);
+        if (map != null && map.getEntities() != null) {
+            worldEntities.addAll(map.getEntities());
         }
 
+        // Add trees and rocks from visible chunks
         if (activeMapChunks != null && !activeMapChunks.isEmpty() && camera != null) {
             for (Chunk chunk : activeMapChunks.values()) {
                 if (camera.isChunkVisible(chunk.getBoundingBox())) {
                     worldEntities.addAll(chunk.getTreesInChunk());
-                    worldEntities.addAll(chunk.getLooseRocksInChunk()); // <-- ADD THIS LINE
-
+                    worldEntities.addAll(chunk.getLooseRocksInChunk());
                 }
             }
         }
+
+        // Sort everything by a calculated Y-depth for correct draw order
+        worldEntities.sort(Comparator.comparingDouble(e -> {
+            if (e instanceof Entity) {
+                Entity entity = (Entity) e;
+                return entity.getVisualRow() + entity.getVisualCol();
+            } else if (e instanceof TreeData) {
+                TreeData tree = (TreeData) e;
+                return tree.mapRow + tree.mapCol;
+            } else if (e instanceof LooseRockData) {
+                LooseRockData rock = (LooseRockData) e;
+                return rock.mapRow + rock.mapCol;
+            }
+            return 0; // Default case
+        }));
     }
 
 
@@ -742,11 +761,10 @@ public class Renderer {
 
 
     private int addPlayerVerticesToBuffer_WorldSpace(PlayerModel p, FloatBuffer buffer) {
-        if (playerTexture == null || camera == null || map == null || playerTexture.getWidth() == 0 || p == null) return 0;
+        if (playerTexture == null || camera == null || map == null) return 0;
 
         float pR = p.getVisualRow();
         float pC = p.getVisualCol();
-
         Tile tile = map.getTile(p.getTileRow(), p.getTileCol());
         int elev = (tile != null) ? tile.getElevation() : 0;
         float lightVal = (tile != null) ? tile.getFinalLightLevel() / (float) MAX_LIGHT_LEVEL : 1.0f;
@@ -754,41 +772,78 @@ public class Renderer {
 
         float pIsoX = (pC - pR) * this.tileHalfWidth;
         float pIsoY = (pC + pR) * this.tileHalfHeight - (elev * TILE_THICKNESS);
+        float playerWorldZ = (pR + pC) * DEPTH_SORT_FACTOR + (elev * 0.005f) + Z_OFFSET_SPRITE_PLAYER;
 
-        float logicalPR = p.getMapRow();
-        float logicalPC = p.getMapCol();
-        float tileLogicalZ = (logicalPR + logicalPC) * DEPTH_SORT_FACTOR + (elev * 0.005f);
-        float playerWorldZ = tileLogicalZ + Z_OFFSET_SPRITE_PLAYER;
-
-        if(p.isLevitating()) {
-            pIsoY -= (Math.sin(p.getLevitateTimer()*5f)*8);
+        if (p.isLevitating()) {
+            pIsoY -= (Math.sin(p.getLevitateTimer() * 5f) * 8);
         }
 
         float halfPlayerRenderWidth = PLAYER_WORLD_RENDER_WIDTH / 2.0f;
         float playerRenderHeight = PLAYER_WORLD_RENDER_HEIGHT;
 
-        float xBL = pIsoX - halfPlayerRenderWidth;
-        float yBL = pIsoY;
-        float xTL = pIsoX - halfPlayerRenderWidth;
-        float yTL = pIsoY - playerRenderHeight;
-        float xTR = pIsoX + halfPlayerRenderWidth;
-        float yTR = pIsoY - playerRenderHeight;
-        float xBR = pIsoX + halfPlayerRenderWidth;
-        float yBR = pIsoY;
+        float xL = pIsoX - halfPlayerRenderWidth;
+        float xR = pIsoX + halfPlayerRenderWidth;
+        float yT = pIsoY - playerRenderHeight;
+        float yB = pIsoY;
 
         int animCol = p.getVisualFrameIndex();
         int animRow = p.getAnimationRow();
-        float texU0 = (animCol * (float)PlayerModel.FRAME_WIDTH) / playerTexture.getWidth();
-        float texV0 = (animRow * (float)PlayerModel.FRAME_HEIGHT) / playerTexture.getHeight();
-        float texU1 = ((animCol + 1) * (float)PlayerModel.FRAME_WIDTH) / playerTexture.getWidth();
-        float texV1 = ((animRow + 1) * (float)PlayerModel.FRAME_HEIGHT) / playerTexture.getHeight();
 
-        addVertexToSpriteBuffer(buffer, xTL, yTL, playerWorldZ, WHITE_TINT, texU0, texV0, lightVal);
-        addVertexToSpriteBuffer(buffer, xBL, yBL, playerWorldZ, WHITE_TINT, texU0, texV1, lightVal);
-        addVertexToSpriteBuffer(buffer, xTR, yTR, playerWorldZ, WHITE_TINT, texU1, texV0, lightVal);
-        addVertexToSpriteBuffer(buffer, xTR, yTR, playerWorldZ, WHITE_TINT, texU1, texV0, lightVal);
-        addVertexToSpriteBuffer(buffer, xBL, yBL, playerWorldZ, WHITE_TINT, texU0, texV1, lightVal);
-        addVertexToSpriteBuffer(buffer, xBR, yBR, playerWorldZ, WHITE_TINT, texU1, texV1, lightVal);
+        // --- UV FIX ---
+        float u0 = (float) (animCol * p.getFrameWidth()) / playerTexture.getWidth();
+        float v0 = (float) (animRow * p.getFrameHeight()) / playerTexture.getHeight();
+        float u1 = (float) ((animCol + 1) * p.getFrameWidth()) / playerTexture.getWidth();
+        float v1 = (float) ((animRow + 1) * p.getFrameHeight()) / playerTexture.getHeight();
+
+        addVertexToSpriteBuffer(buffer, xL, yT, playerWorldZ, WHITE_TINT, u0, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yB, playerWorldZ, WHITE_TINT, u0, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yB, playerWorldZ, WHITE_TINT, u1, v1, lightVal);
+
+        addVertexToSpriteBuffer(buffer, xR, yB, playerWorldZ, WHITE_TINT, u1, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yT, playerWorldZ, WHITE_TINT, u1, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yT, playerWorldZ, WHITE_TINT, u0, v0, lightVal);
+        return 6;
+    }
+
+    private int addAnimalVerticesToBuffer_WorldSpace(Animal animal, FloatBuffer buffer) {
+        if (playerTexture == null || camera == null || map == null) return 0;
+
+        float aR = animal.getVisualRow();
+        float aC = animal.getVisualCol();
+        Tile tile = map.getTile(animal.getTileRow(), animal.getTileCol());
+        int elev = (tile != null) ? tile.getElevation() : 0;
+        float lightVal = (tile != null) ? tile.getFinalLightLevel() / (float) MAX_LIGHT_LEVEL : 1.0f;
+        lightVal = Math.max(0.1f, lightVal);
+
+        float aIsoX = (aC - aR) * this.tileHalfWidth;
+        float aIsoY = (aC + aR) * this.tileHalfHeight - (elev * TILE_THICKNESS);
+        float animalWorldZ = (aR + aC) * DEPTH_SORT_FACTOR + (elev * 0.005f) + Z_OFFSET_SPRITE_ANIMAL;
+
+        float renderWidth = animal.getFrameWidth() * 0.75f;
+        float renderHeight = animal.getFrameHeight() * 0.75f;
+        float halfRenderWidth = renderWidth / 2.0f;
+
+        float xL = aIsoX - halfRenderWidth;
+        float xR = aIsoX + halfRenderWidth;
+        float yT = aIsoY - renderHeight;
+        float yB = aIsoY;
+
+        int animCol = animal.getVisualFrameIndex();
+        int animRow = animal.getAnimationRow();
+
+        // --- UV FIX ---
+        float u0 = (float) (animCol * animal.getFrameWidth()) / playerTexture.getWidth();
+        float v0 = (float) (animRow * animal.getFrameHeight()) / playerTexture.getHeight();
+        float u1 = (float) ((animCol + 1) * animal.getFrameWidth()) / playerTexture.getWidth();
+        float v1 = (float) ((animRow + 1) * animal.getFrameHeight()) / playerTexture.getHeight();
+
+        addVertexToSpriteBuffer(buffer, xL, yT, animalWorldZ, WHITE_TINT, u0, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yB, animalWorldZ, WHITE_TINT, u0, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yB, animalWorldZ, WHITE_TINT, u1, v1, lightVal);
+
+        addVertexToSpriteBuffer(buffer, xR, yB, animalWorldZ, WHITE_TINT, u1, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yT, animalWorldZ, WHITE_TINT, u1, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yT, animalWorldZ, WHITE_TINT, u0, v0, lightVal);
         return 6;
     }
 
@@ -982,71 +1037,72 @@ public class Renderer {
         }
 
         // --- 2. RENDER ALL SPRITES (Player, Trees, Rocks, and Held Items) ---
-        if (player != null && map != null) {
+        if (map != null) {
             collectWorldEntities();
+
             if (spriteVaoId != 0 && !worldEntities.isEmpty()) {
                 glBindVertexArray(spriteVaoId);
                 glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
                 spriteVertexBuffer.clear();
+
                 int verticesInBatch = 0;
-                Texture currentSpriteTexture = null;
+                Texture currentBatchTexture = null;
 
                 defaultShader.setUniform("uHasTexture", 1);
                 defaultShader.setUniform("uTextureSampler", 0);
 
-                // This loop now collects vertices for a single texture batch.
-                for (Object entity : worldEntities) {
+                for (Object entityObj : worldEntities) {
                     Texture textureForThisEntity = null;
-                    int verticesAddedThisEntity = 0;
+                    int verticesAdded = 0;
 
-                    // Determine texture and get vertices for the current entity
-                    if (entity instanceof PlayerModel) {
+                    if (entityObj instanceof PlayerModel || entityObj instanceof Animal) {
                         textureForThisEntity = playerTexture;
-                        verticesAddedThisEntity = addPlayerVerticesToBuffer_WorldSpace((PlayerModel) entity, spriteVertexBuffer);
-                    } else if (entity instanceof TreeData) {
+                    } else if (entityObj instanceof TreeData || entityObj instanceof LooseRockData) {
                         textureForThisEntity = treeTexture;
-                        verticesAddedThisEntity = addTreeVerticesToBuffer_WorldSpace((TreeData) entity, spriteVertexBuffer);
-                    } else if (entity instanceof LooseRockData) {
-                        textureForThisEntity = treeTexture;
-                        verticesAddedThisEntity = addLooseRockVerticesToBuffer_WorldSpace((LooseRockData) entity, spriteVertexBuffer);
                     }
 
-                    // If this entity uses a different texture, flush the old batch first.
-                    if (textureForThisEntity != null && currentSpriteTexture != null && textureForThisEntity.getId() != currentSpriteTexture.getId()) {
-                        if (verticesInBatch > 0) {
-                            renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentSpriteTexture);
-                            spriteVertexBuffer.clear();
-                            verticesInBatch = 0;
-                        }
+                    if (textureForThisEntity == null) continue;
+
+                    // If the texture for this object is different from our current batch's texture,
+                    // we must draw (flush) the current batch before starting a new one.
+                    if (currentBatchTexture != null && textureForThisEntity.getId() != currentBatchTexture.getId()) {
+                        renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
+                        spriteVertexBuffer.clear();
+                        verticesInBatch = 0;
                     }
 
-                    // Add vertices to the current batch
-                    if (verticesAddedThisEntity > 0) {
-                        currentSpriteTexture = textureForThisEntity;
-                        verticesInBatch += verticesAddedThisEntity;
+                    currentBatchTexture = textureForThisEntity;
+
+                    // Add the vertices for the current object to the buffer
+                    if (entityObj instanceof PlayerModel) {
+                        verticesAdded = addPlayerVerticesToBuffer_WorldSpace((PlayerModel) entityObj, spriteVertexBuffer);
+                    } else if (entityObj instanceof Animal) {
+                        verticesAdded = addAnimalVerticesToBuffer_WorldSpace((Animal) entityObj, spriteVertexBuffer);
+                    } else if (entityObj instanceof TreeData) {
+                        verticesAdded = addTreeVerticesToBuffer_WorldSpace((TreeData) entityObj, spriteVertexBuffer);
+                    } else if (entityObj instanceof LooseRockData) {
+                        verticesAdded = addLooseRockVerticesToBuffer_WorldSpace((LooseRockData) entityObj, spriteVertexBuffer);
                     }
+                    verticesInBatch += verticesAdded;
                 }
 
-                // After the loop, draw any remaining vertices in the last batch
+                // After the loop, draw any vertices that are left over in the final batch.
                 if (verticesInBatch > 0) {
-                    renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentSpriteTexture);
+                    renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
                 }
 
-                // --- NEW: Separate pass for held items after all world sprites are drawn ---
-                spriteVertexBuffer.clear();
-                Item heldItem = player.getHeldItem();
-                PlayerModel.AnchorPoint anchor = player.getAnchorForCurrentFrame(); // This will now correctly return anchor for IDLE or HIT
-
-                if (heldItem != null && anchor != null && treeTexture != null) {
-                    // This logic specifically targets the axe. We can generalize it later.
-                    if (heldItem.getItemId().equals("crude_axe")) {
+                // Held item rendering is separate and was not causing issues.
+                if (player != null) {
+                    spriteVertexBuffer.clear();
+                    Item heldItem = player.getHeldItem();
+                    PlayerModel.AnchorPoint anchor = player.getAnchorForCurrentFrame();
+                    if (heldItem != null && anchor != null && treeTexture != null && heldItem.getItemId().equals("crude_axe")) {
                         int axeVerts = addHeldItemVerticesToBuffer(player, heldItem, anchor, spriteVertexBuffer);
                         if (axeVerts > 0) {
-                            renderSpriteBatch(spriteVertexBuffer, axeVerts, treeTexture); // <--- This line is critical
+                            renderSpriteBatch(spriteVertexBuffer, axeVerts, treeTexture);
                         }
                     }
                 }
-
 
                 glBindBuffer(GL_ARRAY_BUFFER, 0);
                 glBindVertexArray(0);
@@ -1098,8 +1154,8 @@ public class Renderer {
 
         // 4. Calculate the final top-left position for drawing the axe sprite
         // This is the hand position minus the pivot offset (scaled to render size)
-        float itemRenderWidth = CRUDE_AXE_RENDER_WIDTH; // NEW: Use new smaller render size
-        float itemRenderHeight = CRUDE_AXE_RENDER_HEIGHT; // NEW: Use new smaller render size
+        float itemRenderWidth = CRUDE_AXE_RENDER_WIDTH; //  Use  smaller render size
+        float itemRenderHeight = CRUDE_AXE_RENDER_HEIGHT; //  Use  smaller render size
 
         // Calculate scaling factor from original sprite size to render size
         float scaleX = itemRenderWidth / CRUDE_AXE_SPRITE_W_PIX;
@@ -1154,7 +1210,6 @@ public class Renderer {
         glBindBuffer(GL_ARRAY_BUFFER, hotbarVboId);
 
         // We only need to rebuild the hotbar VBO if hotbarDirty is true OR if selected slot changes (for dynamic border color)
-        // For simplicity in this step, we'll assume hotbarDirty handles major rebuilds.
         // A more optimized version might separate static parts from dynamic parts.
         if (hotbarDirty) { // Or if selection changed and border colors depend on it dynamically
             hotbarVertexDataBuffer.clear();
@@ -1749,6 +1804,9 @@ public class Renderer {
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
+
+
+
 
     public void renderMenuButton(MenuItemButton button) {
         Font currentUiFont = getUiFont();

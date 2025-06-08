@@ -38,12 +38,11 @@ public class ItemRegistry {
     public static final Item LOOSE_ROCK = registerItem(new Item("loose_rock", "Loose Rock", "A small rock, easily picked up.", Item.ItemType.RESOURCE, 64, LOOSE_ROCK_PLACEHOLDER_COLOR,
             true, "treeTexture", 95, 1526, 69, 69));
 
-    public static final Item CRUDE_AXE = registerItem(new Item("crude_axe", "Crude Axe", "A simple axe made of sticks and rocks.", Item.ItemType.TOOL, 1, AXE_PLACEHOLDER_COLOR,
+    public static final Item CRUDE_AXE = registerItem(new ToolItem("crude_axe", "Crude Axe", "A simple axe.",
             true, "treeTexture",
-            Renderer.CRUDE_AXE_SPRITE_X_PIX, // Get pixel data from Renderer constants
-            Renderer.CRUDE_AXE_SPRITE_Y_PIX,
-            Renderer.CRUDE_AXE_SPRITE_W_PIX,
-            Renderer.CRUDE_AXE_SPRITE_H_PIX));
+            Renderer.CRUDE_AXE_SPRITE_X_PIX, Renderer.CRUDE_AXE_SPRITE_Y_PIX,
+            Renderer.CRUDE_AXE_SPRITE_W_PIX, Renderer.CRUDE_AXE_SPRITE_H_PIX,
+            ToolItem.ToolType.AXE));
 
 
     /**
