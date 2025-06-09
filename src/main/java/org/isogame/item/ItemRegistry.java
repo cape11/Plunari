@@ -40,9 +40,12 @@ public class ItemRegistry {
 
     public static final Item CRUDE_AXE = registerItem(new ToolItem("crude_axe", "Crude Axe", "A simple axe.",
             true, "treeTexture",
-            Renderer.CRUDE_AXE_SPRITE_X_PIX, Renderer.CRUDE_AXE_SPRITE_Y_PIX,
-            Renderer.CRUDE_AXE_SPRITE_W_PIX, Renderer.CRUDE_AXE_SPRITE_H_PIX,
+            35f,   // New X coordinate
+            1668f, // New Y coordinate
+            49f,   // New Width
+            53f,   // New Height
             ToolItem.ToolType.AXE));
+
 
 
     /**

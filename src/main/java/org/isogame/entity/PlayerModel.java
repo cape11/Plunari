@@ -19,6 +19,12 @@ public class PlayerModel extends Entity {
     // mapRow, mapCol, visualRow, visualCol, currentAction, currentDirection
     // currentFrameIndex, animationTimer, frameDuration, currentPath, etc.
 
+
+    // --- Fields for Interpolation ---
+    private int previousFrameIndex = 0;
+    private double currentFrameDuration = 0.1;
+
+
     // --- Player-Specific Fields ---
     private boolean levitating = false;
     private float levitateTimer = 0;
@@ -254,41 +260,88 @@ public class PlayerModel extends Entity {
     public void toggleLevitate() { this.levitating = !this.levitating; if (!this.levitating) levitateTimer = 0; }
 
     public static class AnchorPoint {
-        public float dx, dy, rotation;
+        public float dx, dy;
+        public float rotation;
+
         public AnchorPoint(float dx, float dy, float rotation) {
-            this.dx = dx; this.dy = dy; this.rotation = rotation;
+            this.dx = dx;
+            this.dy = dy;
+            this.rotation = rotation;
         }
     }
     private void defineAnimationAnchors() {
-        animationAnchors.put(ROW_IDLE_SOUTH + "_0", new AnchorPoint(10, 0, 0));
-        animationAnchors.put(ROW_IDLE_WEST + "_0", new AnchorPoint(-10, 0, 0));
-        animationAnchors.put(ROW_IDLE_NORTH + "_0", new AnchorPoint(10, 0, 0));
-        animationAnchors.put(ROW_IDLE_EAST + "_0", new AnchorPoint(10, 0, 0));
-        animationAnchors.put(ROW_HIT_SOUTH + "_0", new AnchorPoint(-10, 5, -45f));
-        animationAnchors.put(ROW_HIT_SOUTH + "_1", new AnchorPoint(5, 0, 20f));
-        animationAnchors.put(ROW_HIT_SOUTH + "_2", new AnchorPoint(15, 0, 90f));
-        animationAnchors.put(ROW_HIT_SOUTH + "_3", new AnchorPoint(10, 5, 110f));
-        animationAnchors.put(ROW_HIT_SOUTH + "_4", new AnchorPoint(5, 0, 80f));
-        animationAnchors.put(ROW_HIT_SOUTH + "_5", new AnchorPoint(0, 5, 40f));
-        animationAnchors.put(ROW_HIT_WEST + "_0", new AnchorPoint(10, 5, 45f));
-        animationAnchors.put(ROW_HIT_WEST + "_1", new AnchorPoint(-5, 0, -20f));
-        animationAnchors.put(ROW_HIT_WEST + "_2", new AnchorPoint(-15, 0, -90f));
-        animationAnchors.put(ROW_HIT_WEST + "_3", new AnchorPoint(-10, 5, -110f));
-        animationAnchors.put(ROW_HIT_WEST + "_4", new AnchorPoint(-5, 0, -80f));
-        animationAnchors.put(ROW_HIT_WEST + "_5", new AnchorPoint(0, 0, -40f));
-        animationAnchors.put(ROW_HIT_NORTH + "_0", new AnchorPoint(-10, 5, -45f));
-        animationAnchors.put(ROW_HIT_NORTH + "_1", new AnchorPoint(5, 0, 20f));
-        animationAnchors.put(ROW_HIT_NORTH + "_2", new AnchorPoint(15, 0, 90f));
-        animationAnchors.put(ROW_HIT_NORTH + "_3", new AnchorPoint(10, 5, 110f));
-        animationAnchors.put(ROW_HIT_NORTH + "_4", new AnchorPoint(5, 0, 80f));
-        animationAnchors.put(ROW_HIT_NORTH + "_5", new AnchorPoint(0, 5, 40f));
-        animationAnchors.put(ROW_HIT_EAST + "_0", new AnchorPoint(10, 5, 45f));
-        animationAnchors.put(ROW_HIT_EAST + "_1", new AnchorPoint(-5, 0, -20f));
-        animationAnchors.put(ROW_HIT_EAST + "_2", new AnchorPoint(-15, 0, -90f));
-        animationAnchors.put(ROW_HIT_EAST + "_3", new AnchorPoint(-10, 5, -110f));
-        animationAnchors.put(ROW_HIT_EAST + "_4", new AnchorPoint(-5, 0, -80f));
-        animationAnchors.put(ROW_HIT_EAST + "_5", new AnchorPoint(0, 5, -40f));
+        animationAnchors.clear();
+        // IDLE
+        animationAnchors.put(ROW_IDLE_NORTH + "_0", new AnchorPoint(5, -15, 15f));
+        animationAnchors.put(ROW_IDLE_SOUTH + "_0", new AnchorPoint(5, -15, 15f));
+        animationAnchors.put(ROW_IDLE_EAST + "_0", new AnchorPoint(5, -15, 15f));
+        animationAnchors.put(ROW_IDLE_WEST + "_0", new AnchorPoint(-5, -15, -15f));
+        // NORTH HIT
+        animationAnchors.put(ROW_HIT_NORTH + "_0", new AnchorPoint(11, -17, -35f));
+        animationAnchors.put(ROW_HIT_NORTH + "_1", new AnchorPoint(6, -13, 10f));
+        animationAnchors.put(ROW_HIT_NORTH + "_2", new AnchorPoint(-4, -22, 75f));
+        animationAnchors.put(ROW_HIT_NORTH + "_3", new AnchorPoint(31, -44, 105f));
+        animationAnchors.put(ROW_HIT_NORTH + "_4", new AnchorPoint(28, -22, 125f));
+        animationAnchors.put(ROW_HIT_NORTH + "_5", new AnchorPoint(23, -20, 110f));
+        // SOUTH HIT
+        animationAnchors.put(ROW_HIT_SOUTH + "_0", new AnchorPoint(-8, -35, -45f));
+        animationAnchors.put(ROW_HIT_SOUTH + "_1", new AnchorPoint(5, -25, 20f));
+        animationAnchors.put(ROW_HIT_SOUTH + "_2", new AnchorPoint(25, -5, 90f));
+        animationAnchors.put(ROW_HIT_SOUTH + "_3", new AnchorPoint(30, 15, 110f));
+        animationAnchors.put(ROW_HIT_SOUTH + "_4", new AnchorPoint(20, 30, 130f));
+        animationAnchors.put(ROW_HIT_SOUTH + "_5", new AnchorPoint(15, 25, 115f));
+        // WEST HIT
+        animationAnchors.put(ROW_HIT_WEST + "_0", new AnchorPoint(-6, -19, 45f));
+        animationAnchors.put(ROW_HIT_WEST + "_1", new AnchorPoint(-12, -16, -20f));
+        animationAnchors.put(ROW_HIT_WEST + "_2", new AnchorPoint(-10, -23, -90f));
+        animationAnchors.put(ROW_HIT_WEST + "_3", new AnchorPoint(-15, -18, -110f));
+        animationAnchors.put(ROW_HIT_WEST + "_4", new AnchorPoint(-22, -32, -130f));
+        animationAnchors.put(ROW_HIT_WEST + "_5", new AnchorPoint(-18, -15, -115f));
+        // EAST HIT
+        animationAnchors.put(ROW_HIT_EAST + "_0", new AnchorPoint(6, -19, -45f));
+        animationAnchors.put(ROW_HIT_EAST + "_1", new AnchorPoint(12, -16, 20f));
+        animationAnchors.put(ROW_HIT_EAST + "_2", new AnchorPoint(10, -23, 90f));
+        animationAnchors.put(ROW_HIT_EAST + "_3", new AnchorPoint(15, -18, 110f));
+        animationAnchors.put(ROW_HIT_EAST + "_4", new AnchorPoint(22, -32, 130f));
+        animationAnchors.put(ROW_HIT_EAST + "_5", new AnchorPoint(18, -15, 115f));
+    
+        for (int i=0; i<6; i++) {
+            AnchorPoint southAnchor = animationAnchors.get(ROW_HIT_SOUTH + "_" + i);
+            if (southAnchor != null) {
+                animationAnchors.put(ROW_HIT_NORTH + "_" + i, new AnchorPoint(southAnchor.dx, southAnchor.dy, southAnchor.rotation));
+                animationAnchors.put(ROW_HIT_EAST + "_" + i, new AnchorPoint(southAnchor.dx, southAnchor.dy, southAnchor.rotation));
+                animationAnchors.put(ROW_HIT_WEST + "_" + i, new AnchorPoint(-southAnchor.dx, southAnchor.dy, -southAnchor.rotation));
+            }
+        }
     }
+
+
+
+
+    public AnchorPoint getInterpolatedAnchor() {
+        String currentRow = String.valueOf(getAnimationRow());
+
+        AnchorPoint startAnchor = animationAnchors.get(currentRow + "_" + previousFrameIndex);
+        AnchorPoint endAnchor = animationAnchors.get(currentRow + "_" + currentFrameIndex);
+
+        if (startAnchor == null) return endAnchor; // Can't interpolate without a start
+        if (endAnchor == null) return startAnchor;   // Or an end
+
+        float progress = (float) (animationTimer / currentFrameDuration);
+        progress = Math.max(0.0f, Math.min(1.0f, progress)); // Clamp progress to 0-1 range
+
+        float interDx = startAnchor.dx + (endAnchor.dx - startAnchor.dx) * progress;
+        float interDy = startAnchor.dy + (endAnchor.dy - startAnchor.dy) * progress;
+
+        // --- Handle shortest angle interpolation for rotation ---
+        float deltaRot = endAnchor.rotation - startAnchor.rotation;
+        if (deltaRot > 180) deltaRot -= 360;
+        if (deltaRot < -180) deltaRot += 360;
+        float interRot = startAnchor.rotation + deltaRot * progress;
+
+        return new AnchorPoint(interDx, interDy, interRot);
+    }
+
     public AnchorPoint getAnchorForCurrentFrame() {
         String key = getAnimationRow() + "_" + getVisualFrameIndex();
         return animationAnchors.get(key);

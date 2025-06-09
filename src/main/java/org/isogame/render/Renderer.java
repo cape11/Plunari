@@ -17,6 +17,7 @@ import org.isogame.map.Map;
 import org.isogame.tile.Tile;
 import org.isogame.ui.MenuItemButton;
 import org.joml.Matrix4f;
+import org.joml.Vector4f;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.system.MemoryUtil;
 import static org.lwjgl.glfw.GLFW.*; // <<< ADD THIS LINE
@@ -1122,71 +1123,53 @@ public class Renderer {
     }
 
     private int addHeldItemVerticesToBuffer(PlayerModel player, Item item, PlayerModel.AnchorPoint anchor, FloatBuffer buffer) {
-        // 1. Calculate the axe sprite's handle offset (relative to its own sprite)
-        // We use the pixel data we stored during item initialization.
-        // item.getIconU0() currently holds pixelX, getIconV0() holds pixelY.
-        float axeSpriteTopLeftX_onAtlas = CRUDE_AXE_SPRITE_X_PIX; // Use constant directly
-        float axeSpriteTopLeftY_onAtlas = CRUDE_AXE_SPRITE_Y_PIX; // Use constant directly
+        if (treeTexture == null || map == null) return 0;
 
-        // The anchor point you provided (58, 1723) is the GLOBAL coordinate on the atlas.
-        // This is confusing. The PlayerModel.AnchorPoint is an offset from the player's base.
-        // The item's texture has a 'handle' point where it should attach to the player's hand.
-        // Let's assume (58, 1723) from original description was *intended* to be a point on the axe sprite itself,
-        // and its relation to the sprite's top-left.
-        // Let's use a simplified approach assuming the pivot is roughly center-right or based on sprite dimensions.
-
-        // Assuming the handle (pivot) point on the axe sprite is roughly:
-        // For a vertical axe (like yours), maybe 3/4 way down, slightly to the right.
-        float axeHandleOffsetX = CRUDE_AXE_SPRITE_W_PIX * 0.75f; // From left of sprite
-        float axeHandleOffsetY = CRUDE_AXE_SPRITE_H_PIX * 0.75f; // From top of sprite
-
-        // 2. Get the player's base position in the world (the bottom-center of the sprite)
+        // --- 1. Get Player and Item Base Data ---
         float pR = player.getVisualRow();
         float pC = player.getVisualCol();
         Tile tile = map.getTile(player.getTileRow(), player.getTileCol());
         int elev = (tile != null) ? tile.getElevation() : 0;
-        float playerBaseIsoX = (pC - pR) * this.tileHalfWidth;
-        float playerBaseIsoY = (pC + pR) * this.tileHalfHeight - (elev * TILE_THICKNESS);
+        float lightVal = (tile != null) ? tile.getFinalLightLevel() / (float) MAX_LIGHT_LEVEL : 1.0f;
+        float playerBaseIsoX = (pC - pR) * tileHalfWidth;
+        float playerBaseIsoY = (pC + pR) * tileHalfHeight - (elev * TILE_THICKNESS);
+        float itemWorldZ = (pR + pC) * DEPTH_SORT_FACTOR + 0.001f; // Slightly in front of player
 
-        // 3. Calculate the world position of the player's hand using the anchor
-        float handPosX = playerBaseIsoX + anchor.dx;
-        float handPosY = playerBaseIsoY + anchor.dy;
+        // --- 2. Define the Axe's Geometry and Pivot ---
+        float renderW = CRUDE_AXE_RENDER_WIDTH;
+        float renderH = CRUDE_AXE_RENDER_HEIGHT;
+        // Pivot point on the axe sprite (where the hand holds it). Tune this for the best look.
+        float pivotX = renderW * 0.72f;
+        float pivotY = renderH * 0.53f;
 
-        // 4. Calculate the final top-left position for drawing the axe sprite
-        // This is the hand position minus the pivot offset (scaled to render size)
-        float itemRenderWidth = CRUDE_AXE_RENDER_WIDTH; //  Use  smaller render size
-        float itemRenderHeight = CRUDE_AXE_RENDER_HEIGHT; //  Use  smaller render size
+        // --- 3. Create the Transformation Matrix ---
+        Matrix4f modelMatrix = new Matrix4f();
+        modelMatrix.translate(playerBaseIsoX + anchor.dx, playerBaseIsoY + anchor.dy, 0);
+        modelMatrix.rotateZ((float) Math.toRadians(anchor.rotation));
+        modelMatrix.translate(-pivotX, -pivotY, 0);
 
-        // Calculate scaling factor from original sprite size to render size
-        float scaleX = itemRenderWidth / CRUDE_AXE_SPRITE_W_PIX;
-        float scaleY = itemRenderHeight / CRUDE_AXE_SPRITE_H_PIX;
+        // --- 4. Define Vertices and Transform Them ---
+        // CORRECTED: Using unique names for the Vector4f objects to avoid conflicts.
+        Vector4f vertTopLeft = new Vector4f(0, 0, 0, 1).mul(modelMatrix);
+        Vector4f vertBottomLeft = new Vector4f(0, renderH, 0, 1).mul(modelMatrix);
+        Vector4f vertTopRight = new Vector4f(renderW, 0, 0, 1).mul(modelMatrix);
+        Vector4f vertBottomRight = new Vector4f(renderW, renderH, 0, 1).mul(modelMatrix);
 
-        // Adjusted handle offsets based on the new render size
-        float scaledHandleOffsetX = axeHandleOffsetX * scaleX;
-        float scaledHandleOffsetY = axeHandleOffsetY * scaleY;
+        // --- 5. Add Transformed Vertices to Buffer ---
+        // Using the original addVertexToSpriteBuffer, which doesn't need the extra 'data' float.
+        float u0 = item.getIconU0();
+        float v0 = item.getIconV0();
+        float u1 = item.getIconU1();
+        float v1 = item.getIconV1(); // This 'v1' is the float, which is now safe to use.
 
-        float itemRenderTopLeftX = handPosX - scaledHandleOffsetX;
-        float itemRenderTopLeftY = handPosY - scaledHandleOffsetY;
-
-
-        // 5. Get other rendering data
-        float lightVal = map.getTile(player.getTileRow(), player.getTileCol()).getFinalLightLevel() / (float) MAX_LIGHT_LEVEL;
-        lightVal = Math.max(0.1f, lightVal);
-
-        // Z-depth: Make it appear slightly in front of the player
-        float tileLogicalZ = (pR + pC) * DEPTH_SORT_FACTOR + (elev * 0.005f);
-        float itemWorldZ = tileLogicalZ + Z_OFFSET_SPRITE_PLAYER + 0.005f; // Slightly in front of player sprite
-
-
-        // 6. Add vertices to the buffer (this is standard quad drawing)
-        // Use the new itemRenderWidth and itemRenderHeight
-        addVertexToSpriteBuffer(buffer, itemRenderTopLeftX, itemRenderTopLeftY, itemWorldZ, WHITE_TINT, item.getIconU0(), item.getIconV0(), lightVal);
-        addVertexToSpriteBuffer(buffer, itemRenderTopLeftX, itemRenderTopLeftY + itemRenderHeight, itemWorldZ, WHITE_TINT, item.getIconU0(), item.getIconV1(), lightVal);
-        addVertexToSpriteBuffer(buffer, itemRenderTopLeftX + itemRenderWidth, itemRenderTopLeftY, itemWorldZ, WHITE_TINT, item.getIconU1(), item.getIconV0(), lightVal);
-
-        addVertexToSpriteBuffer(buffer, itemRenderTopLeftX + itemRenderWidth, itemRenderTopLeftY, itemWorldZ, WHITE_TINT, item.getIconU1(), item.getIconV0(), lightVal);
-        addVertexToSpriteBuffer(buffer, itemRenderTopLeftX, itemRenderTopLeftY + itemRenderHeight, itemWorldZ, WHITE_TINT, item.getIconU0(), item.getIconV1(), lightVal);
-        addVertexToSpriteBuffer(buffer, itemRenderTopLeftX + itemRenderWidth, itemRenderTopLeftY + itemRenderHeight, itemWorldZ, WHITE_TINT, item.getIconU1(), item.getIconV1(), lightVal);
+        // Triangle 1
+        addVertexToSpriteBuffer(buffer, vertTopLeft.x, vertTopLeft.y, itemWorldZ, WHITE_TINT, u0, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, vertBottomLeft.x, vertBottomLeft.y, itemWorldZ, WHITE_TINT, u0, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, vertTopRight.x, vertTopRight.y, itemWorldZ, WHITE_TINT, u1, v0, lightVal);
+        // Triangle 2
+        addVertexToSpriteBuffer(buffer, vertTopRight.x, vertTopRight.y, itemWorldZ, WHITE_TINT, u1, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, vertBottomLeft.x, vertBottomLeft.y, itemWorldZ, WHITE_TINT, u0, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, vertBottomRight.x, vertBottomRight.y, itemWorldZ, WHITE_TINT, u1, v1, lightVal);
 
         return 6;
     }
