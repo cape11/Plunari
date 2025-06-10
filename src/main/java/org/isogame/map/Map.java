@@ -402,7 +402,7 @@ public class Map {
             System.err.println("Map.placeBlock: Failed to get or generate tile at " + globalR + "," + globalC);
             return false;
         }
-        if (itemToPlace == null || itemToPlace.getType() != Item.ItemType.RESOURCE) {
+        if (itemToPlace == null || itemToPlace.type != Item.ItemType.RESOURCE) {
             return false;
         }
 

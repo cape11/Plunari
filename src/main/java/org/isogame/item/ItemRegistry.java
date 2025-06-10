@@ -46,6 +46,15 @@ public class ItemRegistry {
             53f,   // New Height
             ToolItem.ToolType.AXE));
 
+    public static final Item WOODEN_SWORD = registerItem(new ToolItem("wooden_sword", "Wooden Sword", "A basic sword made of wood. Better than nothing.",
+            true, "treeTexture",
+            128f,  // <-- REPLACE with your sword's X coordinate
+            1700f, // <-- REPLACE with your sword's Y coordinate
+            16f,   // <-- REPLACE with your sword's Width
+            48f,   // <-- REPLACE with your sword's Height
+            ToolItem.ToolType.AXE)) // Using AXE for now is fine, as it gives the SWING UseStyle
+            .setStats(8, 20, 20, 4.5f);
+
 
 
     /**

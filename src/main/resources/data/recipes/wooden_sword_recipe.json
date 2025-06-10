@@ -1,0 +1,10 @@
+{
+  "outputItemId": "wooden_sword",
+  "outputQuantity": 1,
+  "ingredients": [
+    {
+      "itemId": "wood",
+      "quantity": 7
+    }
+  ]
+}

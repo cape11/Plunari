@@ -5,8 +5,9 @@ import org.isogame.game.Game;
 import org.isogame.inventory.InventorySlot;
 import org.isogame.item.Item;
 import org.isogame.item.ItemRegistry;
-import org.isogame.savegame.PlayerSaveData;
+import org.isogame.item.UseStyle;
 import org.isogame.savegame.InventorySlotSaveData;
+import org.isogame.savegame.PlayerSaveData;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -15,17 +16,14 @@ import java.util.Map;
 
 public class PlayerModel extends Entity {
 
-    // --- Fields moved to Entity class have been removed ---
-    // mapRow, mapCol, visualRow, visualCol, currentAction, currentDirection
-    // currentFrameIndex, animationTimer, frameDuration, currentPath, etc.
+    // --- NEW: Constant for impact frame ---
+    private static final int IMPACT_FRAME = 3;
 
+    // Item Usage State
+    private int itemUseTime = 0;
+    private Item currentItemBeingUsed = null;
 
-    // --- Fields for Interpolation ---
-    private int previousFrameIndex = 0;
-    private double currentFrameDuration = 0.1;
-
-
-    // --- Player-Specific Fields ---
+    // Player-Specific Fields
     private boolean levitating = false;
     private float levitateTimer = 0;
     private double hitFrameDuration = 0.08;
@@ -35,23 +33,30 @@ public class PlayerModel extends Entity {
     private float movementInputColNormalized = 0f;
     private float movementInputRowNormalized = 0f;
 
-    // --- Animation Constants (Specific to Player Spritesheet) ---
+    // Animation Constants
     public static final int FRAME_WIDTH = 64;
     public static final int FRAME_HEIGHT = 64;
     public static final int ROW_WALK_NORTH = 8, ROW_WALK_WEST = 9, ROW_WALK_SOUTH = 10, ROW_WALK_EAST = 11;
     public static final int FRAMES_PER_WALK_CYCLE = 9;
-    public static final int ROW_HIT_SOUTH = 12, ROW_HIT_WEST = 13, ROW_HIT_NORTH = 14, ROW_HIT_EAST = 15;
+    public static final int ROW_HIT_NORTH = 12, ROW_HIT_WEST = 13, ROW_HIT_SOUTH = 14, ROW_HIT_EAST = 15;
     public static final int FRAMES_PER_HIT_CYCLE = 6;
     public static final int ROW_IDLE_SOUTH = 0, ROW_IDLE_WEST = 1, ROW_IDLE_NORTH = 2, ROW_IDLE_EAST = 3;
     public static final int FRAMES_PER_IDLE_CYCLE = 1;
 
+    public static class AnchorPoint {
+        public float dx, dy, rotation;
+        public AnchorPoint(float dx, float dy, float rotation) {
+            this.dx = dx; this.dy = dy; this.rotation = rotation;
+        }
+    }
 
     public PlayerModel(int startRow, int startCol) {
+        super();
         this.mapRow = startRow;
         this.mapCol = startCol;
         this.visualRow = startRow;
         this.visualCol = startCol;
-        this.frameDuration = 0.1; // Player-specific animation speed
+        this.frameDuration = 0.1;
         this.inventorySlots = new ArrayList<>(Constants.DEFAULT_INVENTORY_SIZE);
         for (int i = 0; i < Constants.DEFAULT_INVENTORY_SIZE; i++) {
             this.inventorySlots.add(new InventorySlot());
@@ -59,45 +64,123 @@ public class PlayerModel extends Entity {
         defineAnimationAnchors();
     }
 
+    private void defineAnimationAnchors() {
+        // This data is correct from our previous work.
+        animationAnchors.clear();
+        animationAnchors.put(ROW_IDLE_NORTH + "_0", new AnchorPoint(5, -15, 15f));
+        animationAnchors.put(ROW_IDLE_SOUTH + "_0", new AnchorPoint(5, -15, 15f));
+        animationAnchors.put(ROW_IDLE_EAST + "_0", new AnchorPoint(5, -15, 15f));
+        animationAnchors.put(ROW_IDLE_WEST + "_0", new AnchorPoint(-5, -15, -15f));
+        animationAnchors.put(ROW_HIT_NORTH + "_0", new AnchorPoint(11, -17, -35f));
+        animationAnchors.put(ROW_HIT_NORTH + "_1", new AnchorPoint(6, -13, 10f));
+        animationAnchors.put(ROW_HIT_NORTH + "_2", new AnchorPoint(-4, -22, 75f));
+        animationAnchors.put(ROW_HIT_NORTH + "_3", new AnchorPoint(31, -44, 105f));
+        animationAnchors.put(ROW_HIT_NORTH + "_4", new AnchorPoint(28, -22, 125f));
+        animationAnchors.put(ROW_HIT_NORTH + "_5", new AnchorPoint(23, -20, 110f));
+        animationAnchors.put(ROW_HIT_SOUTH + "_0", new AnchorPoint(-8, -35, -45f));
+        animationAnchors.put(ROW_HIT_SOUTH + "_1", new AnchorPoint(5, -25, 20f));
+        animationAnchors.put(ROW_HIT_SOUTH + "_2", new AnchorPoint(25, -5, 90f));
+        animationAnchors.put(ROW_HIT_SOUTH + "_3", new AnchorPoint(30, 15, 110f));
+        animationAnchors.put(ROW_HIT_SOUTH + "_4", new AnchorPoint(20, 30, 130f));
+        animationAnchors.put(ROW_HIT_SOUTH + "_5", new AnchorPoint(15, 25, 115f));
+        animationAnchors.put(ROW_HIT_WEST + "_0", new AnchorPoint(-6, -19, 45f));
+        animationAnchors.put(ROW_HIT_WEST + "_1", new AnchorPoint(-12, -16, -20f));
+        animationAnchors.put(ROW_HIT_WEST + "_2", new AnchorPoint(-10, -23, -90f));
+        animationAnchors.put(ROW_HIT_WEST + "_3", new AnchorPoint(-15, -18, -110f));
+        animationAnchors.put(ROW_HIT_WEST + "_4", new AnchorPoint(-22, -32, -130f));
+        animationAnchors.put(ROW_HIT_WEST + "_5", new AnchorPoint(-18, -15, -115f));
+        animationAnchors.put(ROW_HIT_EAST + "_0", new AnchorPoint(6, -19, -45f));
+        animationAnchors.put(ROW_HIT_EAST + "_1", new AnchorPoint(12, -16, 20f));
+        animationAnchors.put(ROW_HIT_EAST + "_2", new AnchorPoint(10, -23, 90f));
+        animationAnchors.put(ROW_HIT_EAST + "_3", new AnchorPoint(15, -18, 110f));
+        animationAnchors.put(ROW_HIT_EAST + "_4", new AnchorPoint(22, -32, 130f));
+        animationAnchors.put(ROW_HIT_EAST + "_5", new AnchorPoint(18, -15, 115f));
+    }
+
     @Override
     public void update(double deltaTime, Game game) {
+        // --- 1. UPDATE TIMERS & COOLDOWNS ---
+        if (itemUseTime > 0) {
+            itemUseTime--;
+        }
         if (levitating) {
             levitateTimer += (float) deltaTime * 5.0f;
         }
 
+        // --- 2. HANDLE MOVEMENT LOGIC ---
         boolean isTryingToMoveByInput = Math.abs(movementInputColNormalized) > 0.00001f || Math.abs(movementInputRowNormalized) > 0.00001f;
 
-        if (currentAction == Action.WALK && isTryingToMoveByInput) {
+        // Only allow movement input to change the action if not currently swinging.
+        if (currentAction != Action.SWING) {
+            if (isTryingToMoveByInput) {
+                setAction(Action.WALK);
+            } else {
+                setAction(Action.IDLE);
+            }
+        }
+
+        // Actually move the player if they are in the WALK state.
+        if (currentAction == Action.WALK) {
             float moveAmountThisFrame = Constants.PLAYER_MAP_GRID_SPEED * (float) deltaTime;
             this.mapCol += movementInputColNormalized * moveAmountThisFrame;
             this.mapRow += movementInputRowNormalized * moveAmountThisFrame;
-        } else if (currentAction == Action.WALK && !isTryingToMoveByInput) {
-            setAction(Action.IDLE);
         }
 
-        visualCol += (this.mapCol - visualCol) * VISUAL_SMOOTH_FACTOR;
-        visualRow += (this.mapRow - visualRow) * VISUAL_SMOOTH_FACTOR;
-        if (Math.abs(this.mapCol - visualCol) < 0.01f) visualCol = this.mapCol;
-        if (Math.abs(this.mapRow - visualRow) < 0.01f) visualRow = this.mapRow;
-
+        // --- 3. HANDLE ANIMATION PROGRESSION ---
         animationTimer += deltaTime;
-        double currentAnimFrameDuration = (currentAction == Action.HIT || currentAction == Action.CHOPPING) ? hitFrameDuration : frameDuration;
+        double currentAnimFrameDuration = (currentAction == Action.SWING) ? hitFrameDuration : frameDuration;
         int maxFrames = 1;
 
         if (currentAction == Action.WALK) maxFrames = FRAMES_PER_WALK_CYCLE;
-        else if (currentAction == Action.HIT || currentAction == Action.CHOPPING) maxFrames = FRAMES_PER_HIT_CYCLE;
+        else if (currentAction == Action.SWING) maxFrames = FRAMES_PER_HIT_CYCLE;
         else if (currentAction == Action.IDLE) maxFrames = FRAMES_PER_IDLE_CYCLE;
 
         if (animationTimer >= currentAnimFrameDuration) {
             animationTimer -= currentAnimFrameDuration;
+
+            int oldFrame = currentFrameIndex;
             currentFrameIndex = (currentFrameIndex + 1);
+
+            // --- SPAWN PROJECTILE ON IMPACT FRAME ---
+            if (currentAction == Action.SWING && currentFrameIndex == IMPACT_FRAME && oldFrame != IMPACT_FRAME) {
+                if (currentItemBeingUsed != null) {
+                    // Determine the target tile based on player direction
+                    int targetR = getTileRow();
+                    int targetC = getTileCol();
+                    switch(currentDirection) {
+                        case NORTH: targetR--; break;
+                        case SOUTH: targetR++; break;
+                        case WEST:  targetC--; break;
+                        case EAST:  targetC++; break;
+                    }
+                    SwingArcProjectile projectile = new SwingArcProjectile(this, targetR, targetC, currentItemBeingUsed.damage, currentItemBeingUsed.knockback);
+                    game.getMap().getEntities().add(projectile);
+                }
+            }
 
             if (currentFrameIndex >= maxFrames) {
                 currentFrameIndex = 0;
-                if (currentAction == Action.HIT || currentAction == Action.CHOPPING) {
+                if (currentAction == Action.SWING) {
+                    // After swinging, return to idle or walking based on input
                     setAction(isTryingToMoveByInput ? Action.WALK : Action.IDLE);
+                    currentItemBeingUsed = null;
                 }
             }
+        }
+
+        // --- 4. UPDATE VISUAL POSITION (SMOOTHING) ---
+        visualCol += (this.mapCol - visualCol) * VISUAL_SMOOTH_FACTOR;
+        visualRow += (this.mapRow - visualRow) * VISUAL_SMOOTH_FACTOR;
+    }
+
+    public void useItem(Item item) {
+        if (itemUseTime > 0 || currentItemBeingUsed != null) {
+            return;
+        }
+        this.currentItemBeingUsed = item;
+        this.itemUseTime = item.useTime;
+        if (item.useStyle == UseStyle.SWING) {
+            this.setAction(Action.SWING);
         }
     }
 
@@ -117,7 +200,7 @@ public class PlayerModel extends Entity {
                 case SOUTH: return ROW_WALK_SOUTH;
                 case EAST: return ROW_WALK_EAST;
             }
-        } else if (currentAction == Action.HIT || currentAction == Action.CHOPPING) {
+        } else if (currentAction == Action.SWING) {
             switch (currentDirection) {
                 case NORTH: return ROW_HIT_NORTH;
                 case WEST: return ROW_HIT_WEST;
@@ -125,21 +208,20 @@ public class PlayerModel extends Entity {
                 case EAST: return ROW_HIT_EAST;
             }
         }
-        return ROW_IDLE_SOUTH; // Fallback
+        return ROW_IDLE_SOUTH;
     }
 
     @Override public String getDisplayName() { return "Player"; }
     @Override public int getFrameWidth() { return FRAME_WIDTH; }
     @Override public int getFrameHeight() { return FRAME_HEIGHT; }
 
-    // --- Player-Specific Methods (Unchanged) ---
     public void setMovementInput(float dColNormalized, float dRowNormalized) {
         this.movementInputColNormalized = dColNormalized;
         this.movementInputRowNormalized = dRowNormalized;
     }
 
     public void setAction(Action newAction) {
-        if (this.currentAction != newAction || newAction == Action.HIT || newAction == Action.CHOPPING) {
+        if (this.currentAction != newAction) {
             this.currentAction = newAction;
             this.currentFrameIndex = 0;
             this.animationTimer = 0.0;
@@ -149,11 +231,15 @@ public class PlayerModel extends Entity {
     public void setDirection(Direction newDirection) {
         if (this.currentDirection != newDirection) {
             this.currentDirection = newDirection;
-            this.currentFrameIndex = 0;
-            this.animationTimer = 0.0;
         }
     }
 
+    public AnchorPoint getAnchorForCurrentFrame() {
+        String key = getAnimationRow() + "_" + getVisualFrameIndex();
+        return animationAnchors.get(key);
+    }
+
+    // --- RESTORED INVENTORY METHODS ---
     public boolean addItemToInventory(Item itemToAdd, int amount) {
         if (itemToAdd == null || amount <= 0) return false;
         int remainingAmountToAdd = amount;
@@ -170,34 +256,6 @@ public class PlayerModel extends Entity {
             }
         }
         return amount > remainingAmountToAdd;
-    }
-
-    public List<InventorySlot> getInventorySlots() { return inventorySlots; }
-    public int getSelectedHotbarSlotIndex() { return selectedHotbarSlotIndex; }
-
-    public void setSelectedHotbarSlotIndex(int index) {
-        if (index >= 0 && index < Math.min(Constants.HOTBAR_SIZE, inventorySlots.size())) {
-            this.selectedHotbarSlotIndex = index;
-        }
-    }
-
-    public Item getItemInSlot(int slotIndex) {
-        if (slotIndex < 0 || slotIndex >= inventorySlots.size()) return null;
-        InventorySlot slot = inventorySlots.get(slotIndex);
-        return (slot != null && !slot.isEmpty()) ? slot.getItem() : null;
-    }
-
-    public boolean consumeItemFromSelectedHotbarSlot(int amount) {
-        return consumeItemFromSlot(this.selectedHotbarSlotIndex, amount);
-    }
-
-    public boolean consumeItemFromSlot(int slotIndex, int amount) {
-        if (slotIndex < 0 || slotIndex >= inventorySlots.size() || amount <= 0) return false;
-        InventorySlot slot = inventorySlots.get(slotIndex);
-        if (slot != null && !slot.isEmpty() && slot.getQuantity() >= amount) {
-            return slot.removeQuantity(amount) == amount;
-        }
-        return false;
     }
 
     public int getInventoryItemCount(Item itemToCount) {
@@ -221,9 +279,7 @@ public class PlayerModel extends Entity {
                 int amountToRemoveFromThisStack = Math.min(amountLeftToConsume, slot.getQuantity());
                 slot.removeQuantity(amountToRemoveFromThisStack);
                 amountLeftToConsume -= amountToRemoveFromThisStack;
-                if (amountLeftToConsume == 0) {
-                    break;
-                }
+                if (amountLeftToConsume == 0) break;
             }
         }
         return amountLeftToConsume == 0;
@@ -255,111 +311,38 @@ public class PlayerModel extends Entity {
         return false;
     }
 
-    public boolean isLevitating() { return levitating; }
-    public float getLevitateTimer() { return levitateTimer; }
-    public void toggleLevitate() { this.levitating = !this.levitating; if (!this.levitating) levitateTimer = 0; }
-
-    public static class AnchorPoint {
-        public float dx, dy;
-        public float rotation;
-
-        public AnchorPoint(float dx, float dy, float rotation) {
-            this.dx = dx;
-            this.dy = dy;
-            this.rotation = rotation;
+    public List<InventorySlot> getInventorySlots() { return inventorySlots; }
+    public int getSelectedHotbarSlotIndex() { return selectedHotbarSlotIndex; }
+    public void setSelectedHotbarSlotIndex(int index) {
+        if (index >= 0 && index < Math.min(Constants.HOTBAR_SIZE, inventorySlots.size())) {
+            this.selectedHotbarSlotIndex = index;
         }
     }
-    private void defineAnimationAnchors() {
-        animationAnchors.clear();
-        // IDLE
-        animationAnchors.put(ROW_IDLE_NORTH + "_0", new AnchorPoint(5, -15, 15f));
-        animationAnchors.put(ROW_IDLE_SOUTH + "_0", new AnchorPoint(5, -15, 15f));
-        animationAnchors.put(ROW_IDLE_EAST + "_0", new AnchorPoint(5, -15, 15f));
-        animationAnchors.put(ROW_IDLE_WEST + "_0", new AnchorPoint(-5, -15, -15f));
-        // NORTH HIT
-        animationAnchors.put(ROW_HIT_NORTH + "_0", new AnchorPoint(11, -17, -35f));
-        animationAnchors.put(ROW_HIT_NORTH + "_1", new AnchorPoint(6, -13, 10f));
-        animationAnchors.put(ROW_HIT_NORTH + "_2", new AnchorPoint(-4, -22, 75f));
-        animationAnchors.put(ROW_HIT_NORTH + "_3", new AnchorPoint(31, -44, 105f));
-        animationAnchors.put(ROW_HIT_NORTH + "_4", new AnchorPoint(28, -22, 125f));
-        animationAnchors.put(ROW_HIT_NORTH + "_5", new AnchorPoint(23, -20, 110f));
-        // SOUTH HIT
-        animationAnchors.put(ROW_HIT_SOUTH + "_0", new AnchorPoint(-8, -35, -45f));
-        animationAnchors.put(ROW_HIT_SOUTH + "_1", new AnchorPoint(5, -25, 20f));
-        animationAnchors.put(ROW_HIT_SOUTH + "_2", new AnchorPoint(25, -5, 90f));
-        animationAnchors.put(ROW_HIT_SOUTH + "_3", new AnchorPoint(30, 15, 110f));
-        animationAnchors.put(ROW_HIT_SOUTH + "_4", new AnchorPoint(20, 30, 130f));
-        animationAnchors.put(ROW_HIT_SOUTH + "_5", new AnchorPoint(15, 25, 115f));
-        // WEST HIT
-        animationAnchors.put(ROW_HIT_WEST + "_0", new AnchorPoint(-6, -19, 45f));
-        animationAnchors.put(ROW_HIT_WEST + "_1", new AnchorPoint(-12, -16, -20f));
-        animationAnchors.put(ROW_HIT_WEST + "_2", new AnchorPoint(-10, -23, -90f));
-        animationAnchors.put(ROW_HIT_WEST + "_3", new AnchorPoint(-15, -18, -110f));
-        animationAnchors.put(ROW_HIT_WEST + "_4", new AnchorPoint(-22, -32, -130f));
-        animationAnchors.put(ROW_HIT_WEST + "_5", new AnchorPoint(-18, -15, -115f));
-        // EAST HIT
-        animationAnchors.put(ROW_HIT_EAST + "_0", new AnchorPoint(6, -19, -45f));
-        animationAnchors.put(ROW_HIT_EAST + "_1", new AnchorPoint(12, -16, 20f));
-        animationAnchors.put(ROW_HIT_EAST + "_2", new AnchorPoint(10, -23, 90f));
-        animationAnchors.put(ROW_HIT_EAST + "_3", new AnchorPoint(15, -18, 110f));
-        animationAnchors.put(ROW_HIT_EAST + "_4", new AnchorPoint(22, -32, 130f));
-        animationAnchors.put(ROW_HIT_EAST + "_5", new AnchorPoint(18, -15, 115f));
-    
-        for (int i=0; i<6; i++) {
-            AnchorPoint southAnchor = animationAnchors.get(ROW_HIT_SOUTH + "_" + i);
-            if (southAnchor != null) {
-                animationAnchors.put(ROW_HIT_NORTH + "_" + i, new AnchorPoint(southAnchor.dx, southAnchor.dy, southAnchor.rotation));
-                animationAnchors.put(ROW_HIT_EAST + "_" + i, new AnchorPoint(southAnchor.dx, southAnchor.dy, southAnchor.rotation));
-                animationAnchors.put(ROW_HIT_WEST + "_" + i, new AnchorPoint(-southAnchor.dx, southAnchor.dy, -southAnchor.rotation));
-            }
-        }
-    }
-
-
-
-
-    public AnchorPoint getInterpolatedAnchor() {
-        String currentRow = String.valueOf(getAnimationRow());
-
-        AnchorPoint startAnchor = animationAnchors.get(currentRow + "_" + previousFrameIndex);
-        AnchorPoint endAnchor = animationAnchors.get(currentRow + "_" + currentFrameIndex);
-
-        if (startAnchor == null) return endAnchor; // Can't interpolate without a start
-        if (endAnchor == null) return startAnchor;   // Or an end
-
-        float progress = (float) (animationTimer / currentFrameDuration);
-        progress = Math.max(0.0f, Math.min(1.0f, progress)); // Clamp progress to 0-1 range
-
-        float interDx = startAnchor.dx + (endAnchor.dx - startAnchor.dx) * progress;
-        float interDy = startAnchor.dy + (endAnchor.dy - startAnchor.dy) * progress;
-
-        // --- Handle shortest angle interpolation for rotation ---
-        float deltaRot = endAnchor.rotation - startAnchor.rotation;
-        if (deltaRot > 180) deltaRot -= 360;
-        if (deltaRot < -180) deltaRot += 360;
-        float interRot = startAnchor.rotation + deltaRot * progress;
-
-        return new AnchorPoint(interDx, interDy, interRot);
-    }
-
-    public AnchorPoint getAnchorForCurrentFrame() {
-        String key = getAnimationRow() + "_" + getVisualFrameIndex();
-        return animationAnchors.get(key);
+    public Item getItemInSlot(int slotIndex) {
+        if (slotIndex < 0 || slotIndex >= inventorySlots.size()) return null;
+        return inventorySlots.get(slotIndex).getItem();
     }
     public Item getHeldItem() {
         Item item = getItemInSlot(selectedHotbarSlotIndex);
-        if (item != null && item.getType() == Item.ItemType.TOOL) {
+        if (item != null && item.type == Item.ItemType.TOOL) {
             return item;
         }
         return null;
     }
 
+    // --- RESTORED LEVITATE METHODS ---
+    public boolean isLevitating() { return levitating; }
+    public float getLevitateTimer() { return levitateTimer; }
+    public void toggleLevitate() { this.levitating = !this.levitating; if (!this.levitating) levitateTimer = 0; }
+
+    // --- RESTORED SAVE/LOAD METHODS ---
     public void populateSaveData(PlayerSaveData saveData) {
         saveData.mapRow = this.mapRow;
         saveData.mapCol = this.mapCol;
         saveData.inventory = new ArrayList<>();
         if (this.inventorySlots != null) {
-            for (InventorySlot slot : this.inventorySlots) {
+            for (int i=0; i < this.inventorySlots.size(); i++) {
+                InventorySlot slot = this.inventorySlots.get(i);
                 if (slot != null && !slot.isEmpty()) {
                     InventorySlotSaveData slotData = new InventorySlotSaveData();
                     slotData.itemId = slot.getItem().getItemId();
@@ -371,7 +354,6 @@ public class PlayerModel extends Entity {
             }
         }
     }
-
     public boolean loadState(PlayerSaveData playerData) {
         if (playerData == null) return false;
         this.setPosition(playerData.mapRow, playerData.mapCol);
@@ -383,14 +365,10 @@ public class PlayerModel extends Entity {
                     Item item = ItemRegistry.getItem(savedSlot.itemId);
                     if (item != null) {
                         this.inventorySlots.get(i).addItem(item, savedSlot.quantity);
-                    } else {
-                        System.err.println("Player Load: Could not find item with ID: " + savedSlot.itemId);
                     }
                 }
             }
         }
-        this.currentAction = org.isogame.entity.Entity.Action.IDLE;
-        this.currentDirection = org.isogame.entity.Entity.Direction.SOUTH;
         return true;
     }
 }
