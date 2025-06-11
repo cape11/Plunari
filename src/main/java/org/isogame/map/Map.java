@@ -417,15 +417,15 @@ public class Map {
         int newElevation = currentElevation + 1; // Typically, placing a block increases elevation by 1.
 
         Tile.TileType newType;
-        if (itemToPlace.equals(ItemRegistry.DIRT)) {
+        if (itemToPlace.equals(ItemRegistry.getItem("dirt"))) {
             newType = determineTileTypeFromElevation(newElevation);
             if (targetTile.getType() == Tile.TileType.WATER) { // Filling water
                 newElevation = NIVEL_MAR; // Bring up to standard land level
                 newType = determineTileTypeFromElevation(newElevation); // Recalculate type for this new elevation
             }
-        } else if (itemToPlace.equals(ItemRegistry.STONE)) {
+        } else if (itemToPlace.equals(ItemRegistry.getItem("stone"))) {
             newType = Tile.TileType.ROCK;
-        } else if (itemToPlace.equals(ItemRegistry.SAND)) {
+        } else if (itemToPlace.equals(ItemRegistry.getItem("sand"))) {
             newType = Tile.TileType.SAND;
         } else {
             // System.out.println("Cannot place item: " + itemToPlace.getDisplayName() + " is not a placeable block type.");

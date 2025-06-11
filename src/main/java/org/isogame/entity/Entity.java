@@ -6,6 +6,11 @@ import java.util.List;
 
 public abstract class Entity {
 
+    // --- NEW: Health System ---
+    protected int maxHealth = 20; // Default max health for entities
+    protected int health = 20;    // Default current health
+    protected boolean isDead = false;
+
     // --- Core Position & State ---
     protected float mapRow;
     protected float mapCol;
@@ -13,7 +18,6 @@ public abstract class Entity {
     protected float visualCol;
     protected static final float VISUAL_SMOOTH_FACTOR = 0.2f;
 
-    // --- ADDED 'SWING' ACTION ---
     public enum Action { IDLE, WALK, HIT, CHOPPING, SWING }
     public enum Direction { NORTH, WEST, SOUTH, EAST }
 
@@ -23,11 +27,38 @@ public abstract class Entity {
     // --- Animation ---
     protected int currentFrameIndex = 0;
     protected double animationTimer = 0.0;
-    protected double frameDuration = 0.15; // A default animation speed
+    protected double frameDuration = 0.15;
 
     // --- Pathfinding ---
     protected List<PathNode> currentPath;
     protected int currentPathIndex;
+
+    /**
+     * Reduces the entity's health and handles death.
+     * @param amount The amount of damage to deal.
+     */
+    public void takeDamage(int amount) {
+        if (isDead) return; // Can't damage a dead entity
+
+        this.health -= amount;
+        if (this.health <= 0) {
+            this.health = 0;
+            this.isDead = true;
+            onDeath();
+        }
+    }
+
+    /**
+     * A method that can be overridden by subclasses to handle death logic (e.g., drop items).
+     */
+    protected void onDeath() {
+        // Base implementation does nothing.
+    }
+
+    public int getHealth() { return health; }
+    public int getMaxHealth() { return maxHealth; }
+    public boolean isDead() { return isDead; }
+
 
     public abstract void update(double deltaTime, Game game);
     public abstract int getAnimationRow();
@@ -35,7 +66,6 @@ public abstract class Entity {
     public abstract int getFrameWidth();
     public abstract int getFrameHeight();
 
-    // --- Common Getters ---
     public float getMapRow() { return mapRow; }
     public float getMapCol() { return mapCol; }
     public float getVisualRow() { return visualRow; }
@@ -46,7 +76,6 @@ public abstract class Entity {
     public Direction getCurrentDirection() { return currentDirection; }
     public int getVisualFrameIndex() { return currentFrameIndex; }
 
-    // --- Common Setters ---
     public void setPosition(float row, float col) {
         this.mapRow = row;
         this.mapCol = col;

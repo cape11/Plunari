@@ -1,0 +1,7 @@
+{
+  "id": "stone",
+  "displayName": "Stone",
+  "description": "A hard piece of rock.",
+  "type": "RESOURCE",
+  "texture": { "atlas": "treeTexture", "x": 0, "y": 64, "w": 64, "h": 64 }
+}

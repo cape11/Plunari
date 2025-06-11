@@ -173,6 +173,7 @@ public class PlayerModel extends Entity {
         visualRow += (this.mapRow - visualRow) * VISUAL_SMOOTH_FACTOR;
     }
 
+
     public void useItem(Item item) {
         if (itemUseTime > 0 || currentItemBeingUsed != null) {
             return;

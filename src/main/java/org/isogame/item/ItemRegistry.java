@@ -1,88 +1,131 @@
-// In ItemRegistry.java
-
 package org.isogame.item;
 
-import org.isogame.render.Renderer;
+import com.google.gson.Gson;
+import org.isogame.gamedata.ItemDefinition;
 import org.isogame.render.Texture;
+
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 public class ItemRegistry {
 
-    private static final Map<String, Item> items = new HashMap<>();
+    private static final Map<String, Item> itemMap = new HashMap<>();
+    private static final Gson gson = new Gson();
 
-    // Placeholder colors
-    private static final float[] DIRT_COLOR = {0.6f, 0.4f, 0.2f, 1.0f};
-    private static final float[] STONE_COLOR = {0.5f, 0.5f, 0.5f, 1.0f};
-    private static final float[] SAND_COLOR = {0.9f, 0.8f, 0.6f, 1.0f};
-    private static final float[] WOOD_PLACEHOLDER_COLOR = {0.5f, 0.35f, 0.2f, 1.0f};
-    private static final float[] STICK_PLACEHOLDER_COLOR = {0.7f, 0.5f, 0.3f, 1.0f};
-    private static final float[] AXE_PLACEHOLDER_COLOR = {0.6f, 0.65f, 0.7f, 1.0f};
-    private static final float[] LOOSE_ROCK_PLACEHOLDER_COLOR = {0.4f, 0.4f, 0.4f, 1.0f};
-
-    // --- Item Definitions using Pixel Coordinates ---
-    public static final Item DIRT = registerItem(new Item("dirt", "Dirt", "A block of common soil.", Item.ItemType.RESOURCE, 64, DIRT_COLOR));
-    public static final Item STONE = registerItem(new Item("stone", "Stone", "A hard piece of rock.", Item.ItemType.RESOURCE, 64, STONE_COLOR));
-    public static final Item SAND = registerItem(new Item("sand", "Sand", "Fine grains of sand.", Item.ItemType.RESOURCE, 64, SAND_COLOR));
-
-    public static final Item WOOD = registerItem(new Item("wood", "Wood Log", "A sturdy log of wood.", Item.ItemType.RESOURCE, 64, WOOD_PLACEHOLDER_COLOR,
-            true, "treeTexture",
-            /* YOUR_WOOD_ICON_X_PIXEL_COORD */ 90.0f,  // <--- SET THIS to your wood icon's X
-            /* YOUR_WOOD_ICON_Y_PIXEL_COORD */ 1674.0f,  // <--- SET THIS to your wood icon's Y
-            /* YOUR_WOOD_ICON_WIDTH_PIXEL */ 64.0f,   // <--- SET THIS to your wood icon's width
-            /* YOUR_WOOD_ICON_HEIGHT_PIXEL */ 32.0f)); // <--- SET THIS to your wood icon's height
-
-    public static final Item STICK = registerItem(new Item("stick", "Stick", "A basic crafting material.", Item.ItemType.RESOURCE, 64, STICK_PLACEHOLDER_COLOR,
-            true, "treeTexture", 24, 1600, 64, 64)); // hasIcon, atlasName, px, py, pw, ph
-
-    public static final Item LOOSE_ROCK = registerItem(new Item("loose_rock", "Loose Rock", "A small rock, easily picked up.", Item.ItemType.RESOURCE, 64, LOOSE_ROCK_PLACEHOLDER_COLOR,
-            true, "treeTexture", 95, 1526, 69, 69));
-
-    public static final Item CRUDE_AXE = registerItem(new ToolItem("crude_axe", "Crude Axe", "A simple axe.",
-            true, "treeTexture",
-            35f,   // New X coordinate
-            1668f, // New Y coordinate
-            49f,   // New Width
-            53f,   // New Height
-            ToolItem.ToolType.AXE));
-
-    public static final Item WOODEN_SWORD = registerItem(new ToolItem("wooden_sword", "Wooden Sword", "A basic sword made of wood. Better than nothing.",
-            true, "treeTexture",
-            128f,  // <-- REPLACE with your sword's X coordinate
-            1700f, // <-- REPLACE with your sword's Y coordinate
-            16f,   // <-- REPLACE with your sword's Width
-            48f,   // <-- REPLACE with your sword's Height
-            ToolItem.ToolType.AXE)) // Using AXE for now is fine, as it gives the SWING UseStyle
-            .setStats(8, 20, 20, 4.5f);
-
-
+    private static final List<String> ITEM_DEFINITION_FILES = Arrays.asList(
+            "crude_axe.json",
+            "dirt.json",
+            "loose_rock.json",
+            "sand.json",
+            "stick.json",
+            "stone.json",
+            "wood.json"
+    );
 
     /**
-     * Initializes the final UV coordinates for all textured items.
-     * This MUST be called after the Renderer has loaded its textures.
-     * @param textureMap A map of atlas names to Texture objects from the Renderer.
+     * Loads all item definitions directly from the project's file system.
+     * This is a robust method for local development to bypass classpath issues.
      */
+    public static void loadItems() {
+        itemMap.clear();
+        // This path is relative to your project's root directory.
+        String resourceFolderPath = "src/main/resources/data/items/";
+        System.out.println("ItemRegistry: Loading items directly from path: " + resourceFolderPath);
+
+        for (String fileName : ITEM_DEFINITION_FILES) {
+            try {
+                Path path = Paths.get(resourceFolderPath + fileName);
+                if (!Files.exists(path)) {
+                    System.err.println("CRITICAL: File does not exist at path: " + path.toAbsolutePath());
+                    continue;
+                }
+
+                Reader reader = Files.newBufferedReader(path);
+                ItemDefinition data = gson.fromJson(reader, ItemDefinition.class);
+                if (data != null && data.id != null) {
+                    Item newItem = createItemFromData(data);
+                    if (newItem != null) {
+                        registerItem(newItem);
+                    }
+                }
+                reader.close();
+
+            } catch (Exception e) {
+                System.err.println("ERROR: Failed to load item definition from: " + fileName);
+                e.printStackTrace();
+            }
+        }
+        System.out.println("ItemRegistry: Loaded " + itemMap.size() + " item definitions.");
+    }
+
+    private static Item createItemFromData(ItemDefinition data) {
+        Item.ItemType itemType = Item.ItemType.valueOf(data.type);
+        Item newItem;
+
+        if (itemType == Item.ItemType.TOOL && data.toolType != null) {
+            ToolItem.ToolType toolType = ToolItem.ToolType.valueOf(data.toolType);
+            newItem = new ToolItem(
+                    data.id, data.displayName, data.description,
+                    true, data.texture.atlas,
+                    data.texture.x, data.texture.y, data.texture.w, data.texture.h,
+                    toolType
+            );
+        } else {
+            newItem = new Item(
+                    data.id, data.displayName, data.description, itemType, 64, null,
+                    data.texture != null, data.texture != null ? data.texture.atlas : "",
+                    data.texture != null ? data.texture.x : 0, data.texture != null ? data.texture.y : 0,
+                    data.texture != null ? data.texture.w : 0, data.texture != null ? data.texture.h : 0
+            );
+        }
+
+        if (data.stats != null) {
+            if (data.useStyle != null) {
+                newItem.useStyle = UseStyle.valueOf(data.useStyle);
+            }
+            newItem.damage = data.stats.damage;
+            newItem.useTime = data.stats.useTime;
+            newItem.useAnimation = data.stats.useAnimation;
+            newItem.knockback = data.stats.knockback;
+        }
+
+        return newItem;
+    }
+
     public static void initializeItemUVs(Map<String, Texture> textureMap) {
         System.out.println("ItemRegistry: Initializing item UV coordinates...");
-        for (Item item : items.values()) {
+        for (Item item : itemMap.values()) {
             if (item.hasIconTexture()) {
                 Texture atlas = textureMap.get(item.getAtlasName());
                 if (atlas != null) {
                     item.calculateUVs(atlas);
                 } else {
-                    System.err.println("WARNING: Item '" + item.getItemId() + "' needs atlas '" + item.getAtlasName() + "', which was not found in the texture map provided by the Renderer.");
+                    if(item.getAtlasName() != null && !item.getAtlasName().isEmpty())
+                        System.err.println("WARNING: Item '" + item.getItemId() + "' needs atlas '" + item.getAtlasName() + "', which was not found.");
                 }
             }
         }
         System.out.println("ItemRegistry: UV coordinate initialization complete.");
     }
 
-    private static Item registerItem(Item item) {
-        items.put(item.getItemId().toLowerCase(), item);
-        return item;
+    private static void registerItem(Item item) {
+        itemMap.put(item.getItemId().toLowerCase(), item);
     }
 
     public static Item getItem(String itemId) {
-        return items.get(itemId.toLowerCase());
+        Item item = itemMap.get(itemId.toLowerCase());
+        if (item == null) {
+            System.err.println("WARNING: Tried to get unknown item with ID: " + itemId);
+        }
+        return item;
     }
 }

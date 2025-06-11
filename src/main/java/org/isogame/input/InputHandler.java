@@ -236,15 +236,27 @@ public class InputHandler {
         // --- CORRECTED LOGIC ---
         Item heldItem = player.getHeldItem();
 
-        if (heldItem != null && heldItem.useStyle != UseStyle.NONE) {
-            // If holding a usable item, use the data-driven system
+        if (heldItem != null) {
+            // If holding a tool, use the new data-driven system
             heldItem.onUse(gameInstance, player, targetTile, targetR, targetC);
         } else {
-            // If holding nothing or an unusable item, perform a bare-handed "punch" animation.
-            player.setAction(Entity.Action.SWING);
-            // This will not spawn a projectile because currentItemBeingUsed will be null in PlayerModel's update().
+            // If holding nothing, perform a bare-handed action.
+            player.setAction(Entity.Action.SWING); // Play the punch animation
+
+            // --- THIS LOGIC HAS BEEN RESTORED ---
+            // Add back the logic for interacting with the world with bare hands
+            if (targetTile.getLooseRockType() != Tile.LooseRockType.NONE) {
+                player.addItemToInventory(ItemRegistry.getItem("loose_rock"), 1);
+                targetTile.setLooseRockType(Tile.LooseRockType.NONE);
+                gameInstance.requestTileRenderUpdate(targetR, targetC);
+            } else if (targetTile.getTreeType() != Tile.TreeVisualType.NONE) {
+                // Punching a tree gives one stick and deals a tiny bit of damage
+                player.addItemToInventory(ItemRegistry.getItem("stick"), 1);
+                targetTile.takeDamage(1); // Deal 1 damage
+            }
         }
     }
+
 
     private void modifySelectedTileElevation(int amount) {
         if (map == null || gameInstance == null) {

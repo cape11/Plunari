@@ -1,0 +1,13 @@
+{
+  "id": "stick",
+  "displayName": "Stick",
+  "description": "A basic crafting material.",
+  "type": "RESOURCE",
+  "texture": {
+    "atlas": "treeTexture",
+    "x": 24,
+    "y": 1600,
+    "w": 64,
+    "h": 64
+  }
+}

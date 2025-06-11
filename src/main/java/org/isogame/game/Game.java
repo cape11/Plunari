@@ -123,9 +123,9 @@ public class Game {
             renderer.onResize(initialFramebufferWidth, initialScreenHeight);
             System.out.println("Game Constructor: Renderer initialized for menu.")
             ;
-// Initialize registries that depend on loaded assets.
+            // Initialize registries that depend on loaded assets.
             ItemRegistry.initializeItemUVs(renderer.getTextureMap());
-            RecipeRegistry.loadRecipes(); // <<< FIX:
+            ItemRegistry.loadItems(); // <<< FIX:
             // Input and Mouse Handlers are initialized once. Callbacks are registered once.
             // They will use gameInstance.getCurrentGameState() to determine behavior.
             // Their internal map/player references will be updated.

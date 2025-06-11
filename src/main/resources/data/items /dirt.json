@@ -1,0 +1,7 @@
+{
+  "id": "dirt",
+  "displayName": "Dirt",
+  "description": "A block of common soil.",
+  "type": "RESOURCE",
+  "texture": { "atlas": "treeTexture", "x": 0, "y": 0, "w": 64, "h": 64 }
+}

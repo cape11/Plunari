@@ -32,6 +32,11 @@ public class Tile {
     private int elevation; // Elevation might be less relevant for AIR tiles, or could be a default
     private TreeVisualType treeType;
 
+    // --- NEW: Health for tile features like trees ---
+    private int health = 0;
+    private int maxHealth = 0;
+
+
     private byte skyLightLevel = 0;
     private byte blockLightLevel = 0;
     private boolean hasTorch = false;
@@ -77,7 +82,30 @@ public class Tile {
     public int getElevation() { return elevation; }
     public void setElevation(int elevation) { this.elevation = elevation; }
     public TreeVisualType getTreeType() { return treeType; }
-    public void setTreeType(TreeVisualType treeType) { this.treeType = treeType; }
+
+    public int getHealth() { return health; }
+
+
+    public void takeDamage(int amount) {
+        if (this.health > 0) {
+            this.health -= amount;
+        }
+    }
+
+
+    public void setTreeType(TreeVisualType treeType) {
+        this.treeType = treeType;
+        if (treeType != TreeVisualType.NONE) {
+            this.maxHealth = 50; // All trees have 50 health
+            this.health = this.maxHealth;
+        } else {
+            this.health = 0;
+            this.maxHealth = 0;
+        }
+    }
+
+
+
     public byte getSkyLightLevel() { return skyLightLevel; }
     public void setSkyLightLevel(byte level) { this.skyLightLevel = (byte) Math.max(0, Math.min(MAX_LIGHT_LEVEL, level)); }
     public byte getBlockLightLevel() { return blockLightLevel; }
