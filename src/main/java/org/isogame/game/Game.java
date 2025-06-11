@@ -503,6 +503,8 @@ public class Game {
         List<Entity> currentEntities = new ArrayList<>(map.getEntities());
         for (Entity entity : currentEntities) {
             entity.update(deltaTime, this);
+            // Call updateVisualEffects to tick down the damage flash timer
+            entity.updateVisualEffects(deltaTime);
         }
 
         inputHandler.handleContinuousInput(deltaTime);
@@ -1012,6 +1014,8 @@ public class Game {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+        // Render UI Elements
+        renderer.renderPlayerHealthBar(player); // Draw the new health bar
         if (this.showInventory) renderer.renderInventoryAndCraftingUI(player);
         if (this.showHotbar) renderer.renderHotbar(player, player.getSelectedHotbarSlotIndex());
 

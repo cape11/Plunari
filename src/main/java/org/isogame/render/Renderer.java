@@ -790,19 +790,21 @@ public class Renderer {
         int animCol = p.getVisualFrameIndex();
         int animRow = p.getAnimationRow();
 
-        // --- UV FIX ---
         float u0 = (float) (animCol * p.getFrameWidth()) / playerTexture.getWidth();
         float v0 = (float) (animRow * p.getFrameHeight()) / playerTexture.getHeight();
         float u1 = (float) ((animCol + 1) * p.getFrameWidth()) / playerTexture.getWidth();
         float v1 = (float) ((animRow + 1) * p.getFrameHeight()) / playerTexture.getHeight();
 
-        addVertexToSpriteBuffer(buffer, xL, yT, playerWorldZ, WHITE_TINT, u0, v0, lightVal);
-        addVertexToSpriteBuffer(buffer, xL, yB, playerWorldZ, WHITE_TINT, u0, v1, lightVal);
-        addVertexToSpriteBuffer(buffer, xR, yB, playerWorldZ, WHITE_TINT, u1, v1, lightVal);
+        // Get the tint from the entity to apply the damage flash
+        float[] tint = p.getHealthTint();
 
-        addVertexToSpriteBuffer(buffer, xR, yB, playerWorldZ, WHITE_TINT, u1, v1, lightVal);
-        addVertexToSpriteBuffer(buffer, xR, yT, playerWorldZ, WHITE_TINT, u1, v0, lightVal);
-        addVertexToSpriteBuffer(buffer, xL, yT, playerWorldZ, WHITE_TINT, u0, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yT, playerWorldZ, tint, u0, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yB, playerWorldZ, tint, u0, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yB, playerWorldZ, tint, u1, v1, lightVal);
+
+        addVertexToSpriteBuffer(buffer, xR, yB, playerWorldZ, tint, u1, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yT, playerWorldZ, tint, u1, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yT, playerWorldZ, tint, u0, v0, lightVal);
         return 6;
     }
 
@@ -832,27 +834,85 @@ public class Renderer {
         int animCol = animal.getVisualFrameIndex();
         int animRow = animal.getAnimationRow();
 
-        // --- UV FIX ---
         float u0 = (float) (animCol * animal.getFrameWidth()) / playerTexture.getWidth();
         float v0 = (float) (animRow * animal.getFrameHeight()) / playerTexture.getHeight();
         float u1 = (float) ((animCol + 1) * animal.getFrameWidth()) / playerTexture.getWidth();
         float v1 = (float) ((animRow + 1) * animal.getFrameHeight()) / playerTexture.getHeight();
 
-        addVertexToSpriteBuffer(buffer, xL, yT, animalWorldZ, WHITE_TINT, u0, v0, lightVal);
-        addVertexToSpriteBuffer(buffer, xL, yB, animalWorldZ, WHITE_TINT, u0, v1, lightVal);
-        addVertexToSpriteBuffer(buffer, xR, yB, animalWorldZ, WHITE_TINT, u1, v1, lightVal);
+        // Get the tint from the entity to apply the damage flash
+        float[] tint = animal.getHealthTint();
 
-        addVertexToSpriteBuffer(buffer, xR, yB, animalWorldZ, WHITE_TINT, u1, v1, lightVal);
-        addVertexToSpriteBuffer(buffer, xR, yT, animalWorldZ, WHITE_TINT, u1, v0, lightVal);
-        addVertexToSpriteBuffer(buffer, xL, yT, animalWorldZ, WHITE_TINT, u0, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yT, animalWorldZ, tint, u0, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yB, animalWorldZ, tint, u0, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yB, animalWorldZ, tint, u1, v1, lightVal);
+
+        addVertexToSpriteBuffer(buffer, xR, yB, animalWorldZ, tint, u1, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yT, animalWorldZ, tint, u1, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yT, animalWorldZ, tint, u0, v0, lightVal);
         return 6;
     }
 
+    public void renderPlayerHealthBar(PlayerModel player) {
+        if (player == null || camera == null || defaultShader == null || uiColoredVaoId == 0 || uiFont == null) {
+            return;
+        }
 
-    // This is the closing brace } of addTreeVerticesToBuffer_WorldSpace
-    // ... (ensure you are outside the addTreeVerticesToBuffer_WorldSpace method)
+        // --- Layout Calculation (to position above hotbar) ---
+        float slotSize = 55f;
+        float slotMargin = 6f;
+        float hotbarY = camera.getScreenHeight() - slotSize - (slotMargin * 3);
 
-    // ... inside Renderer.java ...
+        float barWidth = 200f;
+        float barHeight = 20f;
+        float barX = (camera.getScreenWidth() - barWidth) / 2.0f; // Centered
+        float barY = hotbarY - barHeight - slotMargin; // Positioned above the hotbar
+        float border = 2f;
+
+        // --- Health Calculation ---
+        float healthPercentage = (float) player.getHealth() / (float) player.getMaxHealth();
+        float currentHealthWidth = barWidth * healthPercentage;
+
+        // --- Colors ---
+        float[] bgColor = {0.1f, 0.1f, 0.1f, 0.8f};
+        float[] healthColor = {0.8f, 0.2f, 0.2f, 0.9f};
+        float[] borderColor = {0.8f, 0.8f, 0.8f, 1.0f};
+
+        // --- Rendering ---
+        defaultShader.bind();
+        defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
+        defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
+        defaultShader.setUniform("uHasTexture", 0);
+        defaultShader.setUniform("uIsSimpleUiElement", 1);
+
+        glBindVertexArray(uiColoredVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, uiColoredVboId);
+        uiColoredVertexBuffer.clear();
+
+        // Border
+        addQuadToUiColoredBuffer(uiColoredVertexBuffer, barX - border, barY - border, barWidth + (border * 2), barHeight + (border * 2), Z_OFFSET_UI_BORDER, borderColor);
+        // Background
+        addQuadToUiColoredBuffer(uiColoredVertexBuffer, barX, barY, barWidth, barHeight, Z_OFFSET_UI_PANEL, bgColor);
+        // Current Health
+        if (currentHealthWidth > 0) {
+            addQuadToUiColoredBuffer(uiColoredVertexBuffer, barX, barY, currentHealthWidth, barHeight, Z_OFFSET_UI_ELEMENT, healthColor);
+        }
+
+        uiColoredVertexBuffer.flip();
+        glBufferSubData(GL_ARRAY_BUFFER, 0, uiColoredVertexBuffer);
+        glDrawArrays(GL_TRIANGLES, 0, 18); // 3 quads * 6 vertices/quad
+
+        glBindVertexArray(0);
+
+        // Render health text over the bar
+        if (uiFont.isInitialized()) {
+            String healthText = player.getHealth() + " / " + player.getMaxHealth();
+            float textWidth = uiFont.getTextWidth(healthText);
+            float textX = barX + (barWidth - textWidth) / 2;
+            float textY = barY + barHeight / 2 + uiFont.getAscent() / 2 - 2f;
+            uiFont.drawText(textX, textY, healthText, 1f, 1f, 1f);
+        }
+    }
+
 
     private int addLooseRockVerticesToBuffer_WorldSpace(LooseRockData rock, FloatBuffer buffer) {
         // Ensure the texture for rocks (treeTexture in this case) is loaded
