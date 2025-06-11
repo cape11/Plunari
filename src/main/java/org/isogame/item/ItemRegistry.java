@@ -37,30 +37,31 @@ public class ItemRegistry {
      */
     public static void loadItems() {
         itemMap.clear();
-        // This path is relative to your project's root directory.
-        String resourceFolderPath = "src/main/resources/data/items/";
-        System.out.println("ItemRegistry: Loading items directly from path: " + resourceFolderPath);
+        // Path within the classpath, relative to the root. DO NOT start with a slash.
+        String resourceFolderPath = "data/items/";
+        System.out.println("ItemRegistry: Loading items from classpath folder: " + resourceFolderPath);
 
         for (String fileName : ITEM_DEFINITION_FILES) {
-            try {
-                Path path = Paths.get(resourceFolderPath + fileName);
-                if (!Files.exists(path)) {
-                    System.err.println("CRITICAL: File does not exist at path: " + path.toAbsolutePath());
-                    continue;
+            String fullPath = resourceFolderPath + fileName;
+
+            // Use the ClassLoader to get the resource stream, matching the working code in Font.java
+            try (InputStream is = ItemRegistry.class.getClassLoader().getResourceAsStream(fullPath)) {
+                if (is == null) {
+                    System.err.println("CRITICAL: Cannot find resource file on classpath: " + fullPath);
+                    continue; // Skip to the next file
                 }
 
-                Reader reader = Files.newBufferedReader(path);
-                ItemDefinition data = gson.fromJson(reader, ItemDefinition.class);
-                if (data != null && data.id != null) {
-                    Item newItem = createItemFromData(data);
-                    if (newItem != null) {
-                        registerItem(newItem);
+                try (Reader reader = new InputStreamReader(is)) {
+                    ItemDefinition data = gson.fromJson(reader, ItemDefinition.class);
+                    if (data != null && data.id != null) {
+                        Item newItem = createItemFromData(data);
+                        if (newItem != null) {
+                            registerItem(newItem);
+                        }
                     }
                 }
-                reader.close();
-
             } catch (Exception e) {
-                System.err.println("ERROR: Failed to load item definition from: " + fileName);
+                System.err.println("ERROR: Failed to load or parse item definition from: " + fullPath);
                 e.printStackTrace();
             }
         }
