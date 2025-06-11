@@ -8,9 +8,9 @@
   "texture": {
     "atlas": "treeTexture",
     "x": 35,
-    "y": 1668,
+    "y": 1665,
     "w": 49,
-    "h": 53
+    "h": 56
   },
   "stats": {
     "damage": 10,

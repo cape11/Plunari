@@ -5,9 +5,9 @@
   "type": "RESOURCE",
   "texture": {
     "atlas": "treeTexture",
-    "x": 24,
-    "y": 1600,
-    "w": 64,
-    "h": 64
+    "x": 38,
+    "y": 1621,
+    "w": 31,
+    "h": 26
   }
 }

@@ -7,73 +7,74 @@ import org.isogame.render.Texture;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 public class ItemRegistry {
 
     private static final Map<String, Item> itemMap = new HashMap<>();
     private static final Gson gson = new Gson();
 
-    private static final List<String> ITEM_DEFINITION_FILES = Arrays.asList(
-            "crude_axe.json",
-            "dirt.json",
-            "loose_rock.json",
-            "sand.json",
-            "stick.json",
-            "stone.json",
-            "wood.json"
+    private static final List<String> ITEM_FILES = Arrays.asList(
+            "crude_axe.json", "dirt.json", "loose_rock.json",
+            "sand.json", "stick.json", "stone.json", "wood.json"
     );
 
     /**
-     * Loads all item definitions directly from the project's file system.
-     * This is a robust method for local development to bypass classpath issues.
+     * Loads each item definition file individually from the classpath.
+     * The files are now located inside the main package structure for reliability.
      */
     public static void loadItems() {
         itemMap.clear();
-        // Path within the classpath, relative to the root. DO NOT start with a slash.
-        String resourceFolderPath = "data/items/";
-        System.out.println("ItemRegistry: Loading items from classpath folder: " + resourceFolderPath);
+        System.out.println("ItemRegistry: Initializing item loading (New Path)...");
+        // Path to item JSON files in resources directory
+        String resourceFolder = "/data/items/";
 
-        for (String fileName : ITEM_DEFINITION_FILES) {
-            String fullPath = resourceFolderPath + fileName;
-
-            // Use the ClassLoader to get the resource stream, matching the working code in Font.java
-            try (InputStream is = ItemRegistry.class.getClassLoader().getResourceAsStream(fullPath)) {
+        for (String fileName : ITEM_FILES) {
+            String fullPath = resourceFolder + fileName;
+            System.out.println("  -> Attempting to load: " + fullPath);
+            try (InputStream is = ItemRegistry.class.getResourceAsStream(fullPath)) {
                 if (is == null) {
-                    System.err.println("CRITICAL: Cannot find resource file on classpath: " + fullPath);
-                    continue; // Skip to the next file
+                    System.err.println("    - CRITICAL FAILURE: Cannot find resource file on classpath: " + fullPath);
+                    continue;
                 }
 
                 try (Reader reader = new InputStreamReader(is)) {
                     ItemDefinition data = gson.fromJson(reader, ItemDefinition.class);
-                    if (data != null && data.id != null) {
-                        Item newItem = createItemFromData(data);
-                        if (newItem != null) {
-                            registerItem(newItem);
-                        }
+                    Item newItem = createItemFromData(data);
+                    if (newItem != null) {
+                        registerItem(newItem);
+                        System.out.println("    - SUCCESS: Loaded item: " + newItem.getDisplayName());
+                    } else {
+                        System.err.println("    - FAILED: Could not create item from " + fileName);
                     }
                 }
             } catch (Exception e) {
-                System.err.println("ERROR: Failed to load or parse item definition from: " + fullPath);
+                System.err.println("    - ERROR: Exception while processing " + fullPath);
                 e.printStackTrace();
             }
         }
-        System.out.println("ItemRegistry: Loaded " + itemMap.size() + " item definitions.");
+        System.out.println("ItemRegistry: " + itemMap.size() + " total item definitions loaded.");
     }
 
     private static Item createItemFromData(ItemDefinition data) {
-        Item.ItemType itemType = Item.ItemType.valueOf(data.type);
-        Item newItem;
+        if (data == null || data.id == null || data.type == null) {
+            System.err.println("Skipping item with null data, id, or type.");
+            return null;
+        }
+        Item.ItemType itemType;
+        try {
+            itemType = Item.ItemType.valueOf(data.type.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            System.err.println("ERROR: Invalid item type '" + data.type + "' in JSON file.");
+            return null;
+        }
 
+        Item newItem;
         if (itemType == Item.ItemType.TOOL && data.toolType != null) {
-            ToolItem.ToolType toolType = ToolItem.ToolType.valueOf(data.toolType);
+            ToolItem.ToolType toolType = ToolItem.ToolType.valueOf(data.toolType.toUpperCase());
             newItem = new ToolItem(
                     data.id, data.displayName, data.description,
                     true, data.texture.atlas,
@@ -91,27 +92,25 @@ public class ItemRegistry {
 
         if (data.stats != null) {
             if (data.useStyle != null) {
-                newItem.useStyle = UseStyle.valueOf(data.useStyle);
+                newItem.useStyle = UseStyle.valueOf(data.useStyle.toUpperCase());
             }
             newItem.damage = data.stats.damage;
             newItem.useTime = data.stats.useTime;
             newItem.useAnimation = data.stats.useAnimation;
             newItem.knockback = data.stats.knockback;
         }
-
         return newItem;
     }
 
     public static void initializeItemUVs(Map<String, Texture> textureMap) {
         System.out.println("ItemRegistry: Initializing item UV coordinates...");
         for (Item item : itemMap.values()) {
-            if (item.hasIconTexture()) {
+            if (item.hasIconTexture() && item.getAtlasName() != null && !item.getAtlasName().isEmpty()) {
                 Texture atlas = textureMap.get(item.getAtlasName());
                 if (atlas != null) {
                     item.calculateUVs(atlas);
                 } else {
-                    if(item.getAtlasName() != null && !item.getAtlasName().isEmpty())
-                        System.err.println("WARNING: Item '" + item.getItemId() + "' needs atlas '" + item.getAtlasName() + "', which was not found.");
+                    System.err.println("WARNING: Item '" + item.getItemId() + "' needs atlas '" + item.getAtlasName() + "', which was not found.");
                 }
             }
         }
@@ -123,6 +122,10 @@ public class ItemRegistry {
     }
 
     public static Item getItem(String itemId) {
+        if (itemId == null) {
+            System.err.println("WARNING: Tried to get an item with a null ID.");
+            return null;
+        }
         Item item = itemMap.get(itemId.toLowerCase());
         if (item == null) {
             System.err.println("WARNING: Tried to get unknown item with ID: " + itemId);

@@ -11,6 +11,11 @@ public abstract class Entity {
     protected int health = 20;    // Default current health
     protected boolean isDead = false;
 
+    // --- Health Visualization ---
+    protected double damageFlashTimer = 0.0; // Timer for flashing red when damaged
+    protected static final double DAMAGE_FLASH_DURATION = 0.5; // Duration of damage flash in seconds
+    protected static final float LOW_HEALTH_THRESHOLD = 0.3f; // Threshold for low health warning (30% of max health)
+
     // --- Core Position & State ---
     protected float mapRow;
     protected float mapCol;
@@ -41,6 +46,8 @@ public abstract class Entity {
         if (isDead) return; // Can't damage a dead entity
 
         this.health -= amount;
+        this.damageFlashTimer = DAMAGE_FLASH_DURATION; // Trigger damage flash
+
         if (this.health <= 0) {
             this.health = 0;
             this.isDead = true;
@@ -58,6 +65,54 @@ public abstract class Entity {
     public int getHealth() { return health; }
     public int getMaxHealth() { return maxHealth; }
     public boolean isDead() { return isDead; }
+
+    /**
+     * Updates the damage flash timer.
+     * @param deltaTime Time elapsed since last update in seconds.
+     */
+    public void updateHealthVisualization(double deltaTime) {
+        if (damageFlashTimer > 0) {
+            damageFlashTimer -= deltaTime;
+            if (damageFlashTimer < 0) {
+                damageFlashTimer = 0;
+            }
+        }
+    }
+
+    /**
+     * Checks if the entity is currently flashing from damage.
+     * @return True if the entity should be displayed with a damage flash effect.
+     */
+    public boolean isFlashingFromDamage() {
+        return damageFlashTimer > 0;
+    }
+
+    /**
+     * Checks if the entity is at low health (below the threshold).
+     * @return True if the entity's health is below the low health threshold.
+     */
+    public boolean isLowHealth() {
+        return !isDead && health > 0 && ((float)health / maxHealth) <= LOW_HEALTH_THRESHOLD;
+    }
+
+    /**
+     * Gets the color tint for the entity based on its current state.
+     * @return An array of RGBA values (0.0-1.0) for the entity's tint.
+     */
+    public float[] getHealthTint() {
+        if (isFlashingFromDamage()) {
+            // Flash red when damaged - intensity based on remaining flash time
+            float flashIntensity = (float)(damageFlashTimer / DAMAGE_FLASH_DURATION);
+            return new float[] {1.0f, 1.0f - (0.7f * flashIntensity), 1.0f - (0.7f * flashIntensity), 1.0f};
+        } else if (isLowHealth()) {
+            // Pulse between normal and red tint when at low health
+            double pulseRate = 3.0; // Pulses per second
+            float pulseIntensity = (float)Math.abs(Math.sin(System.currentTimeMillis() / 1000.0 * pulseRate));
+            return new float[] {1.0f, 1.0f - (0.3f * pulseIntensity), 1.0f - (0.3f * pulseIntensity), 1.0f};
+        }
+        // Normal tint (white)
+        return new float[] {1.0f, 1.0f, 1.0f, 1.0f};
+    }
 
 
     public abstract void update(double deltaTime, Game game);

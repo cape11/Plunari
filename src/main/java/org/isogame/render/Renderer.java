@@ -147,15 +147,15 @@ public class Renderer {
 
 
 
-    // !!! IMPORTANT: Replace these X and Y values with the real coordinates from your texture file !!!
-    public static final float CRUDE_AXE_SPRITE_X_PIX = 20.0f; // Placeholder X
-    public static final float CRUDE_AXE_SPRITE_Y_PIX = 1660.0f; // Placeholder Y
-    public static final float CRUDE_AXE_SPRITE_W_PIX = 50.0f;  // Placeholder Width
-    public static final float CRUDE_AXE_SPRITE_H_PIX = 100.0f;  // Placeholder Height
+    // Actual coordinates from crude_axe.json
+    public static final float CRUDE_AXE_SPRITE_X_PIX = 35.0f;
+    public static final float CRUDE_AXE_SPRITE_Y_PIX = 1665.0f;
+    public static final float CRUDE_AXE_SPRITE_W_PIX = 49.0f;
+    public static final float CRUDE_AXE_SPRITE_H_PIX = 56.0f;
 
-    // NEW: Render size for the held crude axe (adjust as needed)
-    public static final float CRUDE_AXE_RENDER_WIDTH = 15.0f; // Smaller width
-    public static final float CRUDE_AXE_RENDER_HEIGHT = 30.0f; // Smaller height, maintaining aspect ratio roughly
+    // Render size for the held crude axe (adjusted to maintain correct aspect ratio)
+    public static final float CRUDE_AXE_RENDER_WIDTH = 17.5f;
+    public static final float CRUDE_AXE_RENDER_HEIGHT = 20.0f;
 
 
     public static class TreeData {
@@ -1138,9 +1138,9 @@ public class Renderer {
         // --- 2. Define the Axe's Geometry and Pivot ---
         float renderW = CRUDE_AXE_RENDER_WIDTH;
         float renderH = CRUDE_AXE_RENDER_HEIGHT;
-        // Pivot point on the axe sprite (where the hand holds it). Tune this for the best look.
-        float pivotX = renderW * 0.72f;
-        float pivotY = renderH * 0.53f;
+        // Pivot point on the axe sprite (where the hand holds it). Adjusted for the new dimensions.
+        float pivotX = renderW * 0.35f;
+        float pivotY = renderH * 0.75f;
 
         // --- 3. Create the Transformation Matrix ---
         Matrix4f modelMatrix = new Matrix4f();
