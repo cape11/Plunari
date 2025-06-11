@@ -1183,7 +1183,7 @@ public class Renderer {
     }
 
     private int addHeldItemVerticesToBuffer(PlayerModel player, Item item, PlayerModel.AnchorPoint anchor, FloatBuffer buffer) {
-        if (treeTexture == null || map == null) return 0;
+        if (treeTexture == null || map == null || anchor == null) return 0;
 
         // --- 1. Get Player and Item Base Data ---
         float pR = player.getVisualRow();
@@ -1191,41 +1191,56 @@ public class Renderer {
         Tile tile = map.getTile(player.getTileRow(), player.getTileCol());
         int elev = (tile != null) ? tile.getElevation() : 0;
         float lightVal = (tile != null) ? tile.getFinalLightLevel() / (float) MAX_LIGHT_LEVEL : 1.0f;
+
+        // Calculate player center position
         float playerBaseIsoX = (pC - pR) * tileHalfWidth;
         float playerBaseIsoY = (pC + pR) * tileHalfHeight - (elev * TILE_THICKNESS);
-        float itemWorldZ = (pR + pC) * DEPTH_SORT_FACTOR + 0.001f; // Slightly in front of player
 
-        // --- 2. Define the Axe's Geometry and Pivot ---
+        float itemWorldZ = (pR + pC) * DEPTH_SORT_FACTOR + 0.001f;
+
+        // --- 2. FIXED: Scale anchor offsets from pixel space to world space ---
+        // Assuming your player sprite is 64x64 and rendered at some world scale
+        float PIXEL_TO_WORLD_SCALE = 1.0f; // Adjust this based on your actual scaling
+        float scaledAnchorDx = anchor.dx * PIXEL_TO_WORLD_SCALE;
+        float scaledAnchorDy = anchor.dy * PIXEL_TO_WORLD_SCALE;
+
+        // --- 3. Define the Axe's Geometry and Pivot ---
         float renderW = CRUDE_AXE_RENDER_WIDTH;
         float renderH = CRUDE_AXE_RENDER_HEIGHT;
-        // Pivot point on the axe sprite (where the hand holds it). Adjusted for the new dimensions.
-        float pivotX = renderW * 0.35f;
-        float pivotY = renderH * 0.75f;
 
-        // --- 3. Create the Transformation Matrix ---
+        // FIXED: Pivot should be relative to item size, not hardcoded
+        float pivotX = renderW * 0.2f;  // 20% from left edge (handle)
+        float pivotY = renderH * 0.8f;  // 80% from top (near handle end)
+
+        // --- 4. IMPROVED: Create transformation matrix with proper order ---
         Matrix4f modelMatrix = new Matrix4f();
-        modelMatrix.translate(playerBaseIsoX + anchor.dx, playerBaseIsoY + anchor.dy, 0);
+
+        // First: translate to player position + anchor offset
+        modelMatrix.translate(playerBaseIsoX + scaledAnchorDx, playerBaseIsoY + scaledAnchorDy, 0);
+
+        // Second: rotate around the anchor point
         modelMatrix.rotateZ((float) Math.toRadians(anchor.rotation));
+
+        // Third: translate by pivot to position the item correctly relative to rotation point
         modelMatrix.translate(-pivotX, -pivotY, 0);
 
-        // --- 4. Define Vertices and Transform Them ---
-        // CORRECTED: Using unique names for the Vector4f objects to avoid conflicts.
+        // --- 5. Define Vertices and Transform Them ---
         Vector4f vertTopLeft = new Vector4f(0, 0, 0, 1).mul(modelMatrix);
         Vector4f vertBottomLeft = new Vector4f(0, renderH, 0, 1).mul(modelMatrix);
         Vector4f vertTopRight = new Vector4f(renderW, 0, 0, 1).mul(modelMatrix);
         Vector4f vertBottomRight = new Vector4f(renderW, renderH, 0, 1).mul(modelMatrix);
 
-        // --- 5. Add Transformed Vertices to Buffer ---
-        // Using the original addVertexToSpriteBuffer, which doesn't need the extra 'data' float.
+        // --- 6. Add Transformed Vertices to Buffer ---
         float u0 = item.getIconU0();
         float v0 = item.getIconV0();
         float u1 = item.getIconU1();
-        float v1 = item.getIconV1(); // This 'v1' is the float, which is now safe to use.
+        float v1 = item.getIconV1();
 
         // Triangle 1
         addVertexToSpriteBuffer(buffer, vertTopLeft.x, vertTopLeft.y, itemWorldZ, WHITE_TINT, u0, v0, lightVal);
         addVertexToSpriteBuffer(buffer, vertBottomLeft.x, vertBottomLeft.y, itemWorldZ, WHITE_TINT, u0, v1, lightVal);
         addVertexToSpriteBuffer(buffer, vertTopRight.x, vertTopRight.y, itemWorldZ, WHITE_TINT, u1, v0, lightVal);
+
         // Triangle 2
         addVertexToSpriteBuffer(buffer, vertTopRight.x, vertTopRight.y, itemWorldZ, WHITE_TINT, u1, v0, lightVal);
         addVertexToSpriteBuffer(buffer, vertBottomLeft.x, vertBottomLeft.y, itemWorldZ, WHITE_TINT, u0, v1, lightVal);
@@ -1237,233 +1252,249 @@ public class Renderer {
 
     public void renderHotbar(PlayerModel playerForHotbar, int currentlySelectedHotbarSlot) {
         Font currentUiFont = getUiFont();
-        if (currentUiFont == null || !currentUiFont.isInitialized() || playerForHotbar == null || defaultShader == null || camera == null) {
+        if (currentUiFont == null || !currentUiFont.isInitialized() ||
+                playerForHotbar == null || defaultShader == null || camera == null) {
             return;
         }
 
-        // --- Part 1: Draw Hotbar Slot Backgrounds AND Icon Borders (using hotbarVaoId) ---
+        // Cache hotbar layout calculations
+        final float slotSize = 55f;
+        final float slotMargin = 6f;
+        final int hotbarSlotsToDisplay = HOTBAR_SIZE;
+        final float totalHotbarWidth = (hotbarSlotsToDisplay * slotSize) +
+                ((Math.max(0, hotbarSlotsToDisplay - 1)) * slotMargin);
+        final float hotbarX = (camera.getScreenWidth() - totalHotbarWidth) / 2.0f;
+        final float hotbarY = camera.getScreenHeight() - slotSize - (slotMargin * 3);
+        final float itemRenderSize = slotSize * 0.9f;
+        final float itemOffset = (slotSize - itemRenderSize) / 2f;
+
+        List<InventorySlot> playerInventorySlots = playerForHotbar.getInventorySlots();
+
+        // --- Part 1: Draw Hotbar Slot Backgrounds and Borders ---
         defaultShader.bind();
         defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
         defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
         defaultShader.setUniform("uIsFont", 0);
-        defaultShader.setUniform("uHasTexture", 0); // Backgrounds & Icon Borders are not textured
+        defaultShader.setUniform("uHasTexture", 0);
         defaultShader.setUniform("uIsSimpleUiElement", 1);
 
         glBindVertexArray(hotbarVaoId);
         glBindBuffer(GL_ARRAY_BUFFER, hotbarVboId);
 
-        // We only need to rebuild the hotbar VBO if hotbarDirty is true OR if selected slot changes (for dynamic border color)
-        // A more optimized version might separate static parts from dynamic parts.
-        if (hotbarDirty) { // Or if selection changed and border colors depend on it dynamically
+        // Only rebuild if dirty or selection changed
+        if (hotbarDirty || hasSelectionChanged(currentlySelectedHotbarSlot)) {
             hotbarVertexDataBuffer.clear();
-            hotbarVertexCount = 0; // Renamed for clarity: this is for colored quads (backgrounds & borders)
+            hotbarVertexCount = 0;
 
-            float slotSize = 55f;
-            float slotMargin = 6f;
-            int hotbarSlotsToDisplay = HOTBAR_SIZE;
-            float totalHotbarWidth = (hotbarSlotsToDisplay * slotSize) + ((Math.max(0, hotbarSlotsToDisplay - 1)) * slotMargin);
-            float hotbarX = (camera.getScreenWidth() - totalHotbarWidth) / 2.0f;
-            float hotbarY = camera.getScreenHeight() - slotSize - (slotMargin * 3);
-
-            List<InventorySlot> playerInventorySlots = playerForHotbar.getInventorySlots();
-
-            // First pass: Slot backgrounds and their borders
+            // Single pass for backgrounds and borders
             for (int i = 0; i < hotbarSlotsToDisplay; i++) {
                 float currentSlotDrawX = hotbarX + i * (slotSize + slotMargin);
                 InventorySlot slot = (i < playerInventorySlots.size()) ? playerInventorySlots.get(i) : null;
                 boolean isSelected = (i == currentlySelectedHotbarSlot);
                 boolean isEmpty = (slot == null || slot.isEmpty());
 
-                float[] slotBgColor, slotSlotBorderColor; // Renamed slotBorderColor to slotSlotBorderColor
-                float currentSlotBorderWidth;
+                // Determine colors and border width based on state
+                SlotStyle style = getSlotStyle(isSelected, isEmpty);
 
-                if (isSelected) {
-                    slotBgColor = new float[]{0.9f, 0.9f, 0.3f, 0.75f};
-                    slotSlotBorderColor = new float[]{1.0f, 0.6f, 0.0f, 0.85f};
-                    currentSlotBorderWidth = 2.5f;
-                } else if (!isEmpty) {
-                    slotBgColor = new float[]{0.8f, 0.8f, 0.4f, 0.65f};
-                    slotSlotBorderColor = new float[]{0.9f, 0.5f, 0.1f, 0.75f};
-                    currentSlotBorderWidth = 1.5f;
-                } else {
-                    slotBgColor = new float[]{0.7f, 0.7f, 0.5f, 0.55f};
-                    slotSlotBorderColor = new float[]{0.8f, 0.4f, 0.0f, 0.65f};
-                    currentSlotBorderWidth = 1.0f;
-                }
-
-                // Draw slot border
-                // if (currentSlotBorderWidth > 0) {
-                // addQuadToUiColoredBuffer(hotbarVertexDataBuffer,
-                //        currentSlotDrawX - currentSlotBorderWidth, hotbarY - currentSlotBorderWidth,
-                //        slotSize + (2 * currentSlotBorderWidth), slotSize + (2 * currentSlotBorderWidth),
-                //         Z_OFFSET_UI_BORDER, slotSlotBorderColor); // e.g., Z = 0.03f
-                //   hotbarVertexCount += 6;
-                // }
-
-                // Draw slot background (gradient)
-                float gradientFactor = 0.1f;
-                float[] topBgColor = slotBgColor;
-                float[] bottomBgColor = new float[]{ Math.max(0f, topBgColor[0]-gradientFactor), Math.max(0f, topBgColor[1]-gradientFactor),Math.max(0f, topBgColor[2]-gradientFactor),topBgColor[3]};
+                // Draw slot background with gradient
                 addGradientQuadToUiColoredBuffer(hotbarVertexDataBuffer,
                         currentSlotDrawX, hotbarY, slotSize, slotSize,
-                        Z_OFFSET_UI_PANEL, topBgColor, bottomBgColor); // e.g., Z = 0.04f (drawn after border, appears on top if Z were same and depth test off)
+                        Z_OFFSET_UI_PANEL, style.topBgColor, style.bottomBgColor);
                 hotbarVertexCount += 6;
-            }
 
-            // Second pass (still using hotbarVertexDataBuffer): Add white borders for icons
-            float itemRenderSize = slotSize * 0.9f;
-            float itemOffset = (slotSize - itemRenderSize) / 2f;
-            float iconBorderSize = 1.0f; // How many pixels thick the border should be around the icon
-            float[] iconBorderColor = new float[]{1.0f, 1.0f, 1.0f, 0.0f}; // Fully transparent white
+                // Draw slot border if needed
+                if (style.borderWidth > 0) {
+                    addQuadToUiColoredBuffer(hotbarVertexDataBuffer,
+                            currentSlotDrawX - style.borderWidth,
+                            hotbarY - style.borderWidth,
+                            slotSize + (2 * style.borderWidth),
+                            slotSize + (2 * style.borderWidth),
+                            Z_OFFSET_UI_BORDER, style.borderColor);
+                    hotbarVertexCount += 6;
+                }
 
-            for (int i = 0; i < hotbarSlotsToDisplay; i++) {
-                InventorySlot slot = (i < playerInventorySlots.size()) ? playerInventorySlots.get(i) : null;
+                // Add icon border for items with textures
                 if (slot != null && !slot.isEmpty() && slot.getItem().hasIconTexture()) {
-                    float currentSlotDrawX = hotbarX + i * (slotSize + slotMargin);
                     float iconVisualX = currentSlotDrawX + itemOffset;
                     float iconVisualY = hotbarY + itemOffset;
-
-                    // Border coordinates
-                    float borderX = iconVisualX - iconBorderSize;
-                    float borderY = iconVisualY - iconBorderSize;
-                    float borderWidth = itemRenderSize + (2 * iconBorderSize);
-                    float borderHeight = itemRenderSize + (2 * iconBorderSize);
-                    // Z for icon border should be in front of slot panel, but behind icon texture
-                    float iconBorderZ = Z_OFFSET_UI_ELEMENT - 0.002f; // e.g., 0.02f - 0.002f = 0.018f
+                    float iconBorderSize = 1.0f;
+                    float[] iconBorderColor = {1.0f, 1.0f, 1.0f, 0.8f};
 
                     addQuadToUiColoredBuffer(hotbarVertexDataBuffer,
-                            borderX, borderY, borderWidth, borderHeight,
-                            iconBorderZ, iconBorderColor);
+                            iconVisualX - iconBorderSize,
+                            iconVisualY - iconBorderSize,
+                            itemRenderSize + (2 * iconBorderSize),
+                            itemRenderSize + (2 * iconBorderSize),
+                            Z_OFFSET_UI_ELEMENT - 0.002f, iconBorderColor);
                     hotbarVertexCount += 6;
                 }
             }
 
             hotbarVertexDataBuffer.flip();
             glBufferSubData(GL_ARRAY_BUFFER, 0, hotbarVertexDataBuffer);
-            // hotbarDirty = false; // Set dirty appropriately elsewhere if selection changes affect borders
-        } // End of hotbarDirty block (or selection changed block)
+            hotbarDirty = false;
+            updateLastSelectedSlot(currentlySelectedHotbarSlot);
+        }
 
+        // Draw all colored quads at once
         if (hotbarVertexCount > 0) {
             glDrawArrays(GL_TRIANGLES, 0, hotbarVertexCount);
         }
-        // Unbind hotbarVaoId if you're done with colored quads for now
-        // glBindVertexArray(0);
 
-
-        // --- Part 2: Draw Item Icons (Textured - mostly existing logic) ---
-        defaultShader.setUniform("uHasTexture", 1);
-        defaultShader.setUniform("uIsSimpleUiElement", 0);
-        defaultShader.setUniform("uTextureSampler", 0);
-
-
+        // --- Part 2: Draw Item Icons ---
         if (treeTexture != null && treeTexture.getId() != 0) {
+            defaultShader.setUniform("uHasTexture", 1);
+            defaultShader.setUniform("uIsSimpleUiElement", 0);
+            defaultShader.setUniform("uTextureSampler", 0);
+
             glActiveTexture(GL_TEXTURE0);
             treeTexture.bind();
 
             glBindVertexArray(spriteVaoId);
             glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
             spriteVertexBuffer.clear();
-            int iconTextureVerticesCount = 0; // Renamed for clarity
-
-            float slotSize = 55f; float slotMargin = 6f; // Redefine for clarity or pass from above
-            float itemRenderSize = slotSize * 0.99f;
-            float itemOffset = (slotSize - itemRenderSize) / 2f;
-            int hotbarSlotsToDisplay = HOTBAR_SIZE;
-            float totalHotbarWidth = (hotbarSlotsToDisplay * slotSize) + ((Math.max(0, hotbarSlotsToDisplay - 1)) * slotMargin);
-            float hotbarX = (camera.getScreenWidth() - totalHotbarWidth) / 2.0f;
-            float hotbarY = camera.getScreenHeight() - slotSize - (slotMargin * 3);
-
-            List<InventorySlot> playerInventorySlots = playerForHotbar.getInventorySlots(); // Re-get for this pass
+            int iconVertexCount = 0;
 
             for (int i = 0; i < hotbarSlotsToDisplay; i++) {
                 InventorySlot slot = (i < playerInventorySlots.size()) ? playerInventorySlots.get(i) : null;
+
                 if (slot != null && !slot.isEmpty()) {
                     Item item = slot.getItem();
                     if (item.hasIconTexture()) {
-                        boolean isActuallyTheSelectedIcon = (i == currentlySelectedHotbarSlot); // Check if this is the selected one
+                        boolean isSelected = (i == currentlySelectedHotbarSlot);
 
-                        if (isActuallyTheSelectedIcon) {
-                            defaultShader.setUniform("u_isSelectedIcon", 1); // 1 for true
+                        // Set shader uniforms for selection effects
+                        defaultShader.setUniform("u_isSelectedIcon", isSelected ? 1 : 0);
+                        if (isSelected) {
                             defaultShader.setUniform("u_time", (float) GLFW.glfwGetTime());
-                        } else {
-                            defaultShader.setUniform("u_isSelectedIcon", 0); // 0 for false
-                            // u_time doesn't matter if u_isSelectedIcon is false, but can set to 0
-                            // defaultShader.setUniform("u_time", 0.0f);
                         }
-
 
                         float currentSlotDrawX = hotbarX + i * (slotSize + slotMargin);
                         float iconX = currentSlotDrawX + itemOffset;
                         float iconY = hotbarY + itemOffset;
-                        // Z for icon texture should be in front of its border
-                        float iconTextureZ = Z_OFFSET_UI_ELEMENT + 0.003f; // e.g., 0.02f - 0.003f = 0.017f
+                        float iconZ = Z_OFFSET_UI_ELEMENT;
 
-                        // Add textured quad for the icon (same as before)
-                        spriteVertexBuffer.put(iconX).put(iconY).put(iconTextureZ);
-                        spriteVertexBuffer.put(WHITE_TINT);
-                        spriteVertexBuffer.put(item.getIconU0()).put(item.getIconV0());
-                        spriteVertexBuffer.put(1.0f);
-
-                        spriteVertexBuffer.put(iconX).put(iconY + itemRenderSize).put(iconTextureZ);
-                        spriteVertexBuffer.put(WHITE_TINT);
-                        spriteVertexBuffer.put(item.getIconU0()).put(item.getIconV1());
-                        spriteVertexBuffer.put(1.0f);
-
-                        spriteVertexBuffer.put(iconX + itemRenderSize).put(iconY + itemRenderSize).put(iconTextureZ); // Bottom-Right (changed from Top-Right)
-                        spriteVertexBuffer.put(WHITE_TINT);
-                        spriteVertexBuffer.put(item.getIconU1()).put(item.getIconV1()); // UVs for Bottom-Right
-                        spriteVertexBuffer.put(1.0f);
-
-                        spriteVertexBuffer.put(iconX).put(iconY).put(iconTextureZ); // Top-Left
-                        spriteVertexBuffer.put(WHITE_TINT);
-                        spriteVertexBuffer.put(item.getIconU0()).put(item.getIconV0());
-                        spriteVertexBuffer.put(1.0f);
-
-                        spriteVertexBuffer.put(iconX + itemRenderSize).put(iconY + itemRenderSize).put(iconTextureZ); // Bottom-Right
-                        spriteVertexBuffer.put(WHITE_TINT);
-                        spriteVertexBuffer.put(item.getIconU1()).put(item.getIconV1());
-                        spriteVertexBuffer.put(1.0f);
-
-                        spriteVertexBuffer.put(iconX + itemRenderSize).put(iconY).put(iconTextureZ); // Top-Right
-                        spriteVertexBuffer.put(WHITE_TINT);
-                        spriteVertexBuffer.put(item.getIconU1()).put(item.getIconV0());
-                        spriteVertexBuffer.put(1.0f);
-
-                        iconTextureVerticesCount += 6;
+                        // Add icon quad vertices
+                        addIconQuad(spriteVertexBuffer, iconX, iconY, iconZ,
+                                itemRenderSize, item);
+                        iconVertexCount += 6;
                     }
                 }
             }
 
-            if (iconTextureVerticesCount > 0) {
+            if (iconVertexCount > 0) {
                 spriteVertexBuffer.flip();
                 glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
-                glDrawArrays(GL_TRIANGLES, 0, iconTextureVerticesCount);
+                glDrawArrays(GL_TRIANGLES, 0, iconVertexCount);
             }
 
             treeTexture.unbind();
-            glBindBuffer(GL_ARRAY_BUFFER, 0);
-            glBindVertexArray(0);
         }
 
-        float slotSize = 55f; float slotMargin = 6f;
-        int hotbarSlotsToDisplay = HOTBAR_SIZE;
-        float totalHotbarWidth = (hotbarSlotsToDisplay * slotSize) + ((Math.max(0, hotbarSlotsToDisplay - 1)) * slotMargin);
-        float hotbarX = (camera.getScreenWidth() - totalHotbarWidth) / 2.0f;
-        float hotbarY = camera.getScreenHeight() - slotSize - (slotMargin * 3);
-        List<InventorySlot> playerInventorySlots = playerForHotbar.getInventorySlots();
+        // --- Part 3: Draw Quantity Text ---
+        renderQuantityText(playerInventorySlots, currentUiFont, hotbarX, hotbarY,
+                slotSize, slotMargin, hotbarSlotsToDisplay);
 
-        for (int i = 0; i < hotbarSlotsToDisplay; i++) {
-            InventorySlot slot = (i < playerInventorySlots.size()) ? playerInventorySlots.get(i) : null;
+        // Cleanup
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        defaultShader.unbind();
+    }
+
+    // Helper method to determine slot styling
+    private SlotStyle getSlotStyle(boolean isSelected, boolean isEmpty) {
+        SlotStyle style = new SlotStyle();
+
+        if (isSelected) {
+            style.topBgColor = new float[]{0.9f, 0.9f, 0.3f, 0.75f};
+            style.bottomBgColor = new float[]{0.8f, 0.8f, 0.2f, 0.75f};
+            style.borderColor = new float[]{1.0f, 0.6f, 0.0f, 0.85f};
+            style.borderWidth = 2.5f;
+        } else if (!isEmpty) {
+            style.topBgColor = new float[]{0.8f, 0.8f, 0.4f, 0.65f};
+            style.bottomBgColor = new float[]{0.7f, 0.7f, 0.3f, 0.65f};
+            style.borderColor = new float[]{0.9f, 0.5f, 0.1f, 0.75f};
+            style.borderWidth = 1.5f;
+        } else {
+            style.topBgColor = new float[]{0.7f, 0.7f, 0.5f, 0.55f};
+            style.bottomBgColor = new float[]{0.6f, 0.6f, 0.4f, 0.55f};
+            style.borderColor = new float[]{0.8f, 0.4f, 0.0f, 0.65f};
+            style.borderWidth = 1.0f;
+        }
+
+        return style;
+    }
+
+    // Helper method to add icon quad vertices
+    private void addIconQuad(FloatBuffer buffer, float x, float y, float z,
+                             float size, Item item) {
+        float[] tint = WHITE_TINT;
+
+        // Triangle 1
+        buffer.put(x).put(y).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU0()).put(item.getIconV0()).put(1.0f);
+
+        buffer.put(x).put(y + size).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU0()).put(item.getIconV1()).put(1.0f);
+
+        buffer.put(x + size).put(y + size).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU1()).put(item.getIconV1()).put(1.0f);
+
+        // Triangle 2
+        buffer.put(x).put(y).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU0()).put(item.getIconV0()).put(1.0f);
+
+        buffer.put(x + size).put(y + size).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU1()).put(item.getIconV1()).put(1.0f);
+
+        buffer.put(x + size).put(y).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU1()).put(item.getIconV0()).put(1.0f);
+    }
+
+    // Helper method for quantity text rendering
+    private void renderQuantityText(List<InventorySlot> slots, Font font,
+                                    float hotbarX, float hotbarY, float slotSize,
+                                    float slotMargin, int slotsToDisplay) {
+        final float textPaddingFromEdge = 4f;
+
+        for (int i = 0; i < slotsToDisplay; i++) {
+            InventorySlot slot = (i < slots.size()) ? slots.get(i) : null;
+
             if (slot != null && !slot.isEmpty() && slot.getQuantity() > 1) {
                 String quantityStr = String.valueOf(slot.getQuantity());
                 float currentSlotDrawX = hotbarX + i * (slotSize + slotMargin);
-                float qtyTextWidth = currentUiFont.getTextWidthScaled(quantityStr, 1.0f);
-                float textPaddingFromEdge = 4f;
+                float qtyTextWidth = font.getTextWidthScaled(quantityStr, 1.0f);
                 float qtyTextX = currentSlotDrawX + slotSize - qtyTextWidth - textPaddingFromEdge;
                 float qtyTextY = hotbarY + slotSize - textPaddingFromEdge;
-                currentUiFont.drawText(qtyTextX, qtyTextY, quantityStr, 1f, 1f, 1f);
+
+                font.drawText(qtyTextX, qtyTextY, quantityStr, 1f, 1f, 1f);
             }
         }
+    }
+
+    // Helper class for slot styling
+    private static class SlotStyle {
+        float[] topBgColor;
+        float[] bottomBgColor;
+        float[] borderColor;
+        float borderWidth;
+    }
+
+    // Selection tracking methods
+    private int lastSelectedSlot = -1;
+
+    private boolean hasSelectionChanged(int currentSlot) {
+        return lastSelectedSlot != currentSlot;
+    }
+
+    private void updateLastSelectedSlot(int slot) {
+        lastSelectedSlot = slot;
     }
 
     private void addQuadToUiBuffer(FloatBuffer buffer, float x, float y, float w, float h, float z, float[] color) {
@@ -1487,269 +1518,438 @@ public class Renderer {
     public void renderInventoryAndCraftingUI(PlayerModel playerForInventory) {
         Font currentUiFont = getUiFont();
         Font titleFont = getTitleFont();
-        if (currentUiFont == null || !currentUiFont.isInitialized() || titleFont == null || !titleFont.isInitialized() || playerForInventory == null || camera == null || defaultShader == null || uiColoredVaoId == 0) {
+        if (currentUiFont == null || !currentUiFont.isInitialized() ||
+                titleFont == null || !titleFont.isInitialized() ||
+                playerForInventory == null || camera == null ||
+                defaultShader == null || uiColoredVaoId == 0) {
             return;
         }
 
         Game game = (this.inputHandler != null) ? this.inputHandler.getGameInstance() : null;
         if (game == null) return;
 
-        // --- 1. DEFINE LAYOUT & CALCULATE ALL POSITIONS ---
-        float slotSize = 50f, slotMargin = 10f;
-        float panelMarginX = 30f;
-        float topMarginY = 40f;
-        float marginBetweenPanels = 20f;
+        // --- 1. LAYOUT CALCULATIONS ---
+        final float slotSize = 50f;
+        final float slotMargin = 10f;
+        final float panelMarginX = 30f;
+        final float topMarginY = 40f;
+        final float marginBetweenPanels = 20f;
 
         // Inventory Panel (Top-Right)
-        int invSlotsPerRow = 5;
+        final int invSlotsPerRow = 5;
         List<InventorySlot> slots = playerForInventory.getInventorySlots();
-        int invNumRows = slots.isEmpty() ? 1 : (int) Math.ceil((double) slots.size() / invSlotsPerRow);
-        float invPanelWidth = (invSlotsPerRow * slotSize) + ((invSlotsPerRow + 1) * slotMargin);
-        float invPanelHeight = (invNumRows * slotSize) + ((invNumRows + 1) * slotMargin);
-        float invPanelX = camera.getScreenWidth() - invPanelWidth - panelMarginX;
-        float invPanelY = topMarginY;
+        final int invNumRows = slots.isEmpty() ? 1 : (int) Math.ceil((double) slots.size() / invSlotsPerRow);
+        final float invPanelWidth = (invSlotsPerRow * slotSize) + ((invSlotsPerRow + 1) * slotMargin);
+        final float invPanelHeight = (invNumRows * slotSize) + ((invNumRows + 1) * slotMargin);
+        final float invPanelX = camera.getScreenWidth() - invPanelWidth - panelMarginX;
+        final float invPanelY = topMarginY;
 
         // Crafting Panel (Below Inventory)
         List<org.isogame.crafting.CraftingRecipe> allRecipes = org.isogame.crafting.RecipeRegistry.getAllRecipes();
-        float recipeRowHeight = 50f;
-        float craftPanelWidth = invPanelWidth;
-        float craftPanelHeight = (allRecipes.size() * recipeRowHeight) + (slotMargin * 2) + 30f; // Add space for title
-        float craftPanelX = invPanelX;
-        float craftPanelY = invPanelY + invPanelHeight + marginBetweenPanels;
+        final float recipeRowHeight = 50f;
+        final float craftPanelWidth = invPanelWidth;
+        final float craftPanelHeight = (allRecipes.size() * recipeRowHeight) + (slotMargin * 2) + 30f;
+        final float craftPanelX = invPanelX;
+        final float craftPanelY = invPanelY + invPanelHeight + marginBetweenPanels;
 
-
-        // --- 2. RENDER BACKGROUNDS ---
+        // --- 2. RENDER PANEL BACKGROUNDS ---
         defaultShader.bind();
         defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
         defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
+        defaultShader.setUniform("uIsFont", 0);
         defaultShader.setUniform("uHasTexture", 0);
         defaultShader.setUniform("uIsSimpleUiElement", 1);
+
         glBindVertexArray(uiColoredVaoId);
         glBindBuffer(GL_ARRAY_BUFFER, uiColoredVboId);
         uiColoredVertexBuffer.clear();
 
-        int totalBackgroundVertices = 0;
-        float[] panelColor = {0.2f, 0.2f, 0.25f, 0.9f};
-        addQuadToUiColoredBuffer(uiColoredVertexBuffer, invPanelX, invPanelY, invPanelWidth, invPanelHeight, Z_OFFSET_UI_PANEL, panelColor);
-        totalBackgroundVertices += 6;
-        addQuadToUiColoredBuffer(uiColoredVertexBuffer, craftPanelX, craftPanelY, craftPanelWidth, craftPanelHeight, Z_OFFSET_UI_PANEL, panelColor);
-        totalBackgroundVertices += 6;
+        // Panel backgrounds with more visible colors
+        float[] invPanelColor = {0.15f, 0.15f, 0.2f, 0.95f}; // Darker, more opaque
+        float[] craftPanelColor = {0.1f, 0.1f, 0.15f, 0.95f}; // Even darker for contrast
 
-        // Inventory Slots
+        addQuadToUiColoredBuffer(uiColoredVertexBuffer, invPanelX, invPanelY,
+                invPanelWidth, invPanelHeight, Z_OFFSET_UI_PANEL, invPanelColor);
+        addQuadToUiColoredBuffer(uiColoredVertexBuffer, craftPanelX, craftPanelY,
+                craftPanelWidth, craftPanelHeight, Z_OFFSET_UI_PANEL, craftPanelColor);
+
+        int backgroundVertexCount = 12; // 2 panels * 6 vertices each
+
+        // --- 3. RENDER INVENTORY SLOTS ---
         float currentSlotX = invPanelX + slotMargin;
         float currentSlotY = invPanelY + slotMargin;
         int colCount = 0;
+        int slotVertexCount = 0;
+
         for (int i = 0; i < slots.size(); i++) {
+            InventorySlot slot = slots.get(i);
             boolean isSelected = (i == game.getSelectedHotbarSlotIndex() && i < HOTBAR_SIZE);
-            float[] slotColor = isSelected ? new float[]{0.8f, 0.8f, 0.3f, 0.95f} : new float[]{0.4f, 0.4f, 0.45f, 0.9f};
-            addQuadToUiColoredBuffer(uiColoredVertexBuffer, currentSlotX, currentSlotY, slotSize, slotSize, Z_OFFSET_UI_ELEMENT, slotColor);
-            totalBackgroundVertices += 6;
+            boolean hasItem = (slot != null && !slot.isEmpty());
+
+            // More visible slot colors
+            float[] slotColor;
+            if (isSelected) {
+                slotColor = new float[]{0.9f, 0.8f, 0.2f, 0.9f}; // Bright yellow for selected
+            } else if (hasItem) {
+                slotColor = new float[]{0.5f, 0.5f, 0.6f, 0.8f}; // Light grey for items
+            } else {
+                slotColor = new float[]{0.3f, 0.3f, 0.35f, 0.7f}; // Medium grey for empty
+            }
+
+            addQuadToUiColoredBuffer(uiColoredVertexBuffer, currentSlotX, currentSlotY,
+                    slotSize, slotSize, Z_OFFSET_UI_ELEMENT, slotColor);
+            slotVertexCount += 6;
+
+            // Add slot border for better visibility
+            float borderWidth = isSelected ? 2.0f : 1.0f;
+            float[] borderColor = isSelected ?
+                    new float[]{1.0f, 0.9f, 0.0f, 1.0f} : // Gold border for selected
+                    new float[]{0.6f, 0.6f, 0.6f, 0.8f};  // Grey border for others
+
+            addQuadBorderToUiColoredBuffer(uiColoredVertexBuffer, currentSlotX, currentSlotY,
+                    slotSize, slotSize, borderWidth,
+                    Z_OFFSET_UI_ELEMENT + 0.001f, borderColor);
+            slotVertexCount += 24; // 4 border quads * 6 vertices each
+
             currentSlotX += slotSize + slotMargin;
             colCount++;
-            if (colCount >= invSlotsPerRow) { colCount = 0; currentSlotX = invPanelX + slotMargin; currentSlotY += slotSize + slotMargin; }
+            if (colCount >= invSlotsPerRow) {
+                colCount = 0;
+                currentSlotX = invPanelX + slotMargin;
+                currentSlotY += slotSize + slotMargin;
+            }
         }
 
-        // Recipe Row & Button Backgrounds
+        // --- 4. RENDER CRAFT BUTTONS ---
         float currentRecipeY = craftPanelY + slotMargin + 30f;
+        int buttonVertexCount = 0;
+
         for (org.isogame.crafting.CraftingRecipe recipe : allRecipes) {
-            if(game.canCraft(recipe)) {
-                float craftButtonWidth = 70f, craftButtonHeight = 25f;
+            if (game.canCraft(recipe)) {
+                float craftButtonWidth = 70f;
+                float craftButtonHeight = 25f;
                 float craftButtonX = craftPanelX + craftPanelWidth - craftButtonWidth - slotMargin;
-                float craftButtonY = currentRecipeY + (recipeRowHeight - craftButtonHeight) / 2f - 2;
-                addQuadToUiColoredBuffer(uiColoredVertexBuffer, craftButtonX, craftButtonY, craftButtonWidth, craftButtonHeight, Z_OFFSET_UI_BORDER, new float[]{0.1f, 0.5f, 0.1f, 1.0f});
-                totalBackgroundVertices += 6;
+                float craftButtonY = currentRecipeY + (recipeRowHeight - craftButtonHeight) / 2f - 2f;
+
+                float[] buttonColor = {0.2f, 0.6f, 0.2f, 0.9f}; // Brighter green
+                addQuadToUiColoredBuffer(uiColoredVertexBuffer, craftButtonX, craftButtonY,
+                        craftButtonWidth, craftButtonHeight,
+                        Z_OFFSET_UI_BORDER, buttonColor);
+                buttonVertexCount += 6;
             }
             currentRecipeY += recipeRowHeight;
         }
 
-        if (totalBackgroundVertices > 0) {
+        // Draw all colored elements
+        int totalColoredVertices = backgroundVertexCount + slotVertexCount + buttonVertexCount;
+        if (totalColoredVertices > 0) {
             uiColoredVertexBuffer.flip();
             glBufferSubData(GL_ARRAY_BUFFER, 0, uiColoredVertexBuffer);
-            glDrawArrays(GL_TRIANGLES, 0, totalBackgroundVertices);
+            glDrawArrays(GL_TRIANGLES, 0, totalColoredVertices);
         }
 
-        // --- 3. RENDER ICONS ---
-        defaultShader.setUniform("uHasTexture", 1);
-        defaultShader.setUniform("uIsSimpleUiElement", 0);
-        glActiveTexture(GL_TEXTURE0);
-        treeTexture.bind();
-        glBindVertexArray(spriteVaoId);
-        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
-        spriteVertexBuffer.clear();
-        int totalIconVertices = 0;
+        // --- 5. RENDER ITEM ICONS ---
+        if (treeTexture != null && treeTexture.getId() != 0) {
+            defaultShader.setUniform("uHasTexture", 1);
+            defaultShader.setUniform("uIsSimpleUiElement", 0);
+            defaultShader.setUniform("uTextureSampler", 0);
 
-        // Inventory Icons
-        float itemRenderSizeInv = slotSize * 0.9f;
-        float itemOffsetInv = (slotSize - itemRenderSizeInv) / 2f;
-        currentSlotX = invPanelX + slotMargin;
-        currentSlotY = invPanelY + slotMargin;
-        colCount = 0;
-        for (int i = 0; i < slots.size(); i++) {
-            InventorySlot slot = slots.get(i);
-            if (slot != null && !slot.isEmpty() && slot.getItem().hasIconTexture()) {
-                addIconToSpriteBuffer(spriteVertexBuffer, currentSlotX + itemOffsetInv, currentSlotY + itemOffsetInv, itemRenderSizeInv, slot.getItem(), Z_OFFSET_UI_BORDER);
+            glActiveTexture(GL_TEXTURE0);
+            treeTexture.bind();
+            glBindVertexArray(spriteVaoId);
+            glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+            spriteVertexBuffer.clear();
+
+            int totalIconVertices = 0;
+            final float itemRenderSize = slotSize * 0.8f; // Slightly smaller for better visibility
+            final float itemOffset = (slotSize - itemRenderSize) / 2f;
+
+            // Inventory Icons
+            currentSlotX = invPanelX + slotMargin;
+            currentSlotY = invPanelY + slotMargin;
+            colCount = 0;
+
+            for (int i = 0; i < slots.size(); i++) {
+                InventorySlot slot = slots.get(i);
+                if (slot != null && !slot.isEmpty() && slot.getItem().hasIconTexture()) {
+                    addIconToSpriteBuffer(spriteVertexBuffer,
+                            currentSlotX + itemOffset,
+                            currentSlotY + itemOffset,
+                            itemRenderSize, slot.getItem(),
+                            Z_OFFSET_UI_ELEMENT + 0.002f);
+                    totalIconVertices += 6;
+                }
+
+                currentSlotX += slotSize + slotMargin;
+                colCount++;
+                if (colCount >= invSlotsPerRow) {
+                    colCount = 0;
+                    currentSlotX = invPanelX + slotMargin;
+                    currentSlotY += slotSize + slotMargin;
+                }
+            }
+
+            // Recipe Icons
+            final float recipeIconSize = 32f;
+            currentRecipeY = craftPanelY + slotMargin + 30f;
+
+            for (org.isogame.crafting.CraftingRecipe recipe : allRecipes) {
+                addIconToSpriteBuffer(spriteVertexBuffer,
+                        craftPanelX + slotMargin,
+                        currentRecipeY + (recipeRowHeight - recipeIconSize) / 2f - 2f,
+                        recipeIconSize, recipe.getOutputItem(),
+                        Z_OFFSET_UI_ELEMENT + 0.002f);
                 totalIconVertices += 6;
+                currentRecipeY += recipeRowHeight;
             }
-            currentSlotX += slotSize + slotMargin;
-            colCount++;
-            if (colCount >= invSlotsPerRow) { colCount = 0; currentSlotX = invPanelX + slotMargin; currentSlotY += slotSize + slotMargin; }
-        }
 
-        // Recipe Icons
-        float recipeIconSize = 32f;
-        float ingredientIconSize = 16f;
-        currentRecipeY = craftPanelY + slotMargin + 30f;
-        for (org.isogame.crafting.CraftingRecipe recipe : allRecipes) {
-            addIconToSpriteBuffer(spriteVertexBuffer, craftPanelX + slotMargin, currentRecipeY + (recipeRowHeight - recipeIconSize) / 2f - 2, recipeIconSize, recipe.getOutputItem(), Z_OFFSET_UI_BORDER);
-            totalIconVertices += 6;
-            currentRecipeY += recipeRowHeight;
-        }
-
-        if (totalIconVertices > 0) {
-            spriteVertexBuffer.flip();
-            glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
-            glDrawArrays(GL_TRIANGLES, 0, totalIconVertices);
-        }
-        treeTexture.unbind();
-
-        // --- 4. RENDER TEXT ---
-        // Inventory Quantity Text
-        currentSlotX = invPanelX + slotMargin;
-        currentSlotY = invPanelY + slotMargin;
-        colCount = 0;
-        for (int i = 0; i < slots.size(); i++) {
-            InventorySlot slot = slots.get(i);
-            if (slot != null && !slot.isEmpty() && slot.getQuantity() > 1) {
-                String qStr = String.valueOf(slot.getQuantity());
-                float qWidth = currentUiFont.getTextWidth(qStr);
-                currentUiFont.drawText(currentSlotX + slotSize - qWidth - 4f, currentSlotY + slotSize - 4f, qStr, 1f, 1f, 1f);
-            }
-            currentSlotX += slotSize + slotMargin; colCount++; if (colCount >= invSlotsPerRow) { colCount = 0; currentSlotX = invPanelX + slotMargin; currentSlotY += slotSize + slotMargin; }
-        }
-
-        // Crafting Text
-        String title = "Crafting";
-        float titleWidth = titleFont.getTextWidthScaled(title, 0.5f); // Keep this to center the text block
-        titleFont.drawTextWithSpacing(craftPanelX + (craftPanelWidth - titleWidth)/2f, craftPanelY + 5f, title, 0.5f, -15.0f, 1f, 1f, 1f);
-
-        currentRecipeY = craftPanelY + slotMargin + 30f;
-        for (org.isogame.crafting.CraftingRecipe recipe : allRecipes) {
-            boolean canCraft = game.canCraft(recipe);
-            float[] textColor = canCraft ? new float[]{1f, 1f, 1f} : new float[]{0.5f, 0.5f, 0.5f};
-
-            currentUiFont.drawText(craftPanelX + slotMargin + recipeIconSize + 8, currentRecipeY + 28f, recipe.getOutputItem().getDisplayName(), textColor[0], textColor[1], textColor[2]);
-
-            if (canCraft) {
-                float craftButtonWidth = 70f;
-                float craftTextWidth = currentUiFont.getTextWidth("CRAFT");
-                currentUiFont.drawText(craftPanelX + craftPanelWidth - craftButtonWidth - 15 + (craftButtonWidth - craftTextWidth)/2, currentRecipeY + 33f, "CRAFT", 0.9f, 1f, 0.9f);
-            }
-            currentRecipeY += recipeRowHeight;
-        }
-        // --- 5. RENDER DRAGGED ITEM ---
-        if (game.isDraggingItem() && game.getDraggedItemStack() != null) {
-            // ... (This logic is unchanged, just needs to be at the very end)
-            double[] xpos = new double[1];
-            double[] ypos = new double[1];
-            glfwGetCursorPos(game.getWindowHandle(), xpos, ypos);
-
-            int[] fbW = new int[1], fbH = new int[1], winW = new int[1], winH = new int[1];
-            glfwGetFramebufferSize(game.getWindowHandle(), fbW, fbH);
-            glfwGetWindowSize(game.getWindowHandle(), winW, winH);
-            double scaleX = (fbW[0] > 0 && winW[0] > 0) ? (double)fbW[0] / winW[0] : 1.0;
-            double scaleY = (fbH[0] > 0 && winH[0] > 0) ? (double)fbH[0] / winH[0] : 1.0;
-            float mouseX_physical = (float)(xpos[0] * scaleX);
-            float mouseY_physical = (float)(ypos[0] * scaleY);
-
-            InventorySlot draggedSlot = game.getDraggedItemStack();
-            Item draggedItem = draggedSlot.getItem();
-
-            float itemRenderSize = 50f;
-            float iconX = mouseX_physical - (itemRenderSize / 2f);
-            float iconY = mouseY_physical - (itemRenderSize / 2f);
-
-            if (draggedItem.hasIconTexture() && treeTexture != null && treeTexture.getId() != 0) {
-                defaultShader.bind();
-                defaultShader.setUniform("uHasTexture", 1);
-                defaultShader.setUniform("uIsSimpleUiElement", 0);
-                glActiveTexture(GL_TEXTURE0);
-                treeTexture.bind();
-
-                glBindVertexArray(spriteVaoId);
-                glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
-                spriteVertexBuffer.clear();
-                addIconToSpriteBuffer(spriteVertexBuffer, iconX, iconY, itemRenderSize, draggedItem, Z_OFFSET_UI_ELEMENT - 0.005f);
+            if (totalIconVertices > 0) {
                 spriteVertexBuffer.flip();
                 glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
-                glDrawArrays(GL_TRIANGLES, 0, 6);
-                treeTexture.unbind();
+                glDrawArrays(GL_TRIANGLES, 0, totalIconVertices);
             }
 
-            if (draggedSlot.getQuantity() > 1) {
-                String quantityStr = String.valueOf(draggedSlot.getQuantity());
-                float textWidth = currentUiFont.getTextWidth(quantityStr);
-                float textX = iconX + itemRenderSize - textWidth - 4f;
-                float textY = iconY + itemRenderSize - 4f;
-                currentUiFont.drawText(textX, textY, quantityStr, 1f, 1f, 1f);
-            }
-
-
+            treeTexture.unbind();
         }
-        if (!game.isDraggingItem()) { // Don't show tooltip while dragging
+
+        // --- 6. RENDER TEXT ---
+        renderInventoryText(slots, currentUiFont, invPanelX, invPanelY,
+                slotSize, slotMargin, invSlotsPerRow);
+        renderCraftingText(allRecipes, game, currentUiFont, titleFont,
+                craftPanelX, craftPanelY, craftPanelWidth, recipeRowHeight);
+
+        // --- 7. RENDER DRAGGED ITEM ---
+        if (game.isDraggingItem() && game.getDraggedItemStack() != null) {
+            renderDraggedItem(game, currentUiFont);
+        }
+
+        // --- 8. RENDER TOOLTIP ---
+        if (!game.isDraggingItem()) {
             double[] xpos = new double[1];
             double[] ypos = new double[1];
             glfwGetCursorPos(game.getWindowHandle(), xpos, ypos);
             renderCraftingTooltip(game.getHoveredRecipe(), (float)xpos[0], (float)ypos[0]);
         }
+
+        // Cleanup
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        defaultShader.unbind();
     }
 
-    private void addIconToSpriteBuffer(FloatBuffer buffer, float x, float y, float size, Item item, float z) {
-        // Top-Left
-        buffer.put(x).put(y).put(z).put(WHITE_TINT).put(item.getIconU0()).put(item.getIconV0()).put(1.0f);
-        // Bottom-Left
-        buffer.put(x).put(y + size).put(z).put(WHITE_TINT).put(item.getIconU0()).put(item.getIconV1()).put(1.0f);
-        // Top-Right
-        buffer.put(x + size).put(y).put(z).put(WHITE_TINT).put(item.getIconU1()).put(item.getIconV0()).put(1.0f);
-        // Top-Right
-        buffer.put(x + size).put(y).put(z).put(WHITE_TINT).put(item.getIconU1()).put(item.getIconV0()).put(1.0f);
-        // Bottom-Left
-        buffer.put(x).put(y + size).put(z).put(WHITE_TINT).put(item.getIconU0()).put(item.getIconV1()).put(1.0f);
-        // Bottom-Right
-        buffer.put(x + size).put(y + size).put(z).put(WHITE_TINT).put(item.getIconU1()).put(item.getIconV1()).put(1.0f);
+    // Helper method to add quad borders
+    private void addQuadBorderToUiColoredBuffer(FloatBuffer buffer, float x, float y,
+                                                float width, float height, float borderWidth,
+                                                float z, float[] color) {
+        // Top border
+        addQuadToUiColoredBuffer(buffer, x - borderWidth, y - borderWidth,
+                width + 2 * borderWidth, borderWidth, z, color);
+        // Bottom border
+        addQuadToUiColoredBuffer(buffer, x - borderWidth, y + height,
+                width + 2 * borderWidth, borderWidth, z, color);
+        // Left border
+        addQuadToUiColoredBuffer(buffer, x - borderWidth, y,
+                borderWidth, height, z, color);
+        // Right border
+        addQuadToUiColoredBuffer(buffer, x + width, y,
+                borderWidth, height, z, color);
     }
 
+    // Optimized text rendering methods
+    private void renderInventoryText(List<InventorySlot> slots, Font font,
+                                     float panelX, float panelY, float slotSize,
+                                     float slotMargin, int slotsPerRow) {
+        float currentSlotX = panelX + slotMargin;
+        float currentSlotY = panelY + slotMargin;
+        int colCount = 0;
+        final float textPadding = 4f;
 
-    private void renderCraftingTooltip(org.isogame.crafting.CraftingRecipe recipe, float mouseX, float mouseY) {
+        for (int i = 0; i < slots.size(); i++) {
+            InventorySlot slot = slots.get(i);
+            if (slot != null && !slot.isEmpty() && slot.getQuantity() > 1) {
+                String quantityStr = String.valueOf(slot.getQuantity());
+                float textWidth = font.getTextWidth(quantityStr);
+                float textX = currentSlotX + slotSize - textWidth - textPadding;
+                float textY = currentSlotY + slotSize - textPadding;
+
+                // Add text shadow for better visibility
+                font.drawText(textX + 1, textY + 1, quantityStr, 0f, 0f, 0f); // Shadow
+                font.drawText(textX, textY, quantityStr, 1f, 1f, 1f); // Main text
+            }
+
+            currentSlotX += slotSize + slotMargin;
+            colCount++;
+            if (colCount >= slotsPerRow) {
+                colCount = 0;
+                currentSlotX = panelX + slotMargin;
+                currentSlotY += slotSize + slotMargin;
+            }
+        }
+    }
+
+    private void renderCraftingText(List<org.isogame.crafting.CraftingRecipe> recipes,
+                                    Game game, Font font, Font titleFont,
+                                    float panelX, float panelY, float panelWidth,
+                                    float rowHeight) {
+        // Title
+        String title = "Crafting";
+        float titleWidth = titleFont.getTextWidthScaled(title, 0.5f);
+        titleFont.drawTextWithSpacing(panelX + (panelWidth - titleWidth) / 2f,
+                panelY + 5f, title, 0.5f, -15.0f, 1f, 1f, 1f);
+
+        // Recipe text
+        float currentRecipeY = panelY + 40f; // Start below title
+        final float recipeIconSize = 32f;
+
+        for (org.isogame.crafting.CraftingRecipe recipe : recipes) {
+            boolean canCraft = game.canCraft(recipe);
+            float[] textColor = canCraft ?
+                    new float[]{1f, 1f, 1f} :
+                    new float[]{0.6f, 0.6f, 0.6f}; // Less grey, more visible
+
+            font.drawText(panelX + 10f + recipeIconSize + 8f,
+                    currentRecipeY + 20f,
+                    recipe.getOutputItem().getDisplayName(),
+                    textColor[0], textColor[1], textColor[2]);
+
+            if (canCraft) {
+                float craftButtonWidth = 70f;
+                String craftText = "CRAFT";
+                float craftTextWidth = font.getTextWidth(craftText);
+                float craftTextX = panelX + panelWidth - craftButtonWidth +
+                        (craftButtonWidth - craftTextWidth) / 2f - 10f;
+
+                font.drawText(craftTextX, currentRecipeY + 22f, craftText,
+                        0.9f, 1f, 0.9f);
+            }
+
+            currentRecipeY += rowHeight;
+        }
+    }
+
+    private void renderDraggedItem(Game game, Font font) {
+        double[] xpos = new double[1];
+        double[] ypos = new double[1];
+        glfwGetCursorPos(game.getWindowHandle(), xpos, ypos);
+
+        // Convert cursor position to framebuffer coordinates
+        int[] fbW = new int[1], fbH = new int[1], winW = new int[1], winH = new int[1];
+        glfwGetFramebufferSize(game.getWindowHandle(), fbW, fbH);
+        glfwGetWindowSize(game.getWindowHandle(), winW, winH);
+
+        double scaleX = (fbW[0] > 0 && winW[0] > 0) ? (double)fbW[0] / winW[0] : 1.0;
+        double scaleY = (fbH[0] > 0 && winH[0] > 0) ? (double)fbH[0] / winH[0] : 1.0;
+
+        float mouseX = (float)(xpos[0] * scaleX);
+        float mouseY = (float)(ypos[0] * scaleY);
+
+        InventorySlot draggedSlot = game.getDraggedItemStack();
+        Item draggedItem = draggedSlot.getItem();
+        final float itemRenderSize = 50f;
+        final float iconX = mouseX - (itemRenderSize / 2f);
+        final float iconY = mouseY - (itemRenderSize / 2f);
+
+        if (draggedItem.hasIconTexture() && treeTexture != null && treeTexture.getId() != 0) {
+            defaultShader.bind();
+            defaultShader.setUniform("uHasTexture", 1);
+            defaultShader.setUniform("uIsSimpleUiElement", 0);
+
+            glActiveTexture(GL_TEXTURE0);
+            treeTexture.bind();
+            glBindVertexArray(spriteVaoId);
+            glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+            spriteVertexBuffer.clear();
+
+            addIconToSpriteBuffer(spriteVertexBuffer, iconX, iconY, itemRenderSize,
+                    draggedItem, Z_OFFSET_UI_ELEMENT + 0.01f);
+            spriteVertexBuffer.flip();
+            glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+
+            treeTexture.unbind();
+        }
+
+        // Quantity text for dragged item
+        if (draggedSlot.getQuantity() > 1) {
+            String quantityStr = String.valueOf(draggedSlot.getQuantity());
+            float textWidth = font.getTextWidth(quantityStr);
+            float textX = iconX + itemRenderSize - textWidth - 4f;
+            float textY = iconY + itemRenderSize - 4f;
+
+            // Add shadow for visibility
+            font.drawText(textX + 1, textY + 1, quantityStr, 0f, 0f, 0f);
+            font.drawText(textX, textY, quantityStr, 1f, 1f, 1f);
+        }
+    }
+
+    // Fixed icon rendering method
+    private void addIconToSpriteBuffer(FloatBuffer buffer, float x, float y,
+                                       float size, Item item, float z) {
+        float[] tint = WHITE_TINT;
+
+        // Triangle 1
+        buffer.put(x).put(y).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU0()).put(item.getIconV0()).put(1.0f);
+
+        buffer.put(x).put(y + size).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU0()).put(item.getIconV1()).put(1.0f);
+
+        buffer.put(x + size).put(y + size).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU1()).put(item.getIconV1()).put(1.0f);
+
+        // Triangle 2
+        buffer.put(x).put(y).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU0()).put(item.getIconV0()).put(1.0f);
+
+        buffer.put(x + size).put(y + size).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU1()).put(item.getIconV1()).put(1.0f);
+
+        buffer.put(x + size).put(y).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU1()).put(item.getIconV0()).put(1.0f);
+    }
+
+    private void renderCraftingTooltip(org.isogame.crafting.CraftingRecipe recipe,
+                                       float mouseX, float mouseY) {
         if (recipe == null) return;
 
         Font font = getUiFont();
         Game game = (this.inputHandler != null) ? this.inputHandler.getGameInstance() : null;
         if (font == null || game == null || player == null) return;
 
-        // --- 1. Calculate Tooltip Size ---
+        // Calculate tooltip size and position
         int ingredientCount = recipe.getRequiredItems().size();
-        float tooltipWidth = 200f;
-        float tooltipHeight = 25f + (ingredientCount * 20f);
-        float tooltipX = mouseX - tooltipWidth - 15; // Position to the left of the cursor
-        float tooltipY = mouseY;
+        final float tooltipWidth = 200f;
+        final float tooltipHeight = 25f + (ingredientCount * 20f);
+        final float tooltipX = mouseX - tooltipWidth - 15f;
+        final float tooltipY = mouseY;
 
-        // --- 2. Draw Tooltip Background ---
+        // Draw tooltip background
         defaultShader.bind();
         defaultShader.setUniform("uHasTexture", 0);
         defaultShader.setUniform("uIsSimpleUiElement", 1);
+
         glBindVertexArray(uiColoredVaoId);
         glBindBuffer(GL_ARRAY_BUFFER, uiColoredVboId);
         uiColoredVertexBuffer.clear();
 
-        addQuadToUiColoredBuffer(uiColoredVertexBuffer, tooltipX, tooltipY, tooltipWidth, tooltipHeight, Z_OFFSET_UI_BORDER - 0.01f, new float[]{0.1f, 0.1f, 0.1f, 0.95f});
+        float[] tooltipBg = {0.05f, 0.05f, 0.05f, 0.95f}; // Very dark background
+        addQuadToUiColoredBuffer(uiColoredVertexBuffer, tooltipX, tooltipY,
+                tooltipWidth, tooltipHeight,
+                Z_OFFSET_UI_BORDER + 0.01f, tooltipBg);
 
         uiColoredVertexBuffer.flip();
         glBufferSubData(GL_ARRAY_BUFFER, 0, uiColoredVertexBuffer);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        // --- 3. Draw Tooltip Text ---
+        // Draw tooltip text
         float textY = tooltipY + 20f;
-        font.drawText(tooltipX + 10, textY, "Requires:", 1f, 1f, 1f);
+        font.drawText(tooltipX + 10f, textY, "Requires:", 1f, 1f, 1f);
         textY += 20f;
 
         for (java.util.Map.Entry<Item, Integer> entry : recipe.getRequiredItems().entrySet()) {
@@ -1758,9 +1958,11 @@ public class Renderer {
             int playerAmount = player.getInventoryItemCount(requiredItem);
 
             String text = requiredItem.getDisplayName() + ": " + playerAmount + " / " + requiredAmount;
-            float[] textColor = (playerAmount >= requiredAmount) ? new float[]{0.6f, 1f, 0.6f} : new float[]{1f, 0.6f, 0.6f};
+            float[] textColor = (playerAmount >= requiredAmount) ?
+                    new float[]{0.6f, 1f, 0.6f} :
+                    new float[]{1f, 0.6f, 0.6f};
 
-            font.drawText(tooltipX + 15, textY, text, textColor[0], textColor[1], textColor[2]);
+            font.drawText(tooltipX + 15f, textY, text, textColor[0], textColor[1], textColor[2]);
             textY += 20f;
         }
     }
