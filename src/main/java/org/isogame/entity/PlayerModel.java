@@ -42,6 +42,9 @@ public class PlayerModel extends Entity {
     public static final int FRAMES_PER_HIT_CYCLE = 6;
     public static final int ROW_IDLE_SOUTH = 0, ROW_IDLE_WEST = 1, ROW_IDLE_NORTH = 2, ROW_IDLE_EAST = 3;
     public static final int FRAMES_PER_IDLE_CYCLE = 1;
+    public static final int ROW_HOLD = 0;
+
+
 
     public static class AnchorPoint {
         public float dx, dy, rotation;
@@ -172,6 +175,14 @@ public class PlayerModel extends Entity {
         if (itemUseTime > 0) {
             itemUseTime--;
         }
+        if (itemUseTime == 0) {
+            // If we were holding an item, return to idle
+            if (currentAction == Action.HOLD) {
+                setAction(Action.IDLE);
+            }
+            currentItemBeingUsed = null;
+        }
+
         if (levitating) {
             levitateTimer += (float) deltaTime * 5.0f;
         }
@@ -205,6 +216,7 @@ public class PlayerModel extends Entity {
         else if (currentAction == Action.IDLE) maxFrames = FRAMES_PER_IDLE_CYCLE;
 
         if (animationTimer >= currentAnimFrameDuration) {
+
             animationTimer -= currentAnimFrameDuration;
 
             int oldFrame = currentFrameIndex;
@@ -243,19 +255,28 @@ public class PlayerModel extends Entity {
     }
 
 
-    public void useItem(Item item) {
-        if (item == null || itemUseTime > 0 || currentItemBeingUsed != null) {
-            return;
-        }
-        if (itemUseTime > 0 || currentItemBeingUsed != null) {
-            return;
-        }
-        this.currentItemBeingUsed = item;
-        this.itemUseTime = item.useTime;
-        if (item.useStyle == UseStyle.SWING) {
-            this.setAction(Action.SWING);
-        }
 
+
+    public void useItem(Game game) {
+        if (itemUseTime > 0) return;
+
+        Item heldItem = getHeldItem();
+        if (heldItem == null) return;
+
+        this.currentItemBeingUsed = heldItem;
+        this.itemUseTime = heldItem.useTime; // Start the cooldown
+
+        // --- THIS IS THE NEW LOGIC ---
+        switch (heldItem.useStyle) {
+            case SWING:
+                setAction(Action.SWING);
+                // The projectile is now created inside the update() method based on the frame.
+                break;
+            case HOLD_OUT:
+                setAction(Action.HOLD);
+                break;
+            // Add cases for CONSUME, SHOOT, etc. here later.
+        }
     }
 
     @Override
@@ -281,6 +302,8 @@ public class PlayerModel extends Entity {
                 case SOUTH: return ROW_HIT_SOUTH;
                 case EAST: return ROW_HIT_EAST;
             }
+        } else if (currentAction == Action.HOLD) { // <-- ADD THIS CASE
+            return ROW_HOLD;
         }
         return ROW_IDLE_SOUTH;
     }
@@ -393,6 +416,26 @@ public class PlayerModel extends Entity {
         return false;
     }
 
+    /**
+     * Consumes a specified amount of the item currently held in the selected hotbar slot.
+     * @param amount The number of items to consume.
+     */
+    public void consumeHeldItem(int amount) {
+        if (selectedHotbarSlotIndex < 0 || selectedHotbarSlotIndex >= inventorySlots.size()) {
+            return; // Safety check for invalid slot index
+        }
+
+        InventorySlot heldSlot = inventorySlots.get(selectedHotbarSlotIndex);
+        if (!heldSlot.isEmpty()) {
+            heldSlot.removeQuantity(amount);
+        }
+    }
+    public int getHeldItemCount() {
+        if (selectedHotbarSlotIndex < 0 || selectedHotbarSlotIndex >= inventorySlots.size()) {
+            return 0;
+        }
+        return inventorySlots.get(selectedHotbarSlotIndex).getQuantity();
+    }
     public List<InventorySlot> getInventorySlots() { return inventorySlots; }
     public int getSelectedHotbarSlotIndex() { return selectedHotbarSlotIndex; }
     public void setSelectedHotbarSlotIndex(int index) {

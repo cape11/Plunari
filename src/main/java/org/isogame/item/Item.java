@@ -37,12 +37,11 @@ public class Item {
         RESOURCE, TOOL, EQUIPMENT, CONSUMABLE, MISC
     }
 
-    // --- MODIFIED CONSTRUCTORS ---
-
-
+    // In the onUse method:
     public boolean onUse(Game game, PlayerModel player, Tile targetTile, int tileR, int tileC) {
         if (this.useStyle != UseStyle.NONE) {
-            player.useItem(this);
+            // --- FIX: Pass the 'game' object, not 'this' item ---
+            player.useItem(game);
             return true;
         }
         return false;

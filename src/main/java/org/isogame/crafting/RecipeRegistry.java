@@ -19,8 +19,11 @@ public class RecipeRegistry {
     private static final Gson gson = new Gson();
 
     private static final List<String> RECIPE_FILES = Arrays.asList(
-            "rude_axe.json", "wooden_sword_recipe.json"
+            "rude_axe_recipe.json",
+            "wooden_sword_recipe.json",
+            "torch_recipe.json" // <-- ADDED
     );
+
 
     /**
      * Loads each recipe definition file individually from the classpath.

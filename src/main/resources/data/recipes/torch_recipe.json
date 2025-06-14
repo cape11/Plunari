@@ -1,0 +1,14 @@
+{
+  "outputItemId": "torch",
+  "outputQuantity": 4,
+  "ingredients": [
+    {
+      "itemId": "stick",
+      "quantity": 1
+    },
+    {
+      "itemId": "slime_gel",
+      "quantity": 1
+    }
+  ]
+}

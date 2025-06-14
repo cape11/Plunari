@@ -18,8 +18,16 @@ public class ItemRegistry {
     private static final Gson gson = new Gson();
 
     private static final List<String> ITEM_FILES = Arrays.asList(
-            "crude_axe.json", "dirt.json", "loose_rock.json",
-            "sand.json", "stick.json", "stone.json", "wood.json"
+            "crude_axe.json",
+            "dirt.json",
+            "loose_rock.json",
+            "sand.json",
+            "stick.json",
+            "stone.json",
+            "wood.json",
+            "slime_gel.json",
+            "torch.json",         // <-- ADD THIS LINE
+            "wooden_sword.json"   // <-- AND THIS LINE
     );
 
     /**

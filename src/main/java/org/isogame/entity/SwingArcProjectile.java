@@ -33,7 +33,8 @@ public class SwingArcProjectile extends Projectile {
                     targetTile.setTreeType(Tile.TreeVisualType.NONE);
                     game.getMap().queueLightUpdateForArea(this.getTileRow(), this.getTileCol(), 2, game.getLightManager());
                     if (owner instanceof PlayerModel) {
-                        ((PlayerModel) owner).addItemToInventory(ItemRegistry.getItem("wood"), 3);                    }
+                        ((PlayerModel) owner).addItemToInventory(ItemRegistry.getItem("wood"), 3);
+                    }
                 }
             }
 
@@ -41,7 +42,12 @@ public class SwingArcProjectile extends Projectile {
             for (Entity entity : new ArrayList<>(game.getMap().getEntities())) {
                 if (entity != owner && entity != this && !entity.isDead()) {
                     if (entity.getTileRow() == this.getTileRow() && entity.getTileCol() == this.getTileCol()) {
-                        entity.takeDamage(this.damage);
+                        System.out.println("HIT SUCCESS! Damaging " + entity.getDisplayName());
+
+                        // --- THIS IS THE FIX ---
+                        // We now pass the 'owner' of the projectile as the source of the damage.
+                        entity.takeDamage(this.damage, this.owner);
+
                         spawnHitParticles(game, entity.getMapRow(), entity.getMapCol(), game.getMap().getTile(entity.getTileRow(), entity.getTileCol()).getElevation());
                         this.hasHit = true;
                     }

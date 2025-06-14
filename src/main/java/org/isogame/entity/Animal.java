@@ -103,14 +103,28 @@ public class Animal extends Entity {
         }
     }
 
-    private void updateDirection(float dC, float dR) {
-        // Simplified direction update
-        if (Math.abs(dC) > Math.abs(dR)) {
-            currentDirection = (dC > 0) ? Direction.EAST : Direction.WEST;
-        } else {
-            currentDirection = (dR > 0) ? Direction.SOUTH : Direction.NORTH;
+    public void setAction(Action newAction) {
+        if (this.currentAction != newAction) {
+            this.currentAction = newAction;
+            this.currentFrameIndex = 0;
+            this.animationTimer = 0.0;
         }
     }
+
+    public void setDirection(Direction newDirection) {
+        if (this.currentDirection != newDirection) {
+            this.currentDirection = newDirection;
+        }
+    }
+
+    protected void updateDirection(float dC, float dR) {
+        if (Math.abs(dC) > Math.abs(dR)) {
+            setDirection((dC > 0) ? Direction.EAST : Direction.WEST);
+        } else {
+            setDirection((dR > 0) ? Direction.SOUTH : Direction.NORTH);
+        }
+    }
+
 
     @Override
     public int getAnimationRow() {

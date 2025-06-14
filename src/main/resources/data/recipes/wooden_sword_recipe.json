@@ -4,7 +4,11 @@
   "ingredients": [
     {
       "itemId": "wood",
-      "quantity": 7
+      "quantity": 5
+    },
+    {
+      "itemId": "stick",
+      "quantity": 1
     }
   ]
 }

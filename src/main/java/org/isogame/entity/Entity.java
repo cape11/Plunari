@@ -2,13 +2,15 @@ package org.isogame.entity;
 
 import org.isogame.game.Game;
 import org.isogame.map.PathNode;
+import org.isogame.savegame.EntitySaveData;
+
 import java.util.List;
 
 public abstract class Entity {
 
     // Health System
     protected int maxHealth = 20;
-    protected int health = 20;
+    public int health = 20;
     protected boolean isDead = false;
 
     // --- Health Visualization ---
@@ -22,7 +24,7 @@ public abstract class Entity {
     protected float visualCol;
     protected static final float VISUAL_SMOOTH_FACTOR = 0.2f;
 
-    public enum Action { IDLE, WALK, HIT, CHOPPING, SWING }
+    public enum Action { IDLE, WALK, HIT, CHOPPING, SWING, DEATH, HOLD }
     public enum Direction { NORTH, WEST, SOUTH, EAST }
 
     protected Action currentAction = Action.IDLE;
@@ -41,16 +43,50 @@ public abstract class Entity {
      * Reduces the entity's health and handles the visual feedback and death.
      * @param amount The amount of damage to deal.
      */
-    public void takeDamage(int amount) {
-        if (isDead) return;
+    public void takeDamage(int amount, Entity source) {
+        if (isDead || currentAction == Action.DEATH) return; // Don't   take damage while dying
 
+        this.owner = source;
         this.health -= amount;
-        this.damageFlashTimer = DAMAGE_FLASH_DURATION; // Trigger the damage flash
+        this.damageFlashTimer = DAMAGE_FLASH_DURATION;
 
         if (this.health <= 0) {
             this.health = 0;
-            this.isDead = true;
+            // --- FIX: We no longer set isDead = true here. ---
+            // Instead, we call onDeath(), which will trigger the animation.
             onDeath();
+        }
+    }
+
+
+
+    // --- NEW METHOD FOR SAVING ---
+    public void populateSaveData(EntitySaveData data) {
+        // This is a generic method. Subclasses will provide the specific type.
+        data.mapRow = this.mapRow;
+        data.mapCol = this.mapCol;
+        data.health = this.health;
+    }
+
+    public void setAction(Action newAction) {
+        if (this.currentAction != newAction) {
+            this.currentAction = newAction;
+            this.currentFrameIndex = 0;
+            this.animationTimer = 0.0;
+        }
+    }
+
+    public void setDirection(Direction newDirection) {
+        if (this.currentDirection != newDirection) {
+            this.currentDirection = newDirection;
+        }
+    }
+
+    protected void updateDirection(float dC, float dR) {
+        if (Math.abs(dC) > Math.abs(dR)) {
+            setDirection((dC > 0) ? Direction.EAST : Direction.WEST);
+        } else {
+            setDirection((dR > 0) ? Direction.SOUTH : Direction.NORTH);
         }
     }
 
@@ -81,6 +117,11 @@ public abstract class Entity {
         return new float[] {1.0f, 1.0f, 1.0f, 1.0f};
     }
 
+    protected Entity owner; // Add this field to track who created/attacked this entity
+
+    public boolean isSavable() {
+        return true;
+    }
     /**
      * A hook for subclasses to define what happens on death (e.g., dropping loot).
      */

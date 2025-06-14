@@ -1,0 +1,13 @@
+{
+  "id": "slime_gel",
+  "displayName": "Slime Gel",
+  "description": "A gooey, gelatinous substance.",
+  "type": "RESOURCE",
+  "texture": {
+    "atlas": "treeTexture",
+    "x": 192,
+    "y": 1664,
+    "w": 64,
+    "h": 64
+  }
+}

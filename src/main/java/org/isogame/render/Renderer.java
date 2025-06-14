@@ -8,6 +8,7 @@ import org.isogame.entity.Animal;
 import org.isogame.entity.Entity;
 import org.isogame.entity.PlayerModel;
 // import org.isogame.game.Game; // Removed to reduce coupling
+import org.isogame.entity.Slime;
 import org.isogame.game.Game;
 import org.isogame.input.InputHandler;
 import org.isogame.inventory.InventorySlot;
@@ -444,6 +445,12 @@ public class Renderer {
             camera.setProjectionMatrixForCulling(projectionMatrix);
             camera.forceUpdateViewMatrix();
         }
+
+        // Add this line to force the hotbar's vertex buffer to be rebuilt.
+        this.hotbarDirty = true;
+
+        // You should do this for any other UI elements that cache their geometry, too.
+        // For example: this.inventoryDirty = true;
     }
 
     private float[] determineTopSurfaceColor(Tile.TileType surfaceType, boolean isSelected) {
@@ -1088,7 +1095,6 @@ public class Renderer {
             tileAtlasTexture.bind();
             defaultShader.setUniform("uTextureSampler", 0);
             defaultShader.setUniform("uHasTexture", 1);
-
             for (Chunk chunk : activeMapChunks.values()) {
                 if (camera.isChunkVisible(chunk.getBoundingBox())) {
                     chunk.render();
@@ -1096,6 +1102,13 @@ public class Renderer {
             }
             tileAtlasTexture.unbind();
         }
+
+        // --- 2. RENDER ALL SPRITES (Player, Trees, Rocks, etc.) ---
+        if (map != null) {
+            collectWorldEntities();
+            renderWorldSprites(); // <-- Use the new refactored helper method
+        }
+
 
         // --- 2. RENDER ALL SPRITES (Player, Trees, Rocks, and Held Items) ---
         if (map != null) {
@@ -1116,33 +1129,26 @@ public class Renderer {
                     Texture textureForThisEntity = null;
                     int verticesAdded = 0;
 
-                    if (entityObj instanceof PlayerModel || entityObj instanceof Animal) {
+                    // --- THIS IS THE KEY LOGIC CHANGE ---
+                    // Player, Cow, Animal, and Slime all use the playerTexture sheet
+                    if (entityObj instanceof PlayerModel || entityObj instanceof Animal) { // Animal now covers Cow and Slime
                         textureForThisEntity = playerTexture;
                     } else if (entityObj instanceof TreeData || entityObj instanceof LooseRockData) {
                         textureForThisEntity = treeTexture;
                     }
+                    // --- END OF CHANGE ---
 
                     if (textureForThisEntity == null) continue;
 
-                    // If the texture for this object is different from our current batch's texture,
-                    // we must draw (flush) the current batch before starting a new one.
                     if (currentBatchTexture != null && textureForThisEntity.getId() != currentBatchTexture.getId()) {
                         renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
                         spriteVertexBuffer.clear();
                         verticesInBatch = 0;
                     }
-
                     currentBatchTexture = textureForThisEntity;
 
-                    // Add the vertices for the current object to the buffer
-                    if (entityObj instanceof PlayerModel) {
-                        verticesAdded = addPlayerVerticesToBuffer_WorldSpace((PlayerModel) entityObj, spriteVertexBuffer);
-                    } else if (entityObj instanceof Animal) {
-                        verticesAdded = addAnimalVerticesToBuffer_WorldSpace((Animal) entityObj, spriteVertexBuffer);
-                    } else if (entityObj instanceof TreeData) {
-                        verticesAdded = addTreeVerticesToBuffer_WorldSpace((TreeData) entityObj, spriteVertexBuffer);
-                    } else if (entityObj instanceof LooseRockData) {
-                        verticesAdded = addLooseRockVerticesToBuffer_WorldSpace((LooseRockData) entityObj, spriteVertexBuffer);
+                    if (entityObj instanceof Entity) {
+                        verticesAdded = addGenericEntityVerticesToBuffer((Entity) entityObj, spriteVertexBuffer);
                     }
                     verticesInBatch += verticesAdded;
                 }
@@ -1171,6 +1177,106 @@ public class Renderer {
         }
     }
 
+    private void renderWorldSprites() {
+        if (spriteVaoId == 0 || worldEntities.isEmpty()) return;
+
+        glBindVertexArray(spriteVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+        spriteVertexBuffer.clear();
+
+        int verticesInBatch = 0;
+        Texture currentBatchTexture = null;
+
+        defaultShader.setUniform("uHasTexture", 1);
+        defaultShader.setUniform("uTextureSampler", 0);
+
+        for (Object entityObj : worldEntities) {
+            Texture textureForThisEntity = null;
+            int verticesAdded = 0;
+
+            if (entityObj instanceof Entity) {
+                // All character-like entities use the player texture sheet
+                textureForThisEntity = playerTexture;
+            } else if (entityObj instanceof TreeData || entityObj instanceof LooseRockData) {
+                textureForThisEntity = treeTexture;
+            }
+
+            if (textureForThisEntity == null) continue;
+
+            if (currentBatchTexture != null && textureForThisEntity.getId() != currentBatchTexture.getId()) {
+                renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
+                spriteVertexBuffer.clear();
+                verticesInBatch = 0;
+            }
+            currentBatchTexture = textureForThisEntity;
+
+            // This is the corrected logic that handles all types
+            if (entityObj instanceof Entity) {
+                verticesAdded = addGenericEntityVerticesToBuffer((Entity) entityObj, spriteVertexBuffer);
+            } else if (entityObj instanceof TreeData) {
+                verticesAdded = addTreeVerticesToBuffer_WorldSpace((TreeData) entityObj, spriteVertexBuffer);
+            } else if (entityObj instanceof LooseRockData) {
+                verticesAdded = addLooseRockVerticesToBuffer_WorldSpace((LooseRockData) entityObj, spriteVertexBuffer);
+            }
+            verticesInBatch += verticesAdded;
+        }
+
+        if (verticesInBatch > 0) {
+            renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
+        }
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
+    private int addGenericEntityVerticesToBuffer(Entity entity, FloatBuffer buffer) {
+        if (playerTexture == null || camera == null || map == null) return 0;
+
+        float eR = entity.getVisualRow();
+        float eC = entity.getVisualCol();
+        Tile tile = map.getTile(entity.getTileRow(), entity.getTileCol());
+        int elev = (tile != null) ? tile.getElevation() : 0;
+        float lightVal = (tile != null) ? tile.getFinalLightLevel() / (float) MAX_LIGHT_LEVEL : 1.0f;
+        lightVal = Math.max(0.1f, lightVal);
+
+        float eIsoX = (eC - eR) * this.tileHalfWidth;
+        float eIsoY = (eC + eR) * this.tileHalfHeight - (elev * TILE_THICKNESS);
+        float entityWorldZ = (eR + eC) * DEPTH_SORT_FACTOR + (elev * 0.005f) + Z_OFFSET_SPRITE_ANIMAL;
+
+        // Use the entity's specific frame dimensions for rendering size
+        float renderWidth = entity.getFrameWidth() * 0.75f;
+        float renderHeight = entity.getFrameHeight() * 0.75f;
+
+        // Special case for Player to match its original render size
+        if (entity instanceof PlayerModel) {
+            renderWidth = PLAYER_WORLD_RENDER_WIDTH;
+            renderHeight = PLAYER_WORLD_RENDER_HEIGHT;
+        }
+
+        float halfRenderWidth = renderWidth / 2.0f;
+        float xL = eIsoX - halfRenderWidth;
+        float xR = eIsoX + halfRenderWidth;
+        float yT = eIsoY - renderHeight;
+        float yB = eIsoY;
+
+        int animCol = entity.getVisualFrameIndex();
+        int animRow = entity.getAnimationRow();
+
+        float u0 = (float) (animCol * entity.getFrameWidth()) / playerTexture.getWidth();
+        float v0 = (float) (animRow * entity.getFrameHeight()) / playerTexture.getHeight();
+        float u1 = (float) ((animCol + 1) * entity.getFrameWidth()) / playerTexture.getWidth();
+        float v1 = (float) ((animRow + 1) * entity.getFrameHeight()) / playerTexture.getHeight();
+
+        float[] tint = entity.getHealthTint();
+
+        addVertexToSpriteBuffer(buffer, xL, yT, entityWorldZ, tint, u0, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yB, entityWorldZ, tint, u0, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yB, entityWorldZ, tint, u1, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yB, entityWorldZ, tint, u1, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yT, entityWorldZ, tint, u1, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yT, entityWorldZ, tint, u0, v0, lightVal);
+        return 6;
+    }
+
     // NEW HELPER METHOD to avoid repeating batch drawing code
     private void renderSpriteBatch(FloatBuffer buffer, int vertexCount, Texture texture) {
         if (vertexCount == 0 || texture == null) return;
@@ -1196,7 +1302,7 @@ public class Renderer {
         float playerBaseIsoX = (pC - pR) * tileHalfWidth;
         float playerBaseIsoY = (pC + pR) * tileHalfHeight - (elev * TILE_THICKNESS);
 
-        float itemWorldZ = (pR + pC) * DEPTH_SORT_FACTOR + 0.001f;
+        float itemWorldZ = (pR + pC) * DEPTH_SORT_FACTOR + 0.1f;
 
         // --- 2. FIXED: Scale anchor offsets from pixel space to world space ---
         // Assuming your player sprite is 64x64 and rendered at some world scale
@@ -1267,6 +1373,7 @@ public class Renderer {
         final float hotbarY = camera.getScreenHeight() - slotSize - (slotMargin * 3);
         final float itemRenderSize = slotSize * 0.9f;
         final float itemOffset = (slotSize - itemRenderSize) / 2f;
+        float pR = player.getVisualRow();
 
         List<InventorySlot> playerInventorySlots = playerForHotbar.getInventorySlots();
 
@@ -2050,7 +2157,50 @@ public class Renderer {
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
 
+    private int addSlimeVerticesToBuffer_WorldSpace(Slime slime, FloatBuffer buffer) {
+        if (playerTexture == null || camera == null || map == null) return 0;
 
+        float sR = slime.getVisualRow();
+        float sC = slime.getVisualCol();
+        Tile tile = map.getTile(slime.getTileRow(), slime.getTileCol());
+        int elev = (tile != null) ? tile.getElevation() : 0;
+        float lightVal = (tile != null) ? tile.getFinalLightLevel() / (float) MAX_LIGHT_LEVEL : 1.0f;
+        lightVal = Math.max(0.1f, lightVal);
+
+        float sIsoX = (sC - sR) * this.tileHalfWidth;
+        float sIsoY = (sC + sR) * this.tileHalfHeight - (elev * TILE_THICKNESS);
+        float slimeWorldZ = (sR + sC) * DEPTH_SORT_FACTOR + (elev * 0.005f) + Z_OFFSET_SPRITE_ANIMAL; // Same layer as animal
+
+        // Adjust render size as needed
+        float renderWidth = slime.getFrameWidth() * 0.7f;
+        float renderHeight = slime.getFrameHeight() * 0.7f;
+        float halfRenderWidth = renderWidth / 2.0f;
+
+        float xL = sIsoX - halfRenderWidth;
+        float xR = sIsoX + halfRenderWidth;
+        float yT = sIsoY - renderHeight;
+        float yB = sIsoY;
+
+        int animCol = slime.getVisualFrameIndex();
+        int animRow = slime.getAnimationRow();
+
+        // UVs are calculated based on the playerTexture sheet
+        float u0 = (float) (animCol * slime.getFrameWidth()) / playerTexture.getWidth();
+        float v0 = (float) (animRow * slime.getFrameHeight()) / playerTexture.getHeight();
+        float u1 = (float) ((animCol + 1) * slime.getFrameWidth()) / playerTexture.getWidth();
+        float v1 = (float) ((animRow + 1) * slime.getFrameHeight()) / playerTexture.getHeight();
+
+        float[] tint = slime.getHealthTint();
+
+        addVertexToSpriteBuffer(buffer, xL, yT, slimeWorldZ, tint, u0, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yB, slimeWorldZ, tint, u0, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yB, slimeWorldZ, tint, u1, v1, lightVal);
+
+        addVertexToSpriteBuffer(buffer, xR, yB, slimeWorldZ, tint, u1, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yT, slimeWorldZ, tint, u1, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yT, slimeWorldZ, tint, u0, v0, lightVal);
+        return 6;
+    }
 
 
     public void renderMenuButton(MenuItemButton button) {

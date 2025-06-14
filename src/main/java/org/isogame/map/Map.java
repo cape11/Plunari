@@ -1,10 +1,10 @@
 package org.isogame.map;
 
 import org.isogame.constants.Constants;
-import org.isogame.entity.Animal;
-import org.isogame.entity.Entity;
+import org.isogame.entity.*;
 import org.isogame.item.Item;
 import org.isogame.item.ItemRegistry;
+import org.isogame.savegame.EntitySaveData;
 import org.isogame.savegame.MapSaveData;
 import org.isogame.savegame.TileSaveData;
 import org.isogame.tile.Tile;
@@ -279,10 +279,11 @@ public class Map {
      * or manage saving individual chunk files elsewhere.
      */
     public void populateSaveData(MapSaveData saveData) {
-        System.out.println("Map.populateSaveData: Placeholder for infinite world. Saving seed and modified chunks (conceptual).");
-        saveData.worldSeed = this.worldSeed; // Assuming MapSaveData will have this field
+        System.out.println("Map.populateSaveData: Saving seed and modified chunks...");
+        saveData.worldSeed = this.worldSeed;
         saveData.playerSpawnR = this.characterSpawnRow;
         saveData.playerSpawnC = this.characterSpawnCol;
+        saveData.explicitlySavedChunks = new ArrayList<>();
 
         // In a full system, you'd iterate through `chunkModificationStatus`
         // and for each modified chunk, serialize its `loadedChunkTiles.get(coord)`
@@ -300,7 +301,31 @@ public class Map {
             }
         }
         System.out.println("Map.populateSaveData: Would save " + saveData.explicitlySavedChunks.size() + " modified/loaded chunks (placeholder).");
+        saveData.entities.clear();
+        for (Entity entity : this.entities) {
+            // This now skips the Player AND any subclasses of Projectile
+            if (!(entity instanceof PlayerModel) && !(entity instanceof Projectile)) {
+                EntitySaveData entityData = new EntitySaveData();
+                entity.populateSaveData(entityData);
+                saveData.entities.add(entityData);
+            }
+        }
+        System.out.println("Map.populateSaveData: Saved " + saveData.entities.size() + " non-player entities.");
+
+        for (Entity entity : this.entities) {
+            if (!(entity instanceof PlayerModel)) { // Don't save the player here
+                EntitySaveData entityData = new EntitySaveData();
+                entity.populateSaveData(entityData);
+                saveData.entities.add(entityData);
+            }
+        }
+        System.out.println("Map.populateSaveData: Saved " + saveData.entities.size() + " non-player entities.");
+
+
     }
+
+
+
     private List<List<TileSaveData>> convertChunkTilesToSaveFormat(Tile[][] chunkTiles) {
         List<List<TileSaveData>> savedRows = new ArrayList<>();
         for (int y = 0; y < CHUNK_SIZE_TILES; y++) {
@@ -354,6 +379,35 @@ public class Map {
             }
             System.out.println("Map.loadState: Pre-loaded " + mapData.explicitlySavedChunks.size() + " chunks from save data.");
         }
+
+        // --- NEW: Load all non-player entities ---
+        this.entities.clear();
+        if (mapData.entities != null) {
+            for (EntitySaveData entityData : mapData.entities) {
+                // This safety check prevents crashes from corrupted save data
+                if (entityData == null || entityData.entityType == null) {
+                    System.err.println("Skipping a null or typeless entity in the save file.");
+                    continue;
+                }
+
+                Entity newEntity = null;
+                switch (entityData.entityType) {
+                    case "COW":
+                        newEntity = new Cow(entityData.mapRow, entityData.mapCol);
+                        break;
+                    case "SLIME":
+                        newEntity = new Slime(entityData.mapRow, entityData.mapCol);
+                        break;
+                }
+
+                if (newEntity != null) {
+                    newEntity.health = entityData.health;
+                    this.entities.add(newEntity);
+                }
+            }
+            System.out.println("Map.loadState: Loaded " + this.entities.size() + " non-player entities.");
+        }
+
         return true;
     }
 

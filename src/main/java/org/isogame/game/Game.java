@@ -3,7 +3,7 @@ package org.isogame.game;
 import org.isogame.constants.Constants;
 import org.isogame.crafting.CraftingRecipe;
 import org.isogame.crafting.RecipeRegistry;
-import org.isogame.entity.Entity;
+import org.isogame.entity.*;
 import org.isogame.input.InputHandler;
 import org.isogame.input.MouseHandler;
 import org.isogame.camera.CameraManager;
@@ -14,12 +14,9 @@ import org.isogame.map.LightManager;
 import org.isogame.map.Map;
 import org.isogame.render.Font;
 import org.isogame.render.Renderer;
-import org.isogame.entity.PlayerModel;
 import org.isogame.savegame.*;
 import org.isogame.tile.Tile;
 import org.isogame.ui.MenuItemButton;
-import org.isogame.entity.Animal;
-
 
 
 import com.google.gson.Gson;
@@ -386,6 +383,12 @@ public class Game {
                 Iterator<Entity> entityIterator = map.getEntities().iterator();
                 while (entityIterator.hasNext()) {
                     Entity entity = entityIterator.next();
+                    // If the entity is dead, remove it from the game.
+                    if (entity.isDead()) {
+                        entityIterator.remove();
+                        continue; // Skip the rest of the update logic for this dead entity
+                    }
+
                     if (entity instanceof PlayerModel) {
                         continue;
                     }
@@ -456,21 +459,32 @@ public class Game {
         if (spawnTimer >= SPAWN_CYCLE_TIME) {
             spawnTimer = 0;
 
-            // Check if we are under the animal cap
-            if (map.getAnimalCount() < Map.MAX_ANIMALS) {
-                // Attempt to spawn a new animal
-                int spawnTryX = player.getTileCol() + spawnRandom.nextInt(SPAWN_RADIUS * 2) - SPAWN_RADIUS;
-                int spawnTryY = player.getTileRow() + spawnRandom.nextInt(SPAWN_RADIUS * 2) - SPAWN_RADIUS;
+            // Check if we are under the entity cap
+            if (map.getEntities().size() >= Map.MAX_ANIMALS) {
+                return;
+            }
 
-                // Check if the target chunk is loaded
-                int chunkX = Math.floorDiv(spawnTryX, CHUNK_SIZE_TILES);
-                int chunkY = Math.floorDiv(spawnTryY, CHUNK_SIZE_TILES);
+            int spawnTryX = player.getTileCol() + spawnRandom.nextInt(SPAWN_RADIUS * 2) - SPAWN_RADIUS;
+            int spawnTryY = player.getTileRow() + spawnRandom.nextInt(SPAWN_RADIUS * 2) - SPAWN_RADIUS;
 
-                if (currentlyActiveLogicalChunks.contains(new LightManager.ChunkCoordinate(chunkX, chunkY))) {
-                    Tile targetTile = map.getTile(spawnTryY, spawnTryX);
-                    // Check if the tile is a valid spawn surface
-                    if (targetTile != null && targetTile.getType() == Tile.TileType.GRASS) {
-                        map.getEntities().add(new Animal(spawnTryY + 0.5f, spawnTryX + 0.5f));
+            int chunkX = Math.floorDiv(spawnTryX, CHUNK_SIZE_TILES);
+            int chunkY = Math.floorDiv(spawnTryY, CHUNK_SIZE_TILES);
+
+            if (currentlyActiveLogicalChunks.contains(new LightManager.ChunkCoordinate(chunkX, chunkY))) {
+                Tile targetTile = map.getTile(spawnTryY, spawnTryX);
+
+                // Only spawn on valid, walkable land tiles
+                if (targetTile != null && targetTile.getType() != Tile.TileType.WATER && targetTile.getType() != Tile.TileType.AIR) {
+
+                    // --- THIS IS THE KEY CHANGE ---
+                    // 50/50 chance to spawn a Slime or a Cow
+                    if (spawnRandom.nextBoolean()) {
+                        map.getEntities().add(new Slime(spawnTryY + 0.5f, spawnTryX + 0.5f));
+                    } else {
+                        // Only spawn cows on grass for a more natural feel
+                        if (targetTile.getType() == Tile.TileType.GRASS) {
+                            map.getEntities().add(new Cow(spawnTryY + 0.5f, spawnTryX + 0.5f));
+                        }
                     }
                 }
             }
@@ -902,180 +916,180 @@ public class Game {
 
 
 
-    public List<String> getAvailableSaveFiles() { return availableSaveFiles; }
-    public String getCurrentWorldName() { return currentWorldName; }
-    public void toggleInventory() { this.showInventory = !this.showInventory; }
-    public boolean isInventoryVisible() { return this.showInventory; }
-    public GameState getCurrentGameState() { return currentGameState; }
+        public List<String> getAvailableSaveFiles() { return availableSaveFiles; }
+        public String getCurrentWorldName() { return currentWorldName; }
+        public void toggleInventory() { this.showInventory = !this.showInventory; }
+        public boolean isInventoryVisible() { return this.showInventory; }
+        public GameState getCurrentGameState() { return currentGameState; }
 
-    public void setCurrentGameState(GameState newState) {
-        System.out.println("Game state changing from " + this.currentGameState + " to " + newState + " (World: " + currentWorldName + ")");
-        GameState oldState = this.currentGameState;
-        this.currentGameState = newState;
+        public void setCurrentGameState(GameState newState) {
+            System.out.println("Game state changing from " + this.currentGameState + " to " + newState + " (World: " + currentWorldName + ")");
+            GameState oldState = this.currentGameState;
+            this.currentGameState = newState;
 
-        if (newState == GameState.MAIN_MENU) {
-            if (oldState == GameState.IN_GAME && currentWorldName != null && !currentWorldName.isEmpty() && map != null && player != null) {
-                System.out.println("setCurrentGameState: Saving game " + currentWorldName + " before returning to menu.");
-                saveGame(currentWorldName);
-            }
-            // When returning to menu, ensure menu-specific context for handlers and renderer
-            System.out.println("setCurrentGameState: Transitioning to MAIN_MENU. Resetting/Re-initializing UI components.");
-            if (renderer != null) {
-                renderer.cleanup(); // Clean up in-game renderer resources
-            }
-            try {
-                // Create a fresh renderer instance for the menu
-                renderer = new Renderer(cameraManager, null, null, null);
-                int[] fbW = new int[1], fbH = new int[1];
-                glfwGetFramebufferSize(window, fbW, fbH);
-                if (fbW[0] > 0 && fbH[0] > 0) renderer.onResize(fbW[0], fbH[0]);
-                else renderer.onResize(WIDTH, HEIGHT); // Fallback
+            if (newState == GameState.MAIN_MENU) {
+                if (oldState == GameState.IN_GAME && currentWorldName != null && !currentWorldName.isEmpty() && map != null && player != null) {
+                    System.out.println("setCurrentGameState: Saving game " + currentWorldName + " before returning to menu.");
+                    saveGame(currentWorldName);
+                }
+                // When returning to menu, ensure menu-specific context for handlers and renderer
+                System.out.println("setCurrentGameState: Transitioning to MAIN_MENU. Resetting/Re-initializing UI components.");
+                if (renderer != null) {
+                    renderer.cleanup(); // Clean up in-game renderer resources
+                }
+                try {
+                    // Create a fresh renderer instance for the menu
+                    renderer = new Renderer(cameraManager, null, null, null);
+                    int[] fbW = new int[1], fbH = new int[1];
+                    glfwGetFramebufferSize(window, fbW, fbH);
+                    if (fbW[0] > 0 && fbH[0] > 0) renderer.onResize(fbW[0], fbH[0]);
+                    else renderer.onResize(WIDTH, HEIGHT); // Fallback
 
-                // Input handlers also need to be context-aware or reset
-                inputHandler.updateGameReferences(null, null); // Clear game world context
-                mouseHandler.updateGameReferences(null, null, inputHandler); // Clear game world context
+                    // Input handlers also need to be context-aware or reset
+                    inputHandler.updateGameReferences(null, null); // Clear game world context
+                    mouseHandler.updateGameReferences(null, null, inputHandler); // Clear game world context
 
-                System.out.println("setCurrentGameState: UI components re-initialized for MAIN_MENU.");
-            } catch (Exception e) {
-                System.err.println("Error re-initializing components for MAIN_MENU: " + e.getMessage());
-                e.printStackTrace();
-            }
-            refreshAvailableSaveFiles();
-        } else if (newState == GameState.IN_GAME) {
-            // This state is typically entered via createNewWorld() or loadGame(),
-            // which already call initializeGameWorldCommonLogic().
-            if (map == null || player == null) {
-                System.err.println("setCurrentGameState: Attempting to enter IN_GAME without map/player. Forcing MAIN_MENU.");
-                this.currentGameState = GameState.MAIN_MENU; // Revert
-                refreshAvailableSaveFiles(); // This will re-setup menu
-                return;
-            }
-            // If initializeGameWorldCommonLogic wasn't called by create/load (e.g. direct state set)
-            // or if renderer is not set up for the game world.
-            if (renderer == null || renderer.getMap() != map || lightManager == null) {
-                System.out.println("setCurrentGameState: IN_GAME state set, ensuring common logic is initialized/updated.");
-                initializeGameWorldCommonLogic();
-            }
+                    System.out.println("setCurrentGameState: UI components re-initialized for MAIN_MENU.");
+                } catch (Exception e) {
+                    System.err.println("Error re-initializing components for MAIN_MENU: " + e.getMessage());
+                    e.printStackTrace();
+                }
+                refreshAvailableSaveFiles();
+            } else if (newState == GameState.IN_GAME) {
+                // This state is typically entered via createNewWorld() or loadGame(),
+                // which already call initializeGameWorldCommonLogic().
+                if (map == null || player == null) {
+                    System.err.println("setCurrentGameState: Attempting to enter IN_GAME without map/player. Forcing MAIN_MENU.");
+                    this.currentGameState = GameState.MAIN_MENU; // Revert
+                    refreshAvailableSaveFiles(); // This will re-setup menu
+                    return;
+                }
+                // If initializeGameWorldCommonLogic wasn't called by create/load (e.g. direct state set)
+                // or if renderer is not set up for the game world.
+                if (renderer == null || renderer.getMap() != map || lightManager == null) {
+                    System.out.println("setCurrentGameState: IN_GAME state set, ensuring common logic is initialized/updated.");
+                    initializeGameWorldCommonLogic();
+                }
 
-            if (mouseHandler != null) mouseHandler.resetLeftMouseDragFlags();
-            if (cameraManager != null && player != null && inputHandler != null) {
-                float[] focusPoint = inputHandler.calculateCameraFocusPoint(player.getMapCol(), player.getMapRow());
-                cameraManager.setTargetPositionInstantly(focusPoint[0], focusPoint[1]);
-            }
-        }
-    }
-
-
-    public int getCurrentRenderDistanceChunks() { return currentRenderDistanceChunks; }
-    public void increaseRenderDistance() { currentRenderDistanceChunks = Math.min(currentRenderDistanceChunks + 1, RENDER_DISTANCE_CHUNKS_MAX); }
-    public void decreaseRenderDistance() { currentRenderDistanceChunks = Math.max(RENDER_DISTANCE_CHUNKS_MIN, currentRenderDistanceChunks - 1); }
-
-    public int getSelectedHotbarSlotIndex() {
-        return (player != null) ? player.getSelectedHotbarSlotIndex() : 0;
-    }
-
-    public void setSelectedHotbarSlotIndex(int index) {
-        if (player != null) {
-            player.setSelectedHotbarSlotIndex(index);
-            if (renderer != null) renderer.setHotbarDirty(true);
-        }
-    }
-
-    private void renderGame() {
-        if (renderer == null || lightManager == null || map == null || player == null || cameraManager == null) {
-            System.err.println("Game.renderGame: Critical component is null. Skipping render. CurrentState: " + currentGameState);
-            glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-            return;
-        }
-
-        float rSky, gSky, bSky;
-        float lightRange = (float)(SKY_LIGHT_DAY - SKY_LIGHT_NIGHT_MINIMUM);
-        float lightRatio = 0.5f;
-        if (lightRange > 0.001f) {
-            lightRatio = (float)(lightManager.getCurrentGlobalSkyLightTarget() - SKY_LIGHT_NIGHT_MINIMUM) / lightRange;
-        }
-        lightRatio = Math.max(0, Math.min(1, lightRatio));
-
-        float dayR = 0.5f, dayG = 0.7f, dayB = 1.0f;
-        float nightR = 0.02f, nightG = 0.02f, nightB = 0.08f;
-
-        rSky = nightR + (dayR - nightR) * lightRatio;
-        gSky = nightG + (dayG - nightG) * lightRatio;
-        bSky = nightB + (dayB - nightB) * lightRatio;
-
-        glClearColor(rSky, gSky, bSky, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        glEnable(GL_DEPTH_TEST);
-        renderer.render();
-
-        glDisable(GL_DEPTH_TEST);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-        // Render UI Elements
-        renderer.renderPlayerHealthBar(player); // Draw the new health bar
-        if (this.showInventory) renderer.renderInventoryAndCraftingUI(player);
-        if (this.showHotbar) renderer.renderHotbar(player, player.getSelectedHotbarSlotIndex());
-
-        if (this.showDebugOverlay && inputHandler != null) {
-            List<String> debugLines = new ArrayList<>();
-            debugLines.add(String.format("FPS: %.1f", displayedFps));
-            debugLines.add(String.format("Time: %.3f, SkyLight (Actual/Target): %d/%d", pseudoTimeOfDay, currentGlobalSkyLightActual, lightManager.getCurrentGlobalSkyLightTarget()));
-            debugLines.add("Player: (" + player.getTileRow() + "," + player.getTileCol() + ") V(" + String.format("%.1f",player.getVisualRow()) + "," + String.format("%.1f",player.getVisualCol()) + ") A:" + player.getCurrentAction() + " D:" + player.getCurrentDirection());
-            if (currentWorldName != null && map != null) debugLines.add("World: " + currentWorldName + " (Seed: " + map.getWorldSeed() + ")");
-            else debugLines.add("World: (Unsaved/New)");
-
-            Tile selectedTile = (map != null) ? map.getTile(inputHandler.getSelectedRow(), inputHandler.getSelectedCol()) : null;
-            String selectedInfo = "Sel: ("+inputHandler.getSelectedRow()+","+inputHandler.getSelectedCol()+")";
-            if(selectedTile!=null) selectedInfo += " E:"+selectedTile.getElevation()+" T:"+selectedTile.getType()+" SL:"+selectedTile.getSkyLightLevel()+" BL:"+selectedTile.getBlockLightLevel()+" FL:"+selectedTile.getFinalLightLevel() + (selectedTile.hasTorch()?" (T)":"") + " Tree:" + selectedTile.getTreeType().name();
-            debugLines.add(selectedInfo);
-            debugLines.add(String.format("Cam: (%.1f,%.1f) Z:%.2f RD:%d AC:%d SkyQ:%d", cameraManager.getCameraX(),cameraManager.getCameraY(),cameraManager.getZoom(), currentRenderDistanceChunks, currentlyActiveLogicalChunks.size(), globalSkyRefreshNeededQueue.size()));
-            if (lightManager != null) {
-                debugLines.add("RndQ: " + chunkRenderUpdateQueue.size() + " LightQ (SP,SR,BP,BR): " + lightManager.getSkyLightPropagationQueueSize() + "," + lightManager.getSkyLightRemovalQueueSize() + "," + lightManager.getBlockLightPropagationQueueSize() + "," + lightManager.getBlockLightRemovalQueueSize());
-            }
-            debugLines.add("Hotbar Sel: " + player.getSelectedHotbarSlotIndex() + (showInventory ? " InvShow" : ""));
-            renderer.renderDebugOverlay(10f, 10f, 1300f, 300f, debugLines);
-        }
-        glEnable(GL_DEPTH_TEST);
-    }
-
-    public void requestFullMapRegeneration() {
-        System.out.println("Game: Full map regeneration requested (new world with new seed).");
-        if (renderer != null && renderer.getMap() != null && currentlyActiveLogicalChunks != null) { // Check if renderer has an active map
-            System.out.println("requestFullMapRegeneration: Cleaning up graphics from previous world.");
-            for(LightManager.ChunkCoordinate coord : currentlyActiveLogicalChunks) {
-                if(renderer.isChunkGraphicsLoaded(coord.chunkX, coord.chunkY)){
-                    renderer.unloadChunkGraphics(coord.chunkX, coord.chunkY);
+                if (mouseHandler != null) mouseHandler.resetLeftMouseDragFlags();
+                if (cameraManager != null && player != null && inputHandler != null) {
+                    float[] focusPoint = inputHandler.calculateCameraFocusPoint(player.getMapCol(), player.getMapRow());
+                    cameraManager.setTargetPositionInstantly(focusPoint[0], focusPoint[1]);
                 }
             }
         }
-        currentlyActiveLogicalChunks.clear();
-        globalSkyRefreshNeededQueue.clear();
-        chunkRenderUpdateQueue.clear();
 
-        this.map = new Map(new Random().nextLong());
-        this.player = new PlayerModel(map.getCharacterSpawnRow(), map.getCharacterSpawnCol());
-        this.player.getInventorySlots().forEach(InventorySlot::clearSlot);
-        this.player.setSelectedHotbarSlotIndex(0);
 
-        this.currentWorldName = null;
-        initializeGameWorldCommonLogic();
-        System.out.println("Game: Full map regeneration processing complete. World is now unsaved.");
-    }
+        public int getCurrentRenderDistanceChunks() { return currentRenderDistanceChunks; }
+        public void increaseRenderDistance() { currentRenderDistanceChunks = Math.min(currentRenderDistanceChunks + 1, RENDER_DISTANCE_CHUNKS_MAX); }
+        public void decreaseRenderDistance() { currentRenderDistanceChunks = Math.max(RENDER_DISTANCE_CHUNKS_MIN, currentRenderDistanceChunks - 1); }
 
-    public void requestTileRenderUpdate(int r, int c) {
-        if (renderer != null && CHUNK_SIZE_TILES > 0 && map != null) {
-            int chunkX = Math.floorDiv(c, CHUNK_SIZE_TILES);
-            int chunkY = Math.floorDiv(r, CHUNK_SIZE_TILES);
-            LightManager.ChunkCoordinate coord = new LightManager.ChunkCoordinate(chunkX, chunkY);
-            if (!chunkRenderUpdateQueue.contains(coord) && currentlyActiveLogicalChunks.contains(coord)) {
-                chunkRenderUpdateQueue.offer(coord);
+        public int getSelectedHotbarSlotIndex() {
+            return (player != null) ? player.getSelectedHotbarSlotIndex() : 0;
+        }
+
+        public void setSelectedHotbarSlotIndex(int index) {
+            if (player != null) {
+                player.setSelectedHotbarSlotIndex(index);
+                if (renderer != null) renderer.setHotbarDirty(true);
             }
         }
-    }
-    public boolean isShowHotbar() { return this.showHotbar; }
+
+        private void renderGame() {
+            if (renderer == null || lightManager == null || map == null || player == null || cameraManager == null) {
+                System.err.println("Game.renderGame: Critical component is null. Skipping render. CurrentState: " + currentGameState);
+                glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                return;
+            }
+
+            float rSky, gSky, bSky;
+            float lightRange = (float)(SKY_LIGHT_DAY - SKY_LIGHT_NIGHT_MINIMUM);
+            float lightRatio = 0.5f;
+            if (lightRange > 0.001f) {
+                lightRatio = (float)(lightManager.getCurrentGlobalSkyLightTarget() - SKY_LIGHT_NIGHT_MINIMUM) / lightRange;
+            }
+            lightRatio = Math.max(0, Math.min(1, lightRatio));
+
+            float dayR = 0.5f, dayG = 0.7f, dayB = 1.0f;
+            float nightR = 0.02f, nightG = 0.02f, nightB = 0.08f;
+
+            rSky = nightR + (dayR - nightR) * lightRatio;
+            gSky = nightG + (dayG - nightG) * lightRatio;
+            bSky = nightB + (dayB - nightB) * lightRatio;
+
+            glClearColor(rSky, gSky, bSky, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+            glEnable(GL_DEPTH_TEST);
+            renderer.render();
+
+            glDisable(GL_DEPTH_TEST);
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+            // Render UI Elements
+            renderer.renderPlayerHealthBar(player); // Draw the new health bar
+            if (this.showInventory) renderer.renderInventoryAndCraftingUI(player);
+            if (this.showHotbar) renderer.renderHotbar(player, player.getSelectedHotbarSlotIndex());
+
+            if (this.showDebugOverlay && inputHandler != null) {
+                List<String> debugLines = new ArrayList<>();
+                debugLines.add(String.format("FPS: %.1f", displayedFps));
+                debugLines.add(String.format("Time: %.3f, SkyLight (Actual/Target): %d/%d", pseudoTimeOfDay, currentGlobalSkyLightActual, lightManager.getCurrentGlobalSkyLightTarget()));
+                debugLines.add("Player: (" + player.getTileRow() + "," + player.getTileCol() + ") V(" + String.format("%.1f",player.getVisualRow()) + "," + String.format("%.1f",player.getVisualCol()) + ") A:" + player.getCurrentAction() + " D:" + player.getCurrentDirection());
+                if (currentWorldName != null && map != null) debugLines.add("World: " + currentWorldName + " (Seed: " + map.getWorldSeed() + ")");
+                else debugLines.add("World: (Unsaved/New)");
+
+                Tile selectedTile = (map != null) ? map.getTile(inputHandler.getSelectedRow(), inputHandler.getSelectedCol()) : null;
+                String selectedInfo = "Sel: ("+inputHandler.getSelectedRow()+","+inputHandler.getSelectedCol()+")";
+                if(selectedTile!=null) selectedInfo += " E:"+selectedTile.getElevation()+" T:"+selectedTile.getType()+" SL:"+selectedTile.getSkyLightLevel()+" BL:"+selectedTile.getBlockLightLevel()+" FL:"+selectedTile.getFinalLightLevel() + (selectedTile.hasTorch()?" (T)":"") + " Tree:" + selectedTile.getTreeType().name();
+                debugLines.add(selectedInfo);
+                debugLines.add(String.format("Cam: (%.1f,%.1f) Z:%.2f RD:%d AC:%d SkyQ:%d", cameraManager.getCameraX(),cameraManager.getCameraY(),cameraManager.getZoom(), currentRenderDistanceChunks, currentlyActiveLogicalChunks.size(), globalSkyRefreshNeededQueue.size()));
+                if (lightManager != null) {
+                    debugLines.add("RndQ: " + chunkRenderUpdateQueue.size() + " LightQ (SP,SR,BP,BR): " + lightManager.getSkyLightPropagationQueueSize() + "," + lightManager.getSkyLightRemovalQueueSize() + "," + lightManager.getBlockLightPropagationQueueSize() + "," + lightManager.getBlockLightRemovalQueueSize());
+                }
+                debugLines.add("Hotbar Sel: " + player.getSelectedHotbarSlotIndex() + (showInventory ? " InvShow" : ""));
+                renderer.renderDebugOverlay(10f, 10f, 1300f, 300f, debugLines);
+            }
+            glEnable(GL_DEPTH_TEST);
+        }
+
+        public void requestFullMapRegeneration() {
+            System.out.println("Game: Full map regeneration requested (new world with new seed).");
+            if (renderer != null && renderer.getMap() != null && currentlyActiveLogicalChunks != null) { // Check if renderer has an active map
+                System.out.println("requestFullMapRegeneration: Cleaning up graphics from previous world.");
+                for(LightManager.ChunkCoordinate coord : currentlyActiveLogicalChunks) {
+                    if(renderer.isChunkGraphicsLoaded(coord.chunkX, coord.chunkY)){
+                        renderer.unloadChunkGraphics(coord.chunkX, coord.chunkY);
+                    }
+                }
+            }
+            currentlyActiveLogicalChunks.clear();
+            globalSkyRefreshNeededQueue.clear();
+            chunkRenderUpdateQueue.clear();
+
+            this.map = new Map(new Random().nextLong());
+            this.player = new PlayerModel(map.getCharacterSpawnRow(), map.getCharacterSpawnCol());
+            this.player.getInventorySlots().forEach(InventorySlot::clearSlot);
+            this.player.setSelectedHotbarSlotIndex(0);
+
+            this.currentWorldName = null;
+            initializeGameWorldCommonLogic();
+            System.out.println("Game: Full map regeneration processing complete. World is now unsaved.");
+        }
+
+        public void requestTileRenderUpdate(int r, int c) {
+            if (renderer != null && CHUNK_SIZE_TILES > 0 && map != null) {
+                int chunkX = Math.floorDiv(c, CHUNK_SIZE_TILES);
+                int chunkY = Math.floorDiv(r, CHUNK_SIZE_TILES);
+                LightManager.ChunkCoordinate coord = new LightManager.ChunkCoordinate(chunkX, chunkY);
+                if (!chunkRenderUpdateQueue.contains(coord) && currentlyActiveLogicalChunks.contains(coord)) {
+                    chunkRenderUpdateQueue.offer(coord);
+                }
+            }
+        }
+        public boolean isShowHotbar() { return this.showHotbar; }
 
 
     public Map getMap() {
@@ -1163,7 +1177,9 @@ public class Game {
             renderer.setHotbarDirty(true);
         }
     }
-
+    public PlayerModel getPlayer() {
+        return this.player;
+    }
 
     public boolean isShowDebugOverlay() { return this.showDebugOverlay; }
     public void toggleShowDebugOverlay() { this.showDebugOverlay = !this.showDebugOverlay; }

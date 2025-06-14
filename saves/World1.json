@@ -1,126 +1,18 @@
 {
-  "pseudoTimeOfDay": 0.2156608899999999,
+  "pseudoTimeOfDay": 0.33551243499999067,
   "mapData": {
-    "worldSeed": -3409249582462263893,
+    "worldSeed": -6974678192130123873,
     "playerSpawnR": 8,
     "playerSpawnC": 8,
     "explicitlySavedChunks": [
       {
-        "chunkX": -6,
-        "chunkY": 10,
+        "chunkX": -3,
+        "chunkY": 1,
         "tiles": [
           [
             {
               "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 6
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 10,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 12,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": true,
-              "skyLightLevel": 15,
-              "blockLightLevel": 14,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 12,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 18,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 10,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 18,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -129,7 +21,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 18,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -138,7 +30,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 18,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -147,340 +39,10 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 18,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 10,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 12,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 10,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 18,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 18,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 18,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 18,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 1,
-              "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 10,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 18,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 5
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
               "treeTypeOrdinal": 0,
               "looseRockTypeOrdinal": 0
             },
@@ -504,34 +66,16 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 2,
               "looseRockTypeOrdinal": 0
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -540,7 +84,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -549,84 +93,10 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
               "treeTypeOrdinal": 0,
               "looseRockTypeOrdinal": 0
             },
@@ -650,25 +120,16 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 0,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 2,
               "looseRockTypeOrdinal": 0
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -677,7 +138,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -686,198 +147,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 5
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -888,7 +158,7 @@
           [
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -897,7 +167,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -906,7 +176,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -915,7 +185,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -924,7 +194,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -933,7 +203,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -942,7 +212,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -951,7 +221,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -960,7 +230,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -969,7 +239,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -978,7 +248,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -987,7 +257,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -996,7 +266,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1005,7 +275,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1014,7 +284,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1023,7 +293,153 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 1,
+              "looseRockTypeOrdinal": 0
+            }
+          ],
+          [
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 2,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1034,7 +450,7 @@
           [
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1043,7 +459,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1052,7 +468,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1061,7 +477,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1070,7 +486,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1079,7 +495,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1088,7 +504,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1097,7 +513,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1106,7 +522,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1115,7 +531,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1124,7 +540,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1133,7 +549,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1142,16 +558,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 1,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1160,7 +567,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1169,7 +576,16 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1180,7 +596,7 @@
           [
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1189,7 +605,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1198,7 +614,16 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1207,16 +632,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 1,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1225,7 +641,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1234,7 +650,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1243,7 +659,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1252,7 +668,61 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1261,207 +731,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 1,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 2,
-              "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1472,7 +742,7 @@
           [
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1481,7 +751,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1490,7 +760,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1499,7 +769,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1508,7 +778,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1517,7 +787,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1526,144 +796,16 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 1,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
               "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
+              "looseRockTypeOrdinal": 6
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 1,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 1,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1672,7 +814,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1681,7 +823,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1690,227 +832,16 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 5
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 3
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 1,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
               "treeTypeOrdinal": 2,
               "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
+            },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1919,7 +850,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1928,7 +859,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1937,7 +868,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -1946,106 +877,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -2056,7 +888,7 @@
           [
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -2065,7 +897,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -2074,7 +906,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -2083,7 +915,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -2092,7 +924,16 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 6
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -2101,7 +942,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -2110,7 +951,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -2119,7 +960,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -2128,7 +969,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -2137,7 +978,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -2146,7 +987,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -2155,7 +996,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -2164,7 +1005,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -2173,7 +1014,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -2182,314 +1023,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 4
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            }
-          ]
-        ]
-      },
-      {
-        "chunkX": -7,
-        "chunkY": 9,
-        "tiles": [
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 2,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 1,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 2
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 2
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 1,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 18,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 18,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -2500,7 +1034,7 @@
           [
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -2509,7 +1043,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -2518,7 +1052,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -2527,737 +1061,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 1,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 1,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 5
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 18,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 18,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 1,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 1,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 2,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 18,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 5
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 1,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 18,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 1,
-              "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 2
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 1,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 18,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 2,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 2,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 1,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -3266,7 +1070,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -3275,7 +1079,600 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 1,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 2,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            }
+          ],
+          [
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 1,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 2,
+              "looseRockTypeOrdinal": 0
+            }
+          ],
+          [
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 1,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 2,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 2,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            }
+          ],
+          [
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 2,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 4,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 2,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            }
+          ],
+          [
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -3284,7 +1681,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -3293,10 +1690,28 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 2,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 4,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 6,
               "treeTypeOrdinal": 0,
               "looseRockTypeOrdinal": 0
             },
@@ -3311,81 +1726,191 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 2,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 10,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 15,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 2,
-              "treeTypeOrdinal": 2,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
               "looseRockTypeOrdinal": 0
             }
           ],
           [
             {
               "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 2,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 4,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 6,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 8,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 6,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 4,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 2,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
               "elevation": 15,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
               "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
+              "looseRockTypeOrdinal": 5
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 2,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            }
+          ],
+          [
+            {
+              "typeOrdinal": 3,
+              "elevation": 13,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -3394,7 +1919,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -3403,7 +1928,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -3412,10 +1937,46 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 2,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 3
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 4,
               "treeTypeOrdinal": 0,
               "looseRockTypeOrdinal": 0
             },
@@ -3424,7 +1985,52 @@
               "elevation": 15,
               "hasTorch": false,
               "skyLightLevel": 15,
-              "blockLightLevel": 0,
+              "blockLightLevel": 6,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 8,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 10,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 8,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 6,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 4,
               "treeTypeOrdinal": 0,
               "looseRockTypeOrdinal": 0
             },
@@ -3443,268 +2049,41 @@
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 4,
-              "treeTypeOrdinal": 2,
+              "treeTypeOrdinal": 0,
               "looseRockTypeOrdinal": 0
-            },
+            }
+          ],
+          [
             {
               "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
-              "blockLightLevel": 6,
+              "blockLightLevel": 0,
               "treeTypeOrdinal": 0,
               "looseRockTypeOrdinal": 0
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 10,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 12,
+              "blockLightLevel": 0,
               "treeTypeOrdinal": 1,
               "looseRockTypeOrdinal": 0
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
-              "blockLightLevel": 10,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
+              "blockLightLevel": 0,
               "treeTypeOrdinal": 0,
               "looseRockTypeOrdinal": 4
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 2,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 10,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 12,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": true,
-              "skyLightLevel": 15,
-              "blockLightLevel": 14,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 12,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 10,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 0,
@@ -3722,7 +2101,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 2,
@@ -3731,7 +2110,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 15,
+              "elevation": 14,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 4,
@@ -3767,7 +2146,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 15,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 12,
@@ -3776,7 +2155,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 15,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 10,
@@ -3785,7 +2164,7 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 15,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 8,
@@ -3794,878 +2173,157 @@
             },
             {
               "typeOrdinal": 3,
-              "elevation": 16,
+              "elevation": 15,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 6,
-              "treeTypeOrdinal": 2,
+              "treeTypeOrdinal": 0,
               "looseRockTypeOrdinal": 0
             },
             {
               "typeOrdinal": 3,
-              "elevation": 17,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 4,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 6,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            }
+          ],
+          [
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 0,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 2,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 4,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 14,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 6,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 8,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 10,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 12,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
+              "hasTorch": true,
+              "skyLightLevel": 15,
+              "blockLightLevel": 14,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 12,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
+              "hasTorch": false,
+              "skyLightLevel": 15,
+              "blockLightLevel": 10,
+              "treeTypeOrdinal": 0,
+              "looseRockTypeOrdinal": 0
+            },
+            {
+              "typeOrdinal": 3,
+              "elevation": 15,
               "hasTorch": false,
               "skyLightLevel": 15,
               "blockLightLevel": 8,
               "treeTypeOrdinal": 1,
-              "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 10,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 10,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 3
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 10,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 12,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 2,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 3
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 2,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 2,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 3
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 10,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 12,
-              "treeTypeOrdinal": 2,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": true,
-              "skyLightLevel": 15,
-              "blockLightLevel": 14,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 13,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 2
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 6
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 10,
-              "treeTypeOrdinal": 2,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 12,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 13,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 6
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 13,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 2,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 1
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 6
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 2,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 6,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 8,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 10,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            }
-          ],
-          [
-            {
-              "typeOrdinal": 3,
-              "elevation": 16,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 17,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 13,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 13,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 13,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 14,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 0,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 2,
-              "treeTypeOrdinal": 0,
-              "looseRockTypeOrdinal": 0
-            },
-            {
-              "typeOrdinal": 3,
-              "elevation": 15,
-              "hasTorch": false,
-              "skyLightLevel": 15,
-              "blockLightLevel": 4,
-              "treeTypeOrdinal": 0,
               "looseRockTypeOrdinal": 0
             },
             {
@@ -4689,14 +2347,164 @@
           ]
         ]
       }
+    ],
+    "entities": [
+      {
+        "entityType": "COW",
+        "mapRow": 44.152042,
+        "mapCol": -68.99995,
+        "health": 20
+      },
+      {
+        "mapRow": 1.3089341,
+        "mapCol": -51.969566,
+        "health": 10
+      },
+      {
+        "entityType": "COW",
+        "mapRow": 7.0934095,
+        "mapCol": -63.000004,
+        "health": 20
+      },
+      {
+        "entityType": "COW",
+        "mapRow": 75.87556,
+        "mapCol": -84.91311,
+        "health": 20
+      },
+      {
+        "entityType": "COW",
+        "mapRow": 30.999992,
+        "mapCol": -64.91758,
+        "health": 20
+      },
+      {
+        "entityType": "COW",
+        "mapRow": 70.050224,
+        "mapCol": -99.488045,
+        "health": 20
+      },
+      {
+        "mapRow": 78.95331,
+        "mapCol": -48.52986,
+        "health": 10
+      },
+      {
+        "mapRow": 74.95401,
+        "mapCol": -55.53622,
+        "health": 10
+      },
+      {
+        "entityType": "COW",
+        "mapRow": 71.99996,
+        "mapCol": -65.904854,
+        "health": 20
+      },
+      {
+        "mapRow": 31.00272,
+        "mapCol": -91.67261,
+        "health": 10
+      },
+      {
+        "entityType": "COW",
+        "mapRow": 50.998768,
+        "mapCol": -57.1504,
+        "health": 20
+      },
+      {
+        "entityType": "COW",
+        "mapRow": 5.5294676,
+        "mapCol": -47.52947,
+        "health": 20
+      },
+      {
+        "entityType": "COW",
+        "mapRow": 37.5,
+        "mapCol": -75.5,
+        "health": 20
+      },
+      {
+        "entityType": "COW",
+        "mapRow": 44.152042,
+        "mapCol": -68.99995,
+        "health": 20
+      },
+      {
+        "mapRow": 1.3089341,
+        "mapCol": -51.969566,
+        "health": 10
+      },
+      {
+        "entityType": "COW",
+        "mapRow": 7.0934095,
+        "mapCol": -63.000004,
+        "health": 20
+      },
+      {
+        "entityType": "COW",
+        "mapRow": 75.87556,
+        "mapCol": -84.91311,
+        "health": 20
+      },
+      {
+        "entityType": "COW",
+        "mapRow": 30.999992,
+        "mapCol": -64.91758,
+        "health": 20
+      },
+      {
+        "entityType": "COW",
+        "mapRow": 70.050224,
+        "mapCol": -99.488045,
+        "health": 20
+      },
+      {
+        "mapRow": 78.95331,
+        "mapCol": -48.52986,
+        "health": 10
+      },
+      {
+        "mapRow": 74.95401,
+        "mapCol": -55.53622,
+        "health": 10
+      },
+      {
+        "entityType": "COW",
+        "mapRow": 71.99996,
+        "mapCol": -65.904854,
+        "health": 20
+      },
+      {
+        "mapRow": 31.00272,
+        "mapCol": -91.67261,
+        "health": 10
+      },
+      {
+        "entityType": "COW",
+        "mapRow": 50.998768,
+        "mapCol": -57.1504,
+        "health": 20
+      },
+      {
+        "entityType": "COW",
+        "mapRow": 5.5294676,
+        "mapCol": -47.52947,
+        "health": 20
+      },
+      {
+        "entityType": "COW",
+        "mapRow": 37.5,
+        "mapCol": -75.5,
+        "health": 20
+      }
     ]
   },
   "playerData": {
-    "mapRow": 165.10103,
-    "mapCol": -104.64606,
+    "mapRow": 34.04684,
+    "mapCol": -89.93932,
     "inventory": [
       {
-        "itemId": "crude_axe",
+        "itemId": "wooden_sword",
         "quantity": 1
       },
       {
@@ -4704,41 +2512,32 @@
         "quantity": 1
       },
       {
-        "itemId": "crude_axe",
-        "quantity": 1
+        "itemId": "torch",
+        "quantity": 14
       },
-      null,
-      null,
-      null,
-      null,
       null,
       null,
       null,
       null,
       {
-        "itemId": "loose_rock",
-        "quantity": 4
-      },
-      {
-        "itemId": "stick",
-        "quantity": 60
+        "itemId": "slime_gel",
+        "quantity": 2
       },
       null,
       null,
-      {
-        "itemId": "crude_axe",
-        "quantity": 1
-      },
-      {
-        "itemId": "crude_axe",
-        "quantity": 1
-      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
       {
         "itemId": "wood",
-        "quantity": 54
-      },
-      null,
-      null
+        "quantity": 10
+      }
     ]
   }
 }

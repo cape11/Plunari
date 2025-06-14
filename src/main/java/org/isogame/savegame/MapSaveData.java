@@ -1,24 +1,21 @@
 package org.isogame.savegame;
 
-import org.isogame.tile.Tile; // Not strictly needed here, but TileSaveData is
 import java.util.List;
 import java.util.ArrayList;
 
 public class MapSaveData {
-    public long worldSeed; // To recreate the world procedurally
-    public int playerSpawnR; // Player's spawn row
-    public int playerSpawnC; // Player's spawn column
-
-    // Instead of a single massive TileSaveData list,
-    // we'll store data for chunks that have been modified or are otherwise important to save.
+    public long worldSeed;
+    public int playerSpawnR;
+    public int playerSpawnC;
     public List<ChunkDiskData> explicitlySavedChunks;
 
-    // Inner class to represent the data of a single chunk on disk
+    // This list will store all non-player entities on the map.
+    public List<EntitySaveData> entities;
+
     public static class ChunkDiskData {
         public int chunkX, chunkY;
-        public List<List<TileSaveData>> tiles; // Tile data for this specific CHUNK_SIZE_TILES x CHUNK_SIZE_TILES chunk
+        public List<List<TileSaveData>> tiles;
 
-        // Default constructor for GSON or other deserialization libraries
         public ChunkDiskData() {
             this.tiles = new ArrayList<>();
         }
@@ -30,8 +27,12 @@ public class MapSaveData {
         }
     }
 
-    // Constructor for MapSaveData
+    /**
+     * The constructor for MapSaveData.
+     * This now correctly initializes the entities list.
+     */
     public MapSaveData() {
         this.explicitlySavedChunks = new ArrayList<>();
+        this.entities = new ArrayList<>(); // <-- THIS IS THE FIX
     }
 }

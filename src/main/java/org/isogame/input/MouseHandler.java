@@ -4,11 +4,14 @@ import org.isogame.camera.CameraManager;
 import org.isogame.constants.Constants;
 import org.isogame.entity.PlayerModel;
 import org.isogame.game.Game;
+import org.isogame.item.Item;
 import org.isogame.map.Map;
+import org.isogame.tile.Tile;
 import org.isogame.ui.MenuItemButton;
 
 import java.util.List;
 
+import static org.isogame.constants.Constants.TORCH_LIGHT_LEVEL;
 import static org.lwjgl.glfw.GLFW.*;
 
 public class MouseHandler {
@@ -165,8 +168,17 @@ public class MouseHandler {
                     uiHandledLeftMousePress = checkInventoryClick(mouseX, mouseY) || checkCraftingClick(mouseX, mouseY);
                 }
 
-                // If no UI element was clicked, it's a world action
+                // If the click was not on the UI, check for world actions
                 if (!uiHandledLeftMousePress) {
+                    // --- NEW TORCH PLACEMENT LOGIC ---
+
+                    // --- FIX: Declare the heldItem variable ---
+                    Item heldItem = player.getHeldItem();
+
+                    if (heldItem != null && heldItem.getItemId().equals("torch")) {
+                        placeTorch();
+                        return; // Torch action handled, do nothing else.
+                    }
                     inputHandlerRef.performPlayerActionOnCurrentlySelectedTile();
                 }
 
@@ -218,12 +230,7 @@ public class MouseHandler {
         float panelMarginX = 30f, topMarginY = 40f, marginBetweenPanels = 20f;
         int invSlotsPerRow = 5;
         float invPanelWidth = (invSlotsPerRow * slotSize) + ((invSlotsPerRow + 1) * slotMargin);
-
-        // *** THIS IS THE FIX ***
-        // This calculation was missing in the previous version
         float invPanelX = camera.getScreenWidth() - invPanelWidth - panelMarginX;
-        // *** END OF FIX ***
-
         float invPanelHeight = (float)(Math.ceil((double) player.getInventorySlots().size() / invSlotsPerRow) * (slotSize + slotMargin)) + slotMargin;
         float invPanelY = topMarginY;
         float craftPanelX = invPanelX;
@@ -248,6 +255,7 @@ public class MouseHandler {
     }
 
     // --- ROBUST HELPER to get slot index from mouse coordinates ---
+    // --- ROBUST HELPER to get slot index from mouse coordinates ---
     private int getInventorySlotAt(int mouseX, int mouseY) {
         float slotSize = 50f, slotMargin = 10f;
         float panelMarginX = 30f, topMarginY = 40f;
@@ -256,29 +264,44 @@ public class MouseHandler {
         float invPanelX = camera.getScreenWidth() - invPanelWidth - panelMarginX;
         float invPanelY = topMarginY;
 
-        // Check if click is outside the general panel bounds first
         if (mouseX < invPanelX || mouseX > invPanelX + invPanelWidth ||
                 mouseY < invPanelY) {
             return -1;
         }
 
-        // Iterate through each slot's specific bounds
         float startX = invPanelX + slotMargin;
         float startY = invPanelY + slotMargin;
 
         for (int i = 0; i < player.getInventorySlots().size(); i++) {
             int row = i / invSlotsPerRow;
             int col = i % invSlotsPerRow;
-
             float currentSlotX = startX + col * (slotSize + slotMargin);
             float currentSlotY = startY + row * (slotSize + slotMargin);
-
             if (mouseX >= currentSlotX && mouseX <= currentSlotX + slotSize &&
                     mouseY >= currentSlotY && mouseY <= currentSlotY + slotSize) {
-                return i; // Found the clicked slot
+                return i;
             }
         }
-
-        return -1; // Click was in panel, but not on a specific slot
+        return -1;
     }
+
+
+
+    private void placeTorch() {
+        if (player.getHeldItemCount() > 0) {
+            Tile selectedTile = map.getTile(inputHandlerRef.getSelectedRow(), inputHandlerRef.getSelectedCol());
+            if (selectedTile != null && !selectedTile.hasTorch() && selectedTile.getType() != Tile.TileType.WATER) {
+                player.useItem(gameInstance);
+                player.consumeHeldItem(1);
+                selectedTile.setHasTorch(true);
+                gameInstance.getLightManager().addLightSource(inputHandlerRef.getSelectedRow(), inputHandlerRef.getSelectedCol(), (byte) TORCH_LIGHT_LEVEL);
+                gameInstance.requestTileRenderUpdate(inputHandlerRef.getSelectedRow(), inputHandlerRef.getSelectedCol());
+                gameInstance.setHotbarDirty(true);
+            }
+        } else {
+            System.out.println("No torches to place!");
+        }
+    }
+
+
 }
