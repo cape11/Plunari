@@ -21,7 +21,9 @@ public class RecipeRegistry {
     private static final List<String> RECIPE_FILES = Arrays.asList(
             "rude_axe_recipe.json",
             "wooden_sword_recipe.json",
-            "torch_recipe.json" // <-- ADDED
+            "torch_recipe.json", //
+            "wood_wall_recipe.json" //
+
     );
 
 

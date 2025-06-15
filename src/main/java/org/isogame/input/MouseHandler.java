@@ -154,34 +154,23 @@ public class MouseHandler {
 
     // --- HELPER METHOD for In-Game Clicks ---
     private void handleGameMouseClick(int buttonId, int action, int mouseX, int mouseY) {
-        if (player == null) return; // Safety check
+        if (player == null || inputHandlerRef == null || map == null) return;
 
         if (buttonId == GLFW_MOUSE_BUTTON_LEFT) {
             if (action == GLFW_PRESS) {
                 isLeftMousePressed = true;
-                pressMouseX = lastMouseX;
-                pressMouseY = lastMouseY;
                 uiHandledLeftMousePress = false;
-
                 if (gameInstance.isInventoryVisible()) {
-                    // Check inventory and crafting UI first
                     uiHandledLeftMousePress = checkInventoryClick(mouseX, mouseY) || checkCraftingClick(mouseX, mouseY);
                 }
-
-                // If the click was not on the UI, check for world actions
                 if (!uiHandledLeftMousePress) {
-                    // --- NEW TORCH PLACEMENT LOGIC ---
-
-                    // --- FIX: Declare the heldItem variable ---
                     Item heldItem = player.getHeldItem();
-
                     if (heldItem != null && heldItem.getItemId().equals("torch")) {
                         placeTorch();
-                        return; // Torch action handled, do nothing else.
+                        return;
                     }
                     inputHandlerRef.performPlayerActionOnCurrentlySelectedTile();
                 }
-
             } else if (action == GLFW_RELEASE) {
                 isLeftMousePressed = false;
                 if (gameInstance.isDraggingItem()) {
@@ -193,8 +182,19 @@ public class MouseHandler {
                 }
             }
         } else if (buttonId == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE) {
+            // --- NEW --- This is the new logic for placing blocks.
             if (!gameInstance.isInventoryVisible()) {
-                // Your right-click logic to place items
+                Item heldItem = player.getHeldItem();
+                // Check if the player is holding a placeable block (like a wall)
+                if (heldItem != null && heldItem.type == Item.ItemType.RESOURCE) {
+                    System.out.println("[MouseHandler] Attempting to place item '" + heldItem.getItemId() + "' at (" + inputHandlerRef.getSelectedRow() + "," + inputHandlerRef.getSelectedCol() + ")");
+
+                    boolean success = map.placeBlock(inputHandlerRef.getSelectedRow(), inputHandlerRef.getSelectedCol(), heldItem);
+                    if (success) {
+                        player.consumeHeldItem(1); // Use up one item
+                        gameInstance.setHotbarDirty(true); // Redraw hotbar to show new quantity
+                    }
+                }
             }
         }
     }

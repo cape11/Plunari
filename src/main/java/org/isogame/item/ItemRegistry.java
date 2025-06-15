@@ -26,6 +26,7 @@ public class ItemRegistry {
             "stone.json",
             "wood.json",
             "slime_gel.json",
+            "wood_wall.json",
             "torch.json",         // <-- ADD THIS LINE
             "wooden_sword.json"   // <-- AND THIS LINE
     );

@@ -68,6 +68,8 @@ public class Renderer {
 
     public static final float ATLAS_TOTAL_WIDTH = 128.0f, ATLAS_TOTAL_HEIGHT = 128.0f;
     public static final float SUB_TEX_WIDTH = 64.0f, SUB_TEX_HEIGHT = 64.0f;
+
+
     public static final float GRASS_ATLAS_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, GRASS_ATLAS_V0 = (0*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
     public static final float GRASS_ATLAS_U1 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, GRASS_ATLAS_V1 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
     public static final float DIRT_ATLAS_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, DIRT_ATLAS_V0 = (0*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
@@ -142,6 +144,7 @@ public class Renderer {
     private final float diamondRightOffsetX = this.tileHalfWidth;
     private final float diamondBottomOffsetY = this.tileHalfHeight;
 
+    private Texture wallAtlasTexture;
 
 
 
@@ -165,6 +168,7 @@ public class Renderer {
         }
     }
 
+
     // --- ADD THIS NEW INNER CLASS ---
     public static class LooseRockData {
         public Tile.LooseRockType rockVisualType; // In case you add more rock types later
@@ -180,6 +184,26 @@ public class Renderer {
     }
     private List<Object> worldEntities = new ArrayList<>();
 
+    // --- NEW --- This static inner class will map a bitmask to UV coordinates.
+    private static class WallTextureMapper {
+        private static final float ATLAS_GRID_COUNT = 4.0f;
+        private static final float UV_CELL_SIZE = 1.0f / ATLAS_GRID_COUNT;
+
+        public static float[] getUVsForBitmask(int mask) {
+            // Map the 0-15 mask value to a 2D coordinate on the 4x4 grid.
+            int x = mask % (int)ATLAS_GRID_COUNT;
+            int y = mask / (int)ATLAS_GRID_COUNT;
+
+            float u0 = x * UV_CELL_SIZE;
+            float v0 = y * UV_CELL_SIZE;
+            float u1 = u0 + UV_CELL_SIZE;
+            float v1 = v0 + UV_CELL_SIZE;
+
+            return new float[]{u0, v0, u1, v1};
+        }
+    }
+
+
     public Renderer(CameraManager camera, Map map, PlayerModel player, InputHandler inputHandler) {
         this.camera = camera;
         this.map = map;
@@ -193,8 +217,6 @@ public class Renderer {
         initRenderObjects();
         initUiColoredResources();
         initHotbarGLResources();
-
-        System.out.println("Renderer: Initialized. Map: " + (this.map != null) + ", Player: " + (this.player != null));
     }
 
     /**
@@ -283,7 +305,8 @@ public class Renderer {
         System.out.println("Renderer: Loading assets...");
         try {
             tileAtlasTexture = Texture.loadTexture("/org/isogame/render/textures/textu.png");
-            mainMenuBackgroundTexture = Texture.loadTexture("/org/isogame/render/textures/main_menu_background.png");
+            wallAtlasTexture = Texture.loadTexture("/org/isogame/render/textures/wall_atlas.png");
+                mainMenuBackgroundTexture = Texture.loadTexture("/org/isogame/render/textures/main_menu_background.png");
             uiFont = new Font("/org/isogame/render/fonts/PressStart2P-Regular.ttf", 16f, this);
             titleFont = new Font("/org/isogame/render/fonts/PressStart2P-Regular.ttf", 32f, this);
             playerTexture = Texture.loadTexture("/org/isogame/render/textures/lpc_character.png");
@@ -389,7 +412,7 @@ public class Renderer {
             chunk.setupGLResources();
             activeMapChunks.put(coord, chunk);
         }
-        chunk.uploadGeometry(this.map, this.inputHandler, this, camera);
+        chunk.uploadGeometry(this.map, this.inputHandler, this);
     }
 
     public boolean isChunkGraphicsLoaded(int chunkGridX, int chunkGridY) {
@@ -412,7 +435,7 @@ public class Renderer {
         LightManager.ChunkCoordinate coord = new LightManager.ChunkCoordinate(chunkGridX, chunkGridY);
         Chunk chunk = activeMapChunks.get(coord);
         if (chunk != null) {
-            chunk.uploadGeometry(this.map, this.inputHandler, this, camera);
+            chunk.uploadGeometry(this.map, this.inputHandler, this);
         } else {
             ensureChunkGraphicsLoaded(chunkGridX, chunkGridY);
         }
@@ -426,7 +449,7 @@ public class Renderer {
             return;
         }
         for (Chunk chunk : activeMapChunks.values()) {
-            chunk.uploadGeometry(map, inputHandler, this, camera);
+            chunk.uploadGeometry(this.map, this.inputHandler, this);
         }
     }
 
@@ -486,18 +509,17 @@ public class Renderer {
             return 0;
         }
 
+
+
+        // Original logic for all other tile types
         int currentTileElevation = tile.getElevation();
         Tile.TileType currentTileTopSurfaceType = tile.getType();
-
         final float tileGridPlaneCenterX = (tileC_map - tileR_map) * this.tileHalfWidth;
         final float tileGridPlaneCenterY = (tileC_map + tileR_map) * this.tileHalfHeight;
-
         final float tileBaseZ = (tileR_map + tileC_map) * DEPTH_SORT_FACTOR + (currentTileElevation * 0.005f);
         final float tileTopSurfaceZ = tileBaseZ + Z_OFFSET_TILE_TOP_SURFACE;
-
         float[] topSurfaceColor = determineTopSurfaceColor(currentTileTopSurfaceType, isSelected);
         float[] sideTintToUse = isSelected ? topSurfaceColor : WHITE_TINT;
-
         int verticesAddedCount = 0;
         float normalizedLightValue = tile.getFinalLightLevel() / (float) MAX_LIGHT_LEVEL;
         normalizedLightValue = Math.max(0.05f, normalizedLightValue);
@@ -507,17 +529,14 @@ public class Renderer {
                     vertexBuffer, tileGridPlaneCenterX, tileGridPlaneCenterY, tileBaseZ + Z_OFFSET_TILE_PEDESTAL,
                     sideTintToUse, normalizedLightValue);
         }
-
         float currentTileTopSurfaceActualY = tileGridPlaneCenterY - (currentTileElevation * TILE_THICKNESS);
         if (currentTileTopSurfaceType == Tile.TileType.WATER) {
             currentTileTopSurfaceActualY = tileGridPlaneCenterY - (Math.max(NIVEL_MAR -1, currentTileElevation) * TILE_THICKNESS);
         }
-
         verticesAddedCount += addTopSurfaceToList(
                 vertexBuffer, currentTileTopSurfaceType, isSelected,
                 tileGridPlaneCenterX, currentTileTopSurfaceActualY, tileTopSurfaceZ,
                 topSurfaceColor, WHITE_TINT, normalizedLightValue);
-
 
         if (currentTileElevation > 0 && currentTileTopSurfaceType != Tile.TileType.WATER) {
             verticesAddedCount += addStratifiedElevatedSidesToList(
@@ -527,15 +546,69 @@ public class Renderer {
                     sideTintToUse, normalizedLightValue,
                     tileR_map, tileC_map);
         }
-
         updateChunkVisualBounds(chunkVisualBounds, tileGridPlaneCenterX, tileGridPlaneCenterY,
                 currentTileElevation, TILE_THICKNESS,
                 this.diamondLeftOffsetX, this.diamondRightOffsetX,
                 this.diamondTopOffsetY, this.diamondBottomOffsetY);
-
         return verticesAddedCount;
     }
 
+    public int addWallVerticesToList(FloatBuffer vertexBuffer, int tileR_map, int tileC_map, Tile tile, boolean isSelected, float[] chunkVisualBounds) {
+        int currentTileElevation = tile.getElevation();
+        final float tileGridPlaneCenterX = (tileC_map - tileR_map) * (TILE_WIDTH / 2.0f);
+        final float tileGridPlaneCenterY = (tileC_map + tileR_map) * (TILE_HEIGHT / 2.0f);
+        final float tileBaseZ = (tileR_map + tileC_map) * DEPTH_SORT_FACTOR + (currentTileElevation * 0.005f);
+        float[] tint = isSelected ? SELECTED_TINT : WHITE_TINT;
+        float normalizedLightValue = tile.getFinalLightLevel() / (float) MAX_LIGHT_LEVEL;
+
+        // Render the wall as a full block
+        float topY = tileGridPlaneCenterY - (currentTileElevation * TILE_THICKNESS);
+
+        // Get the correct UVs from our mapper
+        float[] uvs = WallTextureMapper.getUVsForBitmask(tile.getWallConnectionBitmask());
+
+        // Add the top surface of the wall using the calculated UVs
+        addTexturedQuadToList(vertexBuffer, tileGridPlaneCenterX, topY, tileBaseZ, tint, normalizedLightValue, uvs);
+
+        // --- FIX: ADD THIS CALL ---
+        // This ensures the chunk's bounding box is expanded to include the new wall.
+        updateChunkVisualBounds(chunkVisualBounds, tileGridPlaneCenterX, tileGridPlaneCenterY,
+                currentTileElevation, TILE_THICKNESS,
+                this.diamondLeftOffsetX, this.diamondRightOffsetX,
+                this.diamondTopOffsetY, this.diamondBottomOffsetY);
+        // --- END OF FIX ---
+
+        // You can also add side/pedestal vertices if you want the walls to have depth
+        // For simplicity, we'll just render the top for now.
+
+        return 6; // Return number of vertices added
+    }
+
+
+    private void addTexturedQuadToList(FloatBuffer vertexBuffer, float centerX, float centerY, float worldZ, float[] tint, float lightVal, float[] uvs) {
+        // This logic is corrected to match the other tile rendering methods
+        float topLx = centerX + this.diamondLeftOffsetX;
+        float topLy = centerY + this.diamondSideOffsetY;
+        float topRx = centerX + this.diamondRightOffsetX;
+        float topRy = centerY + this.diamondSideOffsetY;
+        float topTx = centerX;
+        float topTy = centerY + this.diamondTopOffsetY;
+        float topBx = centerX;
+        float topBy = centerY + this.diamondBottomOffsetY;
+
+        float u0 = uvs[0], v0 = uvs[1], u1 = uvs[2], v1 = uvs[3];
+        float midU = (u0 + u1) / 2f;
+        float midV = (v0 + v1) / 2f;
+
+        // The vertex order creates two triangles that form the diamond shape
+        addVertexToBuffer(vertexBuffer, topTx, topTy, worldZ, tint, midU, v0, lightVal);
+        addVertexToBuffer(vertexBuffer, topLx, topLy, worldZ, tint, u0, midV, lightVal);
+        addVertexToBuffer(vertexBuffer, topBx, topBy, worldZ, tint, midU, v1, lightVal);
+
+        addVertexToBuffer(vertexBuffer, topTx, topTy, worldZ, tint, midU, v0, lightVal);
+        addVertexToBuffer(vertexBuffer, topBx, topBy, worldZ, tint, midU, v1, lightVal);
+        addVertexToBuffer(vertexBuffer, topRx, topRy, worldZ, tint, u1, midV, lightVal);
+    }
     public Font getTitleFont() { return titleFont; }
     public Font getUiFont() { return uiFont; }
 
@@ -1077,38 +1150,72 @@ public class Renderer {
 
 
     public void render() {
-        if (defaultShader == null || camera == null) {
+        // --- Initial Safety Checks ---
+        if (defaultShader == null || camera == null || map == null || player == null || inputHandler == null) {
             return;
         }
 
+        // --- 1. SETUP FOR THE FRAME ---
         defaultShader.bind();
         defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
         defaultShader.setUniform("uModelViewMatrix", camera.getViewMatrix());
         defaultShader.setUniform("uIsFont", 0);
         defaultShader.setUniform("uIsSimpleUiElement", 0);
         defaultShader.setUniform("u_isSelectedIcon", 0);
+        defaultShader.setUniform("u_time", (float) glfwGetTime());
+        defaultShader.setUniform("uHasTexture", 1);
+        defaultShader.setUniform("uTextureSampler", 0);
+        glActiveTexture(GL_TEXTURE0);
 
-        // --- 1. RENDER WORLD TERRAIN ---
-        if (map != null && tileAtlasTexture != null && tileAtlasTexture.getId() != 0) {
-            glActiveTexture(GL_TEXTURE0);
+        // --- 2. RENDER THE WORLD GEOMETRY (IN TWO CORRECT PASSES) ---
+
+        // PASS 1: Render Ground Tiles
+        if (tileAtlasTexture != null && tileAtlasTexture.getId() != 0) {
             tileAtlasTexture.bind();
-            defaultShader.setUniform("uTextureSampler", 0);
-            defaultShader.setUniform("uHasTexture", 1);
             for (Chunk chunk : activeMapChunks.values()) {
                 if (camera.isChunkVisible(chunk.getBoundingBox())) {
-                    chunk.render();
+                    chunk.renderGround();
                 }
             }
-            tileAtlasTexture.unbind();
         }
 
-        // --- 2. RENDER ALL SPRITES (Player, Trees, Rocks, etc.) ---
-        if (map != null) {
-            collectWorldEntities();
-            renderWorldSprites(); // This single call now handles everything correctly.
+        // PASS 2: Render Wall Tiles with the correct texture
+        if (wallAtlasTexture != null && wallAtlasTexture.getId() != 0) {
+            wallAtlasTexture.bind();
+            for (Chunk chunk : activeMapChunks.values()) {
+                if (camera.isChunkVisible(chunk.getBoundingBox())) {
+                    chunk.renderWalls();
+                }
+            }
         }
+
+        // --- 3. RENDER ALL WORLD SPRITES (PLAYER, ENTITIES, TREES, ETC.) ---
+        collectWorldEntities();
+        renderWorldSprites();
+
+        // --- 4. RENDER THE UI (NO DEPTH TEST) ---
+        glDisable(GL_DEPTH_TEST);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        Game gameInstance = inputHandler.getGameInstance();
+        if (gameInstance != null) {
+            renderPlayerHealthBar(player);
+            if (gameInstance.isInventoryVisible()) {
+                renderInventoryAndCraftingUI(player);
+            }
+            if (gameInstance.isShowHotbar()) {
+                renderHotbar(player, player.getSelectedHotbarSlotIndex());
+            }
+            if (gameInstance.isDraggingItem()) {
+                renderDraggedItem(gameInstance, uiFont);
+            }
+        }
+
+        // --- 5. CLEANUP OPENGL STATE ---
+        glEnable(GL_DEPTH_TEST);
+        defaultShader.unbind();
     }
-
     private void renderWorldSprites() {
         if (spriteVaoId == 0 || worldEntities.isEmpty()) return;
 
