@@ -1,5 +1,6 @@
 package org.isogame.entity;
 
+import org.isogame.constants.Constants;
 import org.isogame.game.Game;
 import org.isogame.item.ItemRegistry;
 import org.isogame.tile.Tile;
@@ -57,14 +58,18 @@ public class SwingArcProjectile extends Projectile {
     }
 
     private void spawnHitParticles(Game game, float row, float col, int elevation) {
-        int particleCount = 3 + random.nextInt(3); // Spawn 3-5 particles
+        int particleCount = 3 + random.nextInt(3);
         for (int i = 0; i < particleCount; i++) {
             float vx = (random.nextFloat() - 0.5f) * 4f;
             float vy = (random.nextFloat() - 0.5f) * 4f;
             float vz = 1f + random.nextFloat() * 4f;
             int life = 15 + random.nextInt(15);
 
-            Particle p = new Particle(row, col, elevation, vx, vy, vz, life);
+            // The Z position of the particle starts at the tile's height + a small random offset
+            float startZ = (elevation * Constants.TILE_THICKNESS) + 5.0f;
+
+            // Use the new Particle constructor
+            Particle p = new Particle(row, col, startZ, vx, vy, vz, life);
             game.getMap().getEntities().add(p);
         }
     }

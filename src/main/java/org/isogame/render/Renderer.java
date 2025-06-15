@@ -4,11 +4,8 @@ package org.isogame.render;
 
 import org.isogame.camera.CameraManager;
 import org.isogame.constants.Constants;
-import org.isogame.entity.Animal;
-import org.isogame.entity.Entity;
-import org.isogame.entity.PlayerModel;
+import org.isogame.entity.*;
 // import org.isogame.game.Game; // Removed to reduce coupling
-import org.isogame.entity.Slime;
 import org.isogame.game.Game;
 import org.isogame.input.InputHandler;
 import org.isogame.inventory.InventorySlot;
@@ -764,7 +761,10 @@ public class Renderer {
 
 
     private void addVertexToSpriteBuffer(FloatBuffer buffer, float x, float y, float z, float[] color, float u, float v, float light) {
-        buffer.put(x).put(y).put(z).put(color).put(u).put(v).put(light);
+        buffer.put(x).put(y).put(z);
+        buffer.put(color[0]).put(color[1]).put(color[2]).put(color[3]); // <-- This was the bug
+        buffer.put(u).put(v);
+        buffer.put(light);
     }
 
 
@@ -1078,7 +1078,6 @@ public class Renderer {
 
     public void render() {
         if (defaultShader == null || camera == null) {
-            System.err.println("Renderer.render: DefaultShader or Camera is null. Skipping render pass.");
             return;
         }
 
@@ -1106,74 +1105,7 @@ public class Renderer {
         // --- 2. RENDER ALL SPRITES (Player, Trees, Rocks, etc.) ---
         if (map != null) {
             collectWorldEntities();
-            renderWorldSprites(); // <-- Use the new refactored helper method
-        }
-
-
-        // --- 2. RENDER ALL SPRITES (Player, Trees, Rocks, and Held Items) ---
-        if (map != null) {
-            collectWorldEntities();
-
-            if (spriteVaoId != 0 && !worldEntities.isEmpty()) {
-                glBindVertexArray(spriteVaoId);
-                glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
-                spriteVertexBuffer.clear();
-
-                int verticesInBatch = 0;
-                Texture currentBatchTexture = null;
-
-                defaultShader.setUniform("uHasTexture", 1);
-                defaultShader.setUniform("uTextureSampler", 0);
-
-                for (Object entityObj : worldEntities) {
-                    Texture textureForThisEntity = null;
-                    int verticesAdded = 0;
-
-                    // --- THIS IS THE KEY LOGIC CHANGE ---
-                    // Player, Cow, Animal, and Slime all use the playerTexture sheet
-                    if (entityObj instanceof PlayerModel || entityObj instanceof Animal) { // Animal now covers Cow and Slime
-                        textureForThisEntity = playerTexture;
-                    } else if (entityObj instanceof TreeData || entityObj instanceof LooseRockData) {
-                        textureForThisEntity = treeTexture;
-                    }
-                    // --- END OF CHANGE ---
-
-                    if (textureForThisEntity == null) continue;
-
-                    if (currentBatchTexture != null && textureForThisEntity.getId() != currentBatchTexture.getId()) {
-                        renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
-                        spriteVertexBuffer.clear();
-                        verticesInBatch = 0;
-                    }
-                    currentBatchTexture = textureForThisEntity;
-
-                    if (entityObj instanceof Entity) {
-                        verticesAdded = addGenericEntityVerticesToBuffer((Entity) entityObj, spriteVertexBuffer);
-                    }
-                    verticesInBatch += verticesAdded;
-                }
-
-                // After the loop, draw any vertices that are left over in the final batch.
-                if (verticesInBatch > 0) {
-                    renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
-                }
-
-                // Held item rendering is separate and was not causing issues.
-                if (player != null) {
-                    spriteVertexBuffer.clear();
-                    Item heldItem = player.getHeldItem();
-                    PlayerModel.AnchorPoint anchor = player.getAnchorForCurrentFrame();
-                    if (heldItem != null && anchor != null && treeTexture != null && heldItem.getItemId().equals("crude_axe")) {
-                        int axeVerts = addHeldItemVerticesToBuffer(player, heldItem, anchor, spriteVertexBuffer);
-                        if (axeVerts > 0) {
-                            renderSpriteBatch(spriteVertexBuffer, axeVerts, treeTexture);
-                        }
-                    }
-                }
-
-                glBindBuffer(GL_ARRAY_BUFFER, 0);
-                glBindVertexArray(0);
-            }
+            renderWorldSprites(); // This single call now handles everything correctly.
         }
     }
 
@@ -1191,27 +1123,36 @@ public class Renderer {
         defaultShader.setUniform("uTextureSampler", 0);
 
         for (Object entityObj : worldEntities) {
-            Texture textureForThisEntity = null;
+            Texture textureForThisEntity;
             int verticesAdded = 0;
+            boolean isPlayer = entityObj instanceof PlayerModel;
 
-            if (entityObj instanceof Entity) {
-                // All character-like entities use the player texture sheet
+            // Determine texture for the entity itself
+            if (entityObj instanceof Particle) {
+                // Particles don't use a texture, so we set the texture to null.
+                // This will force a batch break, which is what we want.
+                textureForThisEntity = null;
+            } else if (entityObj instanceof Entity) {
                 textureForThisEntity = playerTexture;
             } else if (entityObj instanceof TreeData || entityObj instanceof LooseRockData) {
                 textureForThisEntity = treeTexture;
+            } else {
+                continue;
             }
 
-            if (textureForThisEntity == null) continue;
-
-            if (currentBatchTexture != null && textureForThisEntity.getId() != currentBatchTexture.getId()) {
+            // --- BATCH BREAKING LOGIC ---
+            // If texture changes, draw the previous batch
+            if (currentBatchTexture != null && (textureForThisEntity == null || textureForThisEntity.getId() != currentBatchTexture.getId())) {
                 renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
                 spriteVertexBuffer.clear();
                 verticesInBatch = 0;
             }
             currentBatchTexture = textureForThisEntity;
 
-            // This is the corrected logic that handles all types
-            if (entityObj instanceof Entity) {
+            // --- ADD VERTICES TO BUFFER ---
+            if (entityObj instanceof Particle) {
+                verticesAdded = addParticleVerticesToBuffer((Particle) entityObj, spriteVertexBuffer);
+            } else if (entityObj instanceof Entity) {
                 verticesAdded = addGenericEntityVerticesToBuffer((Entity) entityObj, spriteVertexBuffer);
             } else if (entityObj instanceof TreeData) {
                 verticesAdded = addTreeVerticesToBuffer_WorldSpace((TreeData) entityObj, spriteVertexBuffer);
@@ -1219,8 +1160,38 @@ public class Renderer {
                 verticesAdded = addLooseRockVerticesToBuffer_WorldSpace((LooseRockData) entityObj, spriteVertexBuffer);
             }
             verticesInBatch += verticesAdded;
+
+            // --- NEW: SPECIAL HANDLING FOR PLAYER'S WEAPON ---
+            if (isPlayer) {
+                PlayerModel p = (PlayerModel) entityObj;
+                Item heldItem = p.getHeldItem();
+                PlayerModel.AnchorPoint anchor = p.getAnchorForCurrentFrame();
+
+                // Check if holding an item that needs the *other* texture sheet
+                if (heldItem != null && anchor != null && treeTexture != null) {
+                    // The item needs drawing. First, draw everything we've batched so far (including the player model).
+                    renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
+                    spriteVertexBuffer.clear();
+                    verticesInBatch = 0;
+
+                    // Now, add the item's vertices to the empty buffer
+                    float playerZ = (p.getVisualRow() + p.getVisualCol()) * DEPTH_SORT_FACTOR + (map.getTile(p.getTileRow(), p.getTileCol()).getElevation() * 0.005f) + Z_OFFSET_SPRITE_PLAYER;
+                    float lightVal = map.getTile(p.getTileRow(), p.getTileCol()).getFinalLightLevel() / (float) MAX_LIGHT_LEVEL;
+                    float itemZ = anchor.drawBehind ? playerZ + 0.001f : playerZ - 0.001f;
+
+                    int itemVerts = addHeldItemVerticesToBuffer(p, heldItem, anchor, spriteVertexBuffer, itemZ, lightVal);
+
+                    // Draw the item immediately in its own batch, using the correct texture (treeTexture)
+                    renderSpriteBatch(spriteVertexBuffer, itemVerts, treeTexture);
+                    spriteVertexBuffer.clear();
+
+                    // Set the current texture back to the player texture for the next entities in the loop
+                    currentBatchTexture = playerTexture;
+                }
+            }
         }
 
+        // Render any remaining vertices after the loop finishes
         if (verticesInBatch > 0) {
             renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
         }
@@ -1228,6 +1199,61 @@ public class Renderer {
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
     }
+
+
+
+    private void renderSpriteBatch(FloatBuffer buffer, int vertexCount, Texture texture) {
+        if (vertexCount == 0 || texture == null) return;
+
+        buffer.flip();
+        glBufferSubData(GL_ARRAY_BUFFER, 0, buffer);
+        glActiveTexture(GL_TEXTURE0);
+        texture.bind();
+        glDrawArrays(GL_TRIANGLES, 0, vertexCount);
+        texture.unbind(); // Good practice to unbind
+    }
+
+    private int addParticleVerticesToBuffer(Particle particle, FloatBuffer buffer) {
+        if (map == null) return 0;
+
+        // Get particle's base position
+        float pR = particle.getVisualRow();
+        float pC = particle.getVisualCol();
+
+        // Calculate isometric screen position
+        float pIsoX = (pC - pR) * tileHalfWidth;
+        float pIsoY = (pC + pR) * tileHalfHeight - particle.getZ(); // Use the particle's own Z
+
+        // Use a high Z-depth value to ensure particles draw in front of most things
+        float particleWorldZ = (pR + pC) * DEPTH_SORT_FACTOR - 0.1f;
+
+        // Define the quad size based on the particle's size property
+        float halfSize = particle.size / 2.0f;
+        float xL = pIsoX - halfSize;
+        float xR = pIsoX + halfSize;
+        float yT = pIsoY - halfSize;
+        float yB = pIsoY + halfSize;
+
+        // Use the particle's color
+        float[] tint = particle.color;
+
+        // Fade the particle out as it nears the end of its life
+        // We can use the lightValue attribute for this, re-purposing it as an alpha multiplier
+        float alpha_fade = 1.0f; // You could calculate this based on particle.life
+
+        // Add vertices. Since it's a simple colored square, texture coordinates (u,v) are irrelevant (0,0).
+        // We pass the alpha fade in the 'light' attribute slot.
+        addVertexToSpriteBuffer(buffer, xL, yT, particleWorldZ, tint, 0, 0, alpha_fade);
+        addVertexToSpriteBuffer(buffer, xL, yB, particleWorldZ, tint, 0, 0, alpha_fade);
+        addVertexToSpriteBuffer(buffer, xR, yB, particleWorldZ, tint, 0, 0, alpha_fade);
+
+        addVertexToSpriteBuffer(buffer, xR, yB, particleWorldZ, tint, 0, 0, alpha_fade);
+        addVertexToSpriteBuffer(buffer, xR, yT, particleWorldZ, tint, 0, 0, alpha_fade);
+        addVertexToSpriteBuffer(buffer, xL, yT, particleWorldZ, tint, 0, 0, alpha_fade);
+
+        return 6;
+    }
+
     private int addGenericEntityVerticesToBuffer(Entity entity, FloatBuffer buffer) {
         if (playerTexture == null || camera == null || map == null) return 0;
 
@@ -1240,17 +1266,17 @@ public class Renderer {
 
         float eIsoX = (eC - eR) * this.tileHalfWidth;
         float eIsoY = (eC + eR) * this.tileHalfHeight - (elev * TILE_THICKNESS);
-        float entityWorldZ = (eR + eC) * DEPTH_SORT_FACTOR + (elev * 0.005f) + Z_OFFSET_SPRITE_ANIMAL;
 
-        // Use the entity's specific frame dimensions for rendering size
-        float renderWidth = entity.getFrameWidth() * 0.75f;
-        float renderHeight = entity.getFrameHeight() * 0.75f;
-
-        // Special case for Player to match its original render size
+        // Determine Z-depth based on entity type
+        float entityWorldZ = (eR + eC) * DEPTH_SORT_FACTOR + (elev * 0.005f);
         if (entity instanceof PlayerModel) {
-            renderWidth = PLAYER_WORLD_RENDER_WIDTH;
-            renderHeight = PLAYER_WORLD_RENDER_HEIGHT;
+            entityWorldZ += Z_OFFSET_SPRITE_PLAYER;
+        } else {
+            entityWorldZ += Z_OFFSET_SPRITE_ANIMAL;
         }
+
+        float renderWidth = (entity instanceof PlayerModel) ? PLAYER_WORLD_RENDER_WIDTH : entity.getFrameWidth() * 0.75f;
+        float renderHeight = (entity instanceof PlayerModel) ? PLAYER_WORLD_RENDER_HEIGHT : entity.getFrameHeight() * 0.75f;
 
         float halfRenderWidth = renderWidth / 2.0f;
         float xL = eIsoX - halfRenderWidth;
@@ -1271,83 +1297,60 @@ public class Renderer {
         addVertexToSpriteBuffer(buffer, xL, yT, entityWorldZ, tint, u0, v0, lightVal);
         addVertexToSpriteBuffer(buffer, xL, yB, entityWorldZ, tint, u0, v1, lightVal);
         addVertexToSpriteBuffer(buffer, xR, yB, entityWorldZ, tint, u1, v1, lightVal);
+
         addVertexToSpriteBuffer(buffer, xR, yB, entityWorldZ, tint, u1, v1, lightVal);
         addVertexToSpriteBuffer(buffer, xR, yT, entityWorldZ, tint, u1, v0, lightVal);
         addVertexToSpriteBuffer(buffer, xL, yT, entityWorldZ, tint, u0, v0, lightVal);
-        return 6;
+
+        return 6; // It always adds 6 vertices
     }
 
-    // NEW HELPER METHOD to avoid repeating batch drawing code
-    private void renderSpriteBatch(FloatBuffer buffer, int vertexCount, Texture texture) {
-        if (vertexCount == 0 || texture == null) return;
 
-        buffer.flip();
-        glBufferSubData(GL_ARRAY_BUFFER, 0, buffer);
-        glActiveTexture(GL_TEXTURE0);
-        texture.bind();
-        glDrawArrays(GL_TRIANGLES, 0, vertexCount);
-    }
-
-    private int addHeldItemVerticesToBuffer(PlayerModel player, Item item, PlayerModel.AnchorPoint anchor, FloatBuffer buffer) {
+    private int addHeldItemVerticesToBuffer(PlayerModel player, Item item, PlayerModel.AnchorPoint anchor, FloatBuffer buffer, float itemWorldZ, float lightVal) {
         if (treeTexture == null || map == null || anchor == null) return 0;
 
-        // --- 1. Get Player and Item Base Data ---
         float pR = player.getVisualRow();
         float pC = player.getVisualCol();
         Tile tile = map.getTile(player.getTileRow(), player.getTileCol());
         int elev = (tile != null) ? tile.getElevation() : 0;
-        float lightVal = (tile != null) ? tile.getFinalLightLevel() / (float) MAX_LIGHT_LEVEL : 1.0f;
 
-        // Calculate player center position
+        // FIX: Removed duplicate variable declarations for 'lightVal' and 'itemWorldZ'.
+        // We now use the values passed into the method.
+
+        float playerRenderWidth = Constants.PLAYER_WORLD_RENDER_WIDTH;
+        float playerRenderHeight = Constants.PLAYER_WORLD_RENDER_HEIGHT;
         float playerBaseIsoX = (pC - pR) * tileHalfWidth;
         float playerBaseIsoY = (pC + pR) * tileHalfHeight - (elev * TILE_THICKNESS);
 
-        float itemWorldZ = (pR + pC) * DEPTH_SORT_FACTOR + 0.1f;
+        float playerCenterX = playerBaseIsoX;
+        float playerCenterY = playerBaseIsoY - playerRenderHeight / 2.0f;
 
-        // --- 2. FIXED: Scale anchor offsets from pixel space to world space ---
-        // Assuming your player sprite is 64x64 and rendered at some world scale
-        float PIXEL_TO_WORLD_SCALE = 1.0f; // Adjust this based on your actual scaling
-        float scaledAnchorDx = anchor.dx * PIXEL_TO_WORLD_SCALE;
-        float scaledAnchorDy = anchor.dy * PIXEL_TO_WORLD_SCALE;
+        float pixelToWorldScale = playerRenderWidth / (float) player.getFrameWidth();
+        float scaledAnchorDx = anchor.dx * pixelToWorldScale;
+        float scaledAnchorDy = anchor.dy * pixelToWorldScale;
 
-        // --- 3. Define the Axe's Geometry and Pivot ---
         float renderW = CRUDE_AXE_RENDER_WIDTH;
         float renderH = CRUDE_AXE_RENDER_HEIGHT;
+        float pivotX = renderW * 0.2f;
+        float pivotY = renderH * 0.8f;
 
-        // FIXED: Pivot should be relative to item size, not hardcoded
-        float pivotX = renderW * 0.2f;  // 20% from left edge (handle)
-        float pivotY = renderH * 0.8f;  // 80% from top (near handle end)
-
-        // --- 4. IMPROVED: Create transformation matrix with proper order ---
         Matrix4f modelMatrix = new Matrix4f();
-
-        // First: translate to player position + anchor offset
-        modelMatrix.translate(playerBaseIsoX + scaledAnchorDx, playerBaseIsoY + scaledAnchorDy, 0);
-
-        // Second: rotate around the anchor point
+        modelMatrix.translate(playerCenterX + scaledAnchorDx, playerCenterY + scaledAnchorDy, 0);
         modelMatrix.rotateZ((float) Math.toRadians(anchor.rotation));
-
-        // Third: translate by pivot to position the item correctly relative to rotation point
         modelMatrix.translate(-pivotX, -pivotY, 0);
 
-        // --- 5. Define Vertices and Transform Them ---
-        Vector4f vertTopLeft = new Vector4f(0, 0, 0, 1).mul(modelMatrix);
-        Vector4f vertBottomLeft = new Vector4f(0, renderH, 0, 1).mul(modelMatrix);
-        Vector4f vertTopRight = new Vector4f(renderW, 0, 0, 1).mul(modelMatrix);
+        Vector4f vertTopLeft     = new Vector4f(0, 0, 0, 1).mul(modelMatrix);
+        Vector4f vertBottomLeft  = new Vector4f(0, renderH, 0, 1).mul(modelMatrix);
+        Vector4f vertTopRight    = new Vector4f(renderW, 0, 0, 1).mul(modelMatrix);
         Vector4f vertBottomRight = new Vector4f(renderW, renderH, 0, 1).mul(modelMatrix);
 
-        // --- 6. Add Transformed Vertices to Buffer ---
-        float u0 = item.getIconU0();
-        float v0 = item.getIconV0();
-        float u1 = item.getIconU1();
-        float v1 = item.getIconV1();
+        float u0 = item.getIconU0(), v0 = item.getIconV0();
+        float u1 = item.getIconU1(), v1 = item.getIconV1();
 
-        // Triangle 1
         addVertexToSpriteBuffer(buffer, vertTopLeft.x, vertTopLeft.y, itemWorldZ, WHITE_TINT, u0, v0, lightVal);
         addVertexToSpriteBuffer(buffer, vertBottomLeft.x, vertBottomLeft.y, itemWorldZ, WHITE_TINT, u0, v1, lightVal);
         addVertexToSpriteBuffer(buffer, vertTopRight.x, vertTopRight.y, itemWorldZ, WHITE_TINT, u1, v0, lightVal);
 
-        // Triangle 2
         addVertexToSpriteBuffer(buffer, vertTopRight.x, vertTopRight.y, itemWorldZ, WHITE_TINT, u1, v0, lightVal);
         addVertexToSpriteBuffer(buffer, vertBottomLeft.x, vertBottomLeft.y, itemWorldZ, WHITE_TINT, u0, v1, lightVal);
         addVertexToSpriteBuffer(buffer, vertBottomRight.x, vertBottomRight.y, itemWorldZ, WHITE_TINT, u1, v1, lightVal);
@@ -1933,6 +1936,8 @@ public class Renderer {
             currentRecipeY += rowHeight;
         }
     }
+
+
 
     private void renderDraggedItem(Game game, Font font) {
         double[] xpos = new double[1];

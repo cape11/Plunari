@@ -1,46 +1,57 @@
 #version 330 core
 
-in vec4 fColor;
-in vec2 fTexCoord;
-in float fLightValue;  // Interpolated normalized light value (0.0 to 1.0)
+// INPUTS from the Vertex Shader
+in vec4 fColor;          // Interpolated vertex color (used for tinting or direct color)
+in vec2 fTexCoord;       // Interpolated texture coordinates
+in float fLightValue;   // Interpolated normalized light value (0.0 to 1.0)
 
-uniform sampler2D uTextureSampler; // Texture unit for main texture or font atlas
-uniform int uHasTexture;           // Boolean (0 or 1) if a texture should be sampled
-uniform int uIsFont;               // Boolean (0 or 1) if rendering font (special handling)
-uniform int uIsSimpleUiElement;    // NEW: Boolean (0 or 1) if it's a simple UI element
+// UNIFORMS (Global variables from Java)
+uniform sampler2D uTextureSampler; // The texture atlas
+uniform int uHasTexture;           // Boolean (0 or 1) if we should sample from the texture
+uniform int uIsFont;               // Boolean (0 or 1) for special font rendering
+uniform int uIsSimpleUiElement;    // Boolean (0 or 1) for UI that ignores lighting
 
+// OUTPUT to the screen
 out vec4 FragColor;
 
-const float MIN_AMBIENT = 0.2; // Minimum ambient light factor for world objects
+// CONSTANTS
+const float MIN_AMBIENT = 0.2; // Minimum ambient light for world objects to be visible in darkness
 
 void main() {
-    vec4 baseColor = fColor;
-    vec4 texColor = vec4(1.0); // Default to white (no texture effect if uHasTexture is 0)
-
+    // --- Path 1: Font Rendering ---
+    // This path is taken for text. It uses the texture's red channel as an alpha mask.
     if (uIsFont == 1) {
-        // Font rendering: texture alpha blended with vertex color
-        // Assuming font texture's red channel stores alpha.
         float alpha = texture(uTextureSampler, fTexCoord).r;
-        FragColor = vec4(baseColor.rgb, baseColor.a * alpha);
-    } else if (uIsSimpleUiElement == 1) {
-        // Simple UI element (e.g., solid color button background, inventory slot)
-        // Uses vertex color directly, no texturing, no world lighting.
-        FragColor = baseColor;
-    } else {
-        // World objects (terrain, textured sprites like player/trees, textured UI buttons)
-        if (uHasTexture == 1) {
-            texColor = texture(uTextureSampler, fTexCoord);
-        }
-        // For non-textured world objects, texColor remains vec4(1.0), so materialColor = baseColor.
-        // For textured world objects, materialColor is texColor * baseColor (tint).
-        vec4 materialColor = texColor * baseColor;
+        FragColor = vec4(fColor.rgb, fColor.a * alpha);
 
-        // Apply world lighting using fLightValue
+    // --- Path 2: Simple UI Element Rendering ---
+    // This path is for solid color UI backgrounds (like in the inventory).
+    // It uses the vertex color directly, with no textures or lighting.
+    } else if (uIsSimpleUiElement == 1) {
+        FragColor = fColor;
+
+    // --- Path 3: World Object Rendering ---
+    // This is for everything in the game world (terrain, player, items, particles).
+    } else {
+        vec4 materialColor;
+
+        // Check if the object is textured (player, trees, etc.)
+        if (uHasTexture == 1) {
+            vec4 texColor = texture(uTextureSampler, fTexCoord);
+            materialColor = texColor * fColor; // Apply tint from vertex color
+        }
+        // If not textured (our particles)
+        else {
+            materialColor = fColor; // Use the vertex color directly
+        }
+
+        // Apply world lighting to all world objects
         float lightIntensity = MIN_AMBIENT + (1.0 - MIN_AMBIENT) * fLightValue;
         FragColor = vec4(materialColor.rgb * lightIntensity, materialColor.a);
     }
 
-    // Discard fully transparent pixels to avoid issues with depth buffer for transparent objects
+    // Discard fully transparent pixels. This prevents invisible parts of sprites
+    // from incorrectly blocking objects behind them.
     if (FragColor.a < 0.01) {
         discard;
     }

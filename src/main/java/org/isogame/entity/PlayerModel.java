@@ -48,8 +48,10 @@ public class PlayerModel extends Entity {
 
     public static class AnchorPoint {
         public float dx, dy, rotation;
-        public AnchorPoint(float dx, float dy, float rotation) {
-            this.dx = dx; this.dy = dy; this.rotation = rotation;
+        public boolean drawBehind; // <-- ADD THIS
+
+        public AnchorPoint(float dx, float dy, float rotation, boolean drawBehind) { // <-- UPDATE CONSTRUCTOR
+            this.dx = dx; this.dy = dy; this.rotation = rotation; this.drawBehind = drawBehind;
         }
     }
 
@@ -67,50 +69,53 @@ public class PlayerModel extends Entity {
         defineAnimationAnchors();
     }
 
+
+
     private void defineAnimationAnchors() {
         animationAnchors.clear();
 
-        // IMPROVED: Define anchor points relative to player center (0,0)
         // Positive X = right, Positive Y = down, rotation in degrees
 
-        // Idle positions - tool held casually
-        animationAnchors.put(ROW_IDLE_NORTH + "_0", new AnchorPoint(8, -10, 45f));
-        animationAnchors.put(ROW_IDLE_SOUTH + "_0", new AnchorPoint(8, -10, 45f));
-        animationAnchors.put(ROW_IDLE_EAST + "_0", new AnchorPoint(8, -10, 45f));
-        animationAnchors.put(ROW_IDLE_WEST + "_0", new AnchorPoint(-8, -10, -45f));
+        // --- Idle positions (Adjusted to be slightly lower) ---
+        // A dy of 0 is at the player's center. The hands are lower than that.
+        animationAnchors.put(ROW_IDLE_NORTH + "_0", new AnchorPoint(8, 0, 45f, true));
+        animationAnchors.put(ROW_IDLE_SOUTH + "_0", new AnchorPoint(8, 0, 45f, false));
+        animationAnchors.put(ROW_IDLE_EAST + "_0",  new AnchorPoint(8, 0, 45f, false));
+        animationAnchors.put(ROW_IDLE_WEST + "_0",  new AnchorPoint(-8, 0, -45f, false));
 
-        // Attack animations - tool swings in arc
-        // NORTH attacks (swinging overhead)
-        animationAnchors.put(ROW_HIT_NORTH + "_0", new AnchorPoint(5, -20, -45f));   // Raise up
-        animationAnchors.put(ROW_HIT_NORTH + "_1", new AnchorPoint(2, -25, -15f));   // Pull back
-        animationAnchors.put(ROW_HIT_NORTH + "_2", new AnchorPoint(-5, -30, 30f));   // Mid swing
-        animationAnchors.put(ROW_HIT_NORTH + "_3", new AnchorPoint(15, -20, 90f));   // Impact!
-        animationAnchors.put(ROW_HIT_NORTH + "_4", new AnchorPoint(20, -5, 120f));   // Follow through
-        animationAnchors.put(ROW_HIT_NORTH + "_5", new AnchorPoint(15, -8, 90f));    // Recovery
+        // --- Attack animations (All dy values adjusted to be more positive/less negative) ---
 
-        // SOUTH attacks (swinging down and forward)
-        animationAnchors.put(ROW_HIT_SOUTH + "_0", new AnchorPoint(-5, -25, -60f));  // Raise up
-        animationAnchors.put(ROW_HIT_SOUTH + "_1", new AnchorPoint(0, -20, -30f));   // Pull back
-        animationAnchors.put(ROW_HIT_SOUTH + "_2", new AnchorPoint(10, -10, 30f));   // Mid swing
-        animationAnchors.put(ROW_HIT_SOUTH + "_3", new AnchorPoint(20, 5, 90f));     // Impact!
-        animationAnchors.put(ROW_HIT_SOUTH + "_4", new AnchorPoint(25, 15, 120f));   // Follow through
-        animationAnchors.put(ROW_HIT_SOUTH + "_5", new AnchorPoint(18, 10, 100f));   // Recovery
+        // NORTH attacks (overhead swing)
+        animationAnchors.put(ROW_HIT_NORTH + "_0", new AnchorPoint(5, -5, -45f, true));   // Raise up (was -20)
+        animationAnchors.put(ROW_HIT_NORTH + "_1", new AnchorPoint(2, -10, -15f, true));   // Pull back highest (was -25)
+        animationAnchors.put(ROW_HIT_NORTH + "_2", new AnchorPoint(-5, 5, 30f, false ));  // Mid swing (was -30)
+        animationAnchors.put(ROW_HIT_NORTH + "_3", new AnchorPoint(15, 10, 90f, false));  // Impact! (was -20)
+        animationAnchors.put(ROW_HIT_NORTH + "_4", new AnchorPoint(20, 15, 120f, true));   // Follow through (was -5)
+        animationAnchors.put(ROW_HIT_NORTH + "_5", new AnchorPoint(15, 12, 90f, false));   // Recovery (was -8)
 
-        // WEST attacks (swinging left to right)
-        animationAnchors.put(ROW_HIT_WEST + "_0", new AnchorPoint(-15, -15, 30f));   // Raise up
-        animationAnchors.put(ROW_HIT_WEST + "_1", new AnchorPoint(-20, -10, -30f));  // Pull back
-        animationAnchors.put(ROW_HIT_WEST + "_2", new AnchorPoint(-15, -5, -90f));   // Mid swing
-        animationAnchors.put(ROW_HIT_WEST + "_3", new AnchorPoint(-5, 0, -135f));    // Impact!
-        animationAnchors.put(ROW_HIT_WEST + "_4", new AnchorPoint(5, 5, -160f));     // Follow through
-        animationAnchors.put(ROW_HIT_WEST + "_5", new AnchorPoint(0, 0, -140f));     // Recovery
+        // SOUTH attacks (forward swing)
+        animationAnchors.put(ROW_HIT_SOUTH + "_0", new AnchorPoint(-5, 0, -60f, true ));  // Raise up (was -25)
+        animationAnchors.put(ROW_HIT_SOUTH + "_1", new AnchorPoint(0, 5, -30f, true));   // Pull back (was -20)
+        animationAnchors.put(ROW_HIT_SOUTH + "_2", new AnchorPoint(10, 10, 30f, false));  // Mid swing (was -10)
+        animationAnchors.put(ROW_HIT_SOUTH + "_3", new AnchorPoint(20, 15, 90f, false));    // Impact! (was 5, adjusted for consistency)
+        animationAnchors.put(ROW_HIT_SOUTH + "_4", new AnchorPoint(25, 20, 120f, false));  // Follow through (was 15)
+        animationAnchors.put(ROW_HIT_SOUTH + "_5", new AnchorPoint(18, 18, 100f, false));  // Recovery (was 10)
 
-        // EAST attacks (swinging right to left)
-        animationAnchors.put(ROW_HIT_EAST + "_0", new AnchorPoint(15, -15, -30f));   // Raise up
-        animationAnchors.put(ROW_HIT_EAST + "_1", new AnchorPoint(20, -10, 30f));    // Pull back
-        animationAnchors.put(ROW_HIT_EAST + "_2", new AnchorPoint(15, -5, 90f));     // Mid swing
-        animationAnchors.put(ROW_HIT_EAST + "_3", new AnchorPoint(5, 0, 135f));      // Impact!
-        animationAnchors.put(ROW_HIT_EAST + "_4", new AnchorPoint(-5, 5, 160f));     // Follow through
-        animationAnchors.put(ROW_HIT_EAST + "_5", new AnchorPoint(0, 0, 140f));      // Recovery
+        // WEST attacks (sideways swing)
+        animationAnchors.put(ROW_HIT_WEST + "_0", new AnchorPoint(-15, 5, 30f, false));    // Raise up (was -15)
+        animationAnchors.put(ROW_HIT_WEST + "_1", new AnchorPoint(-20, 8, -30f, false));   // Pull back (was -10)
+        animationAnchors.put(ROW_HIT_WEST + "_2", new AnchorPoint(-15, 10, -90f, false));  // Mid swing (was -5)
+        animationAnchors.put(ROW_HIT_WEST + "_3", new AnchorPoint(-5, 12, -135f, false)); // Impact! (was 0)
+        animationAnchors.put(ROW_HIT_WEST + "_4", new AnchorPoint(5, 15, -160f, false));  // Follow through (was 5)
+        animationAnchors.put(ROW_HIT_WEST + "_5", new AnchorPoint(0, 12, -140f, false));  // Recovery (was 0)
+
+        // EAST attacks (sideways swing)
+        animationAnchors.put(ROW_HIT_EAST + "_0", new AnchorPoint(15, 5, -30f, false));   // Raise up (was -15)
+        animationAnchors.put(ROW_HIT_EAST + "_1", new AnchorPoint(20, 8, 30f, false));    // Pull back (was -10)
+        animationAnchors.put(ROW_HIT_EAST + "_2", new AnchorPoint(15, 10, 90f, false));    // Mid swing (was -5)
+        animationAnchors.put(ROW_HIT_EAST + "_3", new AnchorPoint(5, 12, 135f, false));     // Impact! (was 0)
+        animationAnchors.put(ROW_HIT_EAST + "_4", new AnchorPoint(-5, 15, 160f, false));    // Follow through (was 5)
+        animationAnchors.put(ROW_HIT_EAST + "_5", new AnchorPoint(0, 12, 140f, false));     // Recovery (was 0)
     }
 
     // A. Add interpolation between animation frames for smoother movement:
@@ -128,7 +133,9 @@ public class PlayerModel extends Entity {
         return new AnchorPoint(
                 current.dx + (next.dx - current.dx) * frameProgress,
                 current.dy + (next.dy - current.dy) * frameProgress,
-                current.rotation + (next.rotation - current.rotation) * frameProgress
+                current.rotation + (next.rotation - current.rotation) * frameProgress,
+                current.drawBehind // <-- FIX: Added the missing boolean parameter
+
         );
     }
 
@@ -159,7 +166,9 @@ public class PlayerModel extends Entity {
         return new AnchorPoint(
                 base.dx + adjustment.dxOffset,
                 base.dy + adjustment.dyOffset,
-                base.rotation + adjustment.rotationOffset
+                base.rotation + adjustment.rotationOffset,
+                base.drawBehind // <-- FIX: Added the missing boolean parameter
+
         );
     }
     private int getMaxFramesForCurrentAction() {
@@ -339,10 +348,49 @@ public class PlayerModel extends Entity {
         }
     }
 
-    public AnchorPoint getAnchorForCurrentFrame() {
-        String key = getAnimationRow() + "_" + getVisualFrameIndex();
-        return animationAnchors.get(key);
+
+    public float getAnimationFrameProgress() {
+        double currentAnimFrameDuration = (currentAction == Action.SWING) ? hitFrameDuration : frameDuration;
+        if (currentAnimFrameDuration <= 0) {
+            return 0.0f;
+        }
+        return (float) (animationTimer / currentAnimFrameDuration);
     }
+
+
+    public AnchorPoint getAnchorForCurrentFrame() {
+        String currentKey = getAnimationRow() + "_" + getVisualFrameIndex();
+        AnchorPoint current = animationAnchors.get(currentKey);
+
+        // If we are not in an animation or the next frame doesn't exist, don't interpolate.
+        if (currentAction != Action.SWING || current == null) {
+            return current;
+        }
+
+        // Calculate next frame for interpolation
+        int nextFrameIndex = (getVisualFrameIndex() + 1) % getMaxFramesForCurrentAction();
+        String nextKey = getAnimationRow() + "_" + nextFrameIndex;
+        AnchorPoint next = animationAnchors.get(nextKey);
+
+        // If there is no next anchor, just return the current one.
+        if (next == null) {
+            return current;
+        }
+
+        // Get progress and interpolate
+        float progress = getAnimationFrameProgress();
+        float interpolatedDx = current.dx + (next.dx - current.dx) * progress;
+        float interpolatedDy = current.dy + (next.dy - current.dy) * progress;
+
+        float deltaRot = next.rotation - current.rotation;
+        if (deltaRot > 180) deltaRot -= 360;
+        if (deltaRot < -180) deltaRot += 360;
+        float interpolatedRot = current.rotation + deltaRot * progress;
+
+        // Use the 'drawBehind' flag from the current frame for the interpolated result.
+        return new AnchorPoint(interpolatedDx, interpolatedDy, interpolatedRot, current.drawBehind);
+    }
+
 
     // --- RESTORED INVENTORY METHODS ---
     public boolean addItemToInventory(Item itemToAdd, int amount) {
