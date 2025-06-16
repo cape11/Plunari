@@ -194,6 +194,17 @@ public class MouseHandler {
             }
         } else if (buttonId == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE) {
             if (!gameInstance.isInventoryVisible()) {
+                Item heldItem = player.getHeldItem();
+                if (heldItem != null && heldItem.type == Item.ItemType.RESOURCE && player.getHeldItemCount() > 0) {
+                    // We have a placeable item, so place it.
+                    if (map.placeBlock(inputHandlerRef.getSelectedRow(), inputHandlerRef.getSelectedCol(), heldItem)) {
+                        // If placement was successful, consume one item.
+                        player.consumeHeldItem(1);
+                        // Mark the hotbar UI as dirty to update the quantity text
+                        gameInstance.setHotbarDirty(true);
+                    }
+                }
+
                 // Your right-click logic to place items
             }
         }

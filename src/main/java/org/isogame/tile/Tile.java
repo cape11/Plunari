@@ -12,7 +12,12 @@ public class Tile {
         GRASS,
         DIRT,
         ROCK,
-        SNOW
+        SNOW,
+        STONE_BRICK,
+        RED_BRICK,         // <-- ADD THIS
+        WOOD_PLANK,        // <-- ADD THIS
+        STONE_WALL_SMOOTH, // <-- ADD THIS
+        STONE_WALL_ROUGH   // <-- ADD THIS
     }
     public enum LooseRockType { NONE, TYPE_1 , TYPE_2,
         TYPE_3, // New variation 2

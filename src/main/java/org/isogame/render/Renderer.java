@@ -66,23 +66,46 @@ public class Renderer {
     public static final int FLOATS_PER_VERTEX_SPRITE_TEXTURED = 10;
     public static final int FLOATS_PER_VERTEX_UI_COLORED = 7;
 
-    public static final float ATLAS_TOTAL_WIDTH = 128.0f, ATLAS_TOTAL_HEIGHT = 128.0f;
+    public static final float ATLAS_TOTAL_WIDTH = 256.0f;  // CORRECTED
+    public static final float ATLAS_TOTAL_HEIGHT = 256.0f; // CORRECTED
+
     public static final float SUB_TEX_WIDTH = 64.0f, SUB_TEX_HEIGHT = 64.0f;
+    // Column 0
     public static final float GRASS_ATLAS_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, GRASS_ATLAS_V0 = (0*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
     public static final float GRASS_ATLAS_U1 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, GRASS_ATLAS_V1 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    public static final float DIRT_ATLAS_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, DIRT_ATLAS_V0 = (0*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    public static final float DIRT_ATLAS_U1 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, DIRT_ATLAS_V1 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+
     public static final float ROCK_ATLAS_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, ROCK_ATLAS_V0 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
     public static final float ROCK_ATLAS_U1 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, ROCK_ATLAS_V1 = (2*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+
+    public static final float STONE_WALL_SMOOTH_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, STONE_WALL_SMOOTH_V0 = (2*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float STONE_WALL_SMOOTH_U1 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, STONE_WALL_SMOOTH_V1 = (3*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+
+    public static final float STONE_WALL_ROUGH_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, STONE_WALL_ROUGH_V0 = (3*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float STONE_WALL_ROUGH_U1 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, STONE_WALL_ROUGH_V1 = (4*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+
+    // Column 1
+    public static final float DIRT_ATLAS_U0 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, DIRT_ATLAS_V0 = (0*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float DIRT_ATLAS_U1 = (2*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, DIRT_ATLAS_V1 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+
     public static final float SAND_ATLAS_U0 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, SAND_ATLAS_V0 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
     public static final float SAND_ATLAS_U1 = (2*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, SAND_ATLAS_V1 = (2*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    public static final float DEFAULT_SIDE_U0 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, DEFAULT_SIDE_V0 = (0*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    public static final float DEFAULT_SIDE_U1 = (2*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, DEFAULT_SIDE_V1 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    public static final float SNOW_ATLAS_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, SNOW_ATLAS_V0 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    public static final float SNOW_ATLAS_U1 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, SNOW_ATLAS_V1 = (2*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+
+    public static final float WOOD_PLANK_U0 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, WOOD_PLANK_V0 = (2*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float WOOD_PLANK_U1 = (2*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, WOOD_PLANK_V1 = (3*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+
+    public static final float SNOW_ATLAS_U0 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, SNOW_ATLAS_V0 = (3*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float SNOW_ATLAS_U1 = (2*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, SNOW_ATLAS_V1 = (4*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+
+    // Column 2
+    public static final float RED_BRICK_U0 = (2*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, RED_BRICK_V0 = (0*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float RED_BRICK_U1 = (3*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, RED_BRICK_V1 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+
+    // Default side texture (can be any you prefer, e.g., DIRT)
+    public static final float DEFAULT_SIDE_U0 = DIRT_ATLAS_U0, DEFAULT_SIDE_V0 = DIRT_ATLAS_V0;
+    public static final float DEFAULT_SIDE_U1 = DIRT_ATLAS_U1, DEFAULT_SIDE_V1 = DIRT_ATLAS_V1;
+
     public static final float SNOW_SIDE_ATLAS_U0 = ROCK_ATLAS_U0, SNOW_SIDE_ATLAS_V0 = ROCK_ATLAS_V0;
     public static final float SNOW_SIDE_ATLAS_U1 = ROCK_ATLAS_U1, SNOW_SIDE_ATLAS_V1 = ROCK_ATLAS_V1;
-
 
     // --- UPDATE THESE UVs FOR THE LOOSE ROCK if GIMP selection is correct ---
     public static final float LOOSE_ROCK_SPRITE_X_PIX = 25.0f;    // New X from GIMP
@@ -143,6 +166,10 @@ public class Renderer {
     private final float diamondBottomOffsetY = this.tileHalfHeight;
 
 
+    public static final float STONE_BRICK_SIDE_U0 = RED_BRICK_U0;
+    public static final float STONE_BRICK_SIDE_V0 = RED_BRICK_V0;
+    public static final float STONE_BRICK_SIDE_U1 = RED_BRICK_U1;
+    public static final float STONE_BRICK_SIDE_V1 = RED_BRICK_V1;
 
 
     // Actual coordinates from crude_axe.json
@@ -601,6 +628,11 @@ public class Renderer {
                 case SAND:  u0 = SAND_ATLAS_U0;  v0 = SAND_ATLAS_V0;  u1 = SAND_ATLAS_U1;  v1Atlas = SAND_ATLAS_V1;  break;
                 case ROCK:  u0 = ROCK_ATLAS_U0;  v0 = ROCK_ATLAS_V0;  u1 = ROCK_ATLAS_U1;  v1Atlas = ROCK_ATLAS_V1;  break;
                 case SNOW:  u0 = SNOW_ATLAS_U0;  v0 = SNOW_ATLAS_V0;  u1 = SNOW_ATLAS_U1;  v1Atlas = SNOW_ATLAS_V1;  break;
+                // --- ADD THESE NEW CASES ---
+                case RED_BRICK: u0 = RED_BRICK_U0; v0 = RED_BRICK_V0; u1 = RED_BRICK_U1; v1Atlas = RED_BRICK_V1; break;
+                case WOOD_PLANK: u0 = WOOD_PLANK_U0; v0 = WOOD_PLANK_V0; u1 = WOOD_PLANK_U1; v1Atlas = WOOD_PLANK_V1; break;
+                case STONE_WALL_SMOOTH: u0 = STONE_WALL_SMOOTH_U0; v0 = STONE_WALL_SMOOTH_V0; u1 = STONE_WALL_SMOOTH_U1; v1Atlas = STONE_WALL_SMOOTH_V1; break;
+                case STONE_WALL_ROUGH: u0 = STONE_WALL_ROUGH_U0; v0 = STONE_WALL_ROUGH_V0; u1 = STONE_WALL_ROUGH_U1; v1Atlas = STONE_WALL_ROUGH_V1; break;
                 default: textureTop = false; break;
             }
             if (textureTop && !isSelected) {
@@ -663,19 +695,52 @@ public class Renderer {
         sideLightVal = Math.max(0.05f, sideLightVal);
 
 
-        for (int elevUnit = 1; elevUnit <= totalElevationUnits; elevUnit++) {
-            float u0 = DEFAULT_SIDE_U0, v0 = DEFAULT_SIDE_V0, u1 = DEFAULT_SIDE_U1, v1Atlas = DEFAULT_SIDE_V1;
-            Tile topTile = (map != null) ? map.getTile(tileR_map, tileC_map) : null;
-            if (topTile != null) {
-                if (topTile.getType() == Tile.TileType.SNOW || (topTile.getType() == Tile.TileType.ROCK && topTile.getElevation() >= NIVEL_NIEVE -2)) {
-                    u0 = SNOW_SIDE_ATLAS_U0; v0 = SNOW_SIDE_ATLAS_V0; u1 = SNOW_SIDE_ATLAS_U1; v1Atlas = SNOW_SIDE_ATLAS_V1;
-                } else if (topTile.getType() == Tile.TileType.ROCK || topTile.getType() == Tile.TileType.DIRT) {
-                    u0 = ROCK_ATLAS_U0; v0 = ROCK_ATLAS_V0; u1 = ROCK_ATLAS_U1; v1Atlas = ROCK_ATLAS_V1;
-                }
-            }
+        // In Renderer.java -> addStratifiedElevatedSidesToList()
 
+        for (int elevUnit = 1; elevUnit <= totalElevationUnits; elevUnit++) {
+            float u0, v0, u1, v1Atlas;
+            Tile topTile = (map != null) ? map.getTile(tileR_map, tileC_map) : null;
+
+            // --- REPLACE THE OLD IF/ELSE IF BLOCK WITH THIS SWITCH STATEMENT ---
+            if (topTile != null) {
+                switch (topTile.getType()) {
+                    case GRASS:
+                        // Grass blocks should have dirt sides
+                        u0 = DIRT_ATLAS_U0; v0 = DIRT_ATLAS_V0; u1 = DIRT_ATLAS_U1; v1Atlas = DIRT_ATLAS_V1;
+                        break;
+                    case DIRT:
+                        u0 = DIRT_ATLAS_U0; v0 = DIRT_ATLAS_V0; u1 = DIRT_ATLAS_U1; v1Atlas = DIRT_ATLAS_V1;
+                        break;
+                    case SAND:
+                        u0 = SAND_ATLAS_U0; v0 = SAND_ATLAS_V0; u1 = SAND_ATLAS_U1; v1Atlas = SAND_ATLAS_V1;
+                        break;
+                    case ROCK:
+                        u0 = ROCK_ATLAS_U0; v0 = ROCK_ATLAS_V0; u1 = ROCK_ATLAS_U1; v1Atlas = ROCK_ATLAS_V1;
+                        break;
+                    case SNOW:
+                        u0 = SNOW_SIDE_ATLAS_U0; v0 = SNOW_SIDE_ATLAS_V0; u1 = SNOW_SIDE_ATLAS_U1; v1Atlas = SNOW_SIDE_ATLAS_V1;
+                        break;
+                    case RED_BRICK:
+                    case STONE_WALL_SMOOTH: // You can group cases that use the same side texture
+                    case STONE_WALL_ROUGH:
+                        u0 = STONE_BRICK_SIDE_U0; v0 = STONE_BRICK_SIDE_V0; u1 = STONE_BRICK_SIDE_U1; v1Atlas = STONE_BRICK_SIDE_V1;
+                        break;
+                    case WOOD_PLANK:
+                        u0 = WOOD_PLANK_U0; v0 = WOOD_PLANK_V0; u1 = WOOD_PLANK_U1; v1Atlas = WOOD_PLANK_V1;
+                        break;
+                    default:
+                        // Fallback for any other tile type
+                        u0 = DEFAULT_SIDE_U0; v0 = DEFAULT_SIDE_V0; u1 = DEFAULT_SIDE_U1; v1Atlas = DEFAULT_SIDE_V1;
+                        break;
+                }
+            } else {
+                // Default if tile is null
+                u0 = DEFAULT_SIDE_U0; v0 = DEFAULT_SIDE_V0; u1 = DEFAULT_SIDE_U1; v1Atlas = DEFAULT_SIDE_V1;
+            }
+            // --- END OF REPLACEMENT ---
 
             float vSpanAtlas = v1Atlas - v0;
+            // ... the rest of the method continues as before
             float vTopTex = v0;
             float vBotTex = v0 + vSpanAtlas * SIDE_TEXTURE_DENSITY_FACTOR;
 
@@ -1452,53 +1517,65 @@ public class Renderer {
         }
 
         // --- Part 2: Draw Item Icons ---
-        if (treeTexture != null && treeTexture.getId() != 0) {
-            defaultShader.setUniform("uHasTexture", 1);
-            defaultShader.setUniform("uIsSimpleUiElement", 0);
-            defaultShader.setUniform("uTextureSampler", 0);
+// This new logic will sort icons by texture before drawing.
 
-            glActiveTexture(GL_TEXTURE0);
-            treeTexture.bind();
+// 1. Group icons by their texture atlas
+        java.util.Map<Texture, List<IconRenderData>> iconBatchMap = new HashMap<>();
 
-            glBindVertexArray(spriteVaoId);
-            glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
-            spriteVertexBuffer.clear();
-            int iconVertexCount = 0;
+        for (int i = 0; i < hotbarSlotsToDisplay; i++) {
+            InventorySlot slot = (i < playerInventorySlots.size()) ? playerInventorySlots.get(i) : null;
+            if (slot != null && !slot.isEmpty() && slot.getItem().hasIconTexture()) {
+                Item item = slot.getItem();
+                Texture itemTexture = getTextureByName(item.getAtlasName());
 
-            for (int i = 0; i < hotbarSlotsToDisplay; i++) {
-                InventorySlot slot = (i < playerInventorySlots.size()) ? playerInventorySlots.get(i) : null;
+                if (itemTexture != null) {
+                    // If this texture isn't in our map yet, add it as a new batch
+                    iconBatchMap.computeIfAbsent(itemTexture, k -> new ArrayList<>());
 
-                if (slot != null && !slot.isEmpty()) {
-                    Item item = slot.getItem();
-                    if (item.hasIconTexture()) {
-                        boolean isSelected = (i == currentlySelectedHotbarSlot);
+                    // Calculate position and create render data
+                    float currentSlotDrawX = hotbarX + i * (slotSize + slotMargin);
+                    float iconX = currentSlotDrawX + itemOffset;
+                    float iconY = hotbarY + itemOffset;
+                    float iconZ = Z_OFFSET_UI_ELEMENT;
 
-                        // Set shader uniforms for selection effects
-                        defaultShader.setUniform("u_isSelectedIcon", isSelected ? 1 : 0);
-                        if (isSelected) {
-                            defaultShader.setUniform("u_time", (float) GLFW.glfwGetTime());
-                        }
-
-                        float currentSlotDrawX = hotbarX + i * (slotSize + slotMargin);
-                        float iconX = currentSlotDrawX + itemOffset;
-                        float iconY = hotbarY + itemOffset;
-                        float iconZ = Z_OFFSET_UI_ELEMENT;
-
-                        // Add icon quad vertices
-                        addIconQuad(spriteVertexBuffer, iconX, iconY, iconZ,
-                                itemRenderSize, item);
-                        iconVertexCount += 6;
-                    }
+                    iconBatchMap.get(itemTexture).add(new IconRenderData(iconX, iconY, iconZ, itemRenderSize, item));
                 }
             }
+        }
 
-            if (iconVertexCount > 0) {
-                spriteVertexBuffer.flip();
-                glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
-                glDrawArrays(GL_TRIANGLES, 0, iconVertexCount);
+// 2. Render the batches
+        defaultShader.setUniform("uHasTexture", 1);
+        defaultShader.setUniform("uIsSimpleUiElement", 0);
+        defaultShader.setUniform("uTextureSampler", 0);
+
+        glBindVertexArray(spriteVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+
+// Loop through each texture batch (e.g., one for tileAtlasTexture, one for treeTexture)
+        for (java.util.Map.Entry<Texture, List<IconRenderData>> entry : iconBatchMap.entrySet()) {
+            Texture batchTexture = entry.getKey();
+            List<IconRenderData> iconsToRender = entry.getValue();
+
+            // Bind the texture for this entire batch
+            glActiveTexture(GL_TEXTURE0);
+            batchTexture.bind();
+
+            spriteVertexBuffer.clear();
+            int verticesInBatch = 0;
+
+            // Add all icons for this texture to the buffer
+            for (IconRenderData iconData : iconsToRender) {
+                addIconQuad(spriteVertexBuffer, iconData.x, iconData.y, iconData.z, iconData.size, iconData.item);
+                verticesInBatch += 6;
             }
 
-            treeTexture.unbind();
+            // Upload the buffer and draw everything in this batch at once
+            if (verticesInBatch > 0) {
+                spriteVertexBuffer.flip();
+                glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+                glDrawArrays(GL_TRIANGLES, 0, verticesInBatch);
+            }
+            // The texture remains bound until the next batch needs a different one
         }
 
         // --- Part 3: Draw Quantity Text ---
@@ -1509,6 +1586,37 @@ public class Renderer {
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
         defaultShader.unbind();
+    }
+
+
+    public Texture getTextureByName(String atlasName) {
+        if (atlasName == null || atlasName.isEmpty()) {
+            return null;
+        }
+        // This maps the string from your JSON to the loaded Texture object
+        switch (atlasName) {
+            case "tileAtlasTexture":
+                return this.tileAtlasTexture;
+            case "treeTexture":
+                return this.treeTexture;
+            case "playerTexture":
+                return this.playerTexture;
+            default:
+                System.err.println("Warning: Tried to get unknown texture atlas named: " + atlasName);
+                return null;
+        }
+    }
+
+    // In Renderer.java
+
+    private static class IconRenderData {
+        final float x, y, z, size;
+        final Item item;
+
+        IconRenderData(float x, float y, float z, float size, Item item) {
+            this.x = x; this.y = y; this.z = z; this.size = size;
+            this.item = item;
+        }
     }
 
     // Helper method to determine slot styling
@@ -1759,68 +1867,89 @@ public class Renderer {
         }
 
         // --- 5. RENDER ITEM ICONS ---
-        if (treeTexture != null && treeTexture.getId() != 0) {
-            defaultShader.setUniform("uHasTexture", 1);
-            defaultShader.setUniform("uIsSimpleUiElement", 0);
-            defaultShader.setUniform("uTextureSampler", 0);
+// This new logic will sort all UI icons by texture before drawing.
 
-            glActiveTexture(GL_TEXTURE0);
-            treeTexture.bind();
-            glBindVertexArray(spriteVaoId);
-            glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
-            spriteVertexBuffer.clear();
+// 1. Group all icons by their texture atlas
+        java.util.Map<Texture, List<IconRenderData>> iconBatchMap = new HashMap<>();
+        final float itemRenderSize = slotSize * 0.8f;
+        final float itemOffset = (slotSize - itemRenderSize) / 2f;
 
-            int totalIconVertices = 0;
-            final float itemRenderSize = slotSize * 0.8f; // Slightly smaller for better visibility
-            final float itemOffset = (slotSize - itemRenderSize) / 2f;
-
-            // Inventory Icons
-            currentSlotX = invPanelX + slotMargin;
-            currentSlotY = invPanelY + slotMargin;
-            colCount = 0;
-
-            for (int i = 0; i < slots.size(); i++) {
-                InventorySlot slot = slots.get(i);
-                if (slot != null && !slot.isEmpty() && slot.getItem().hasIconTexture()) {
-                    addIconToSpriteBuffer(spriteVertexBuffer,
+// --- Gather inventory icons ---
+        currentSlotX = invPanelX + slotMargin;
+        currentSlotY = invPanelY + slotMargin;
+        colCount = 0;
+        for (int i = 0; i < slots.size(); i++) {
+            InventorySlot slot = slots.get(i);
+            if (slot != null && !slot.isEmpty() && slot.getItem().hasIconTexture()) {
+                Item item = slot.getItem();
+                Texture itemTexture = getTextureByName(item.getAtlasName());
+                if (itemTexture != null) {
+                    iconBatchMap.computeIfAbsent(itemTexture, k -> new ArrayList<>());
+                    iconBatchMap.get(itemTexture).add(new IconRenderData(
                             currentSlotX + itemOffset,
                             currentSlotY + itemOffset,
-                            itemRenderSize, slot.getItem(),
-                            Z_OFFSET_UI_ELEMENT + 0.002f);
-                    totalIconVertices += 6;
-                }
-
-                currentSlotX += slotSize + slotMargin;
-                colCount++;
-                if (colCount >= invSlotsPerRow) {
-                    colCount = 0;
-                    currentSlotX = invPanelX + slotMargin;
-                    currentSlotY += slotSize + slotMargin;
+                            Z_OFFSET_UI_ELEMENT + 0.002f,
+                            itemRenderSize,
+                            item));
                 }
             }
+            currentSlotX += slotSize + slotMargin;
+            colCount++;
+            if (colCount >= invSlotsPerRow) {
+                colCount = 0;
+                currentSlotX = invPanelX + slotMargin;
+                currentSlotY += slotSize + slotMargin;
+            }
+        }
 
-            // Recipe Icons
-            final float recipeIconSize = 32f;
-            currentRecipeY = craftPanelY + slotMargin + 30f;
-
-            for (org.isogame.crafting.CraftingRecipe recipe : allRecipes) {
-                addIconToSpriteBuffer(spriteVertexBuffer,
+// --- Gather recipe icons ---
+        final float recipeIconSize = 32f;
+        currentRecipeY = craftPanelY + slotMargin + 30f; // Reset Y position for recipes
+        for (org.isogame.crafting.CraftingRecipe recipe : allRecipes) {
+            Item item = recipe.getOutputItem();
+            Texture itemTexture = getTextureByName(item.getAtlasName());
+            if (itemTexture != null) {
+                iconBatchMap.computeIfAbsent(itemTexture, k -> new ArrayList<>());
+                iconBatchMap.get(itemTexture).add(new IconRenderData(
                         craftPanelX + slotMargin,
                         currentRecipeY + (recipeRowHeight - recipeIconSize) / 2f - 2f,
-                        recipeIconSize, recipe.getOutputItem(),
-                        Z_OFFSET_UI_ELEMENT + 0.002f);
-                totalIconVertices += 6;
-                currentRecipeY += recipeRowHeight;
+                        Z_OFFSET_UI_ELEMENT + 0.002f,
+                        recipeIconSize,
+                        item));
+            }
+            currentRecipeY += recipeRowHeight;
+        }
+
+// 2. Render all batches
+        defaultShader.setUniform("uHasTexture", 1);
+        defaultShader.setUniform("uIsSimpleUiElement", 0);
+        defaultShader.setUniform("uTextureSampler", 0);
+
+        glBindVertexArray(spriteVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+
+        for (java.util.Map.Entry<Texture, List<IconRenderData>> entry : iconBatchMap.entrySet()) {
+            Texture batchTexture = entry.getKey();
+            List<IconRenderData> iconsToRender = entry.getValue();
+
+            glActiveTexture(GL_TEXTURE0);
+            batchTexture.bind();
+
+            spriteVertexBuffer.clear();
+            int verticesInBatch = 0;
+
+            for (IconRenderData iconData : iconsToRender) {
+                addIconQuad(spriteVertexBuffer, iconData.x, iconData.y, iconData.z, iconData.size, iconData.item);
+                verticesInBatch += 6;
             }
 
-            if (totalIconVertices > 0) {
+            if (verticesInBatch > 0) {
                 spriteVertexBuffer.flip();
                 glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
-                glDrawArrays(GL_TRIANGLES, 0, totalIconVertices);
+                glDrawArrays(GL_TRIANGLES, 0, verticesInBatch);
             }
-
-            treeTexture.unbind();
         }
+
 
         // --- 6. RENDER TEXT ---
         renderInventoryText(slots, currentUiFont, invPanelX, invPanelY,

@@ -1,0 +1,14 @@
+{
+  "id": "wood_plank",
+  "displayName": "Wood Planks",
+  "description": "Refined wood, perfect for building.",
+  "type": "RESOURCE",
+  "useStyle": "NONE",
+  "texture": {
+    "atlas": "tileAtlasTexture",
+    "x": 64.0,
+    "y": 128.0,
+    "w": 64.0,
+    "h": 64.0
+  }
+}

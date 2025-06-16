@@ -471,36 +471,35 @@ public class Map {
         int newElevation = currentElevation + 1; // Typically, placing a block increases elevation by 1.
 
         Tile.TileType newType;
-        if (itemToPlace.equals(ItemRegistry.getItem("dirt"))) {
+        String itemId = itemToPlace.getItemId();
+
+        if (itemId.equals("dirt")) {
             newType = determineTileTypeFromElevation(newElevation);
-            if (targetTile.getType() == Tile.TileType.WATER) { // Filling water
-                newElevation = NIVEL_MAR; // Bring up to standard land level
-                newType = determineTileTypeFromElevation(newElevation); // Recalculate type for this new elevation
+            if (targetTile.getType() == Tile.TileType.WATER) {
+                newElevation = NIVEL_MAR;
+                newType = determineTileTypeFromElevation(newElevation);
             }
-        } else if (itemToPlace.equals(ItemRegistry.getItem("stone"))) {
+        } else if (itemId.equals("stone")) {
             newType = Tile.TileType.ROCK;
-        } else if (itemToPlace.equals(ItemRegistry.getItem("sand"))) {
+        } else if (itemId.equals("sand")) {
             newType = Tile.TileType.SAND;
+        } else if (itemId.equals("wood_plank")) {
+            newType = Tile.TileType.WOOD_PLANK;
+        } else if (itemId.equals("red_brick")) {
+            newType = Tile.TileType.RED_BRICK;
+        } else if (itemId.equals("stone_brick")) { // <-- ADD THIS
+            newType = Tile.TileType.STONE_WALL_SMOOTH; // Assign the tile type to render
         } else {
-            // System.out.println("Cannot place item: " + itemToPlace.getDisplayName() + " is not a placeable block type.");
+            // If the item is a resource but not a known placeable block, fail.
             return false;
         }
-        // Ensure new elevation doesn't exceed max height after adjustments (e.g. for water filling)
-        newElevation = Math.min(newElevation, ALTURA_MAXIMA);
+        // --- END OF REPLACEMENT ---
 
+        newElevation = Math.min(newElevation, ALTURA_MAXIMA);
 
         targetTile.setElevation(newElevation);
         targetTile.setType(newType);
-        targetTile.setTreeType(Tile.TreeVisualType.NONE); // Placing a block removes any tree
-        targetTile.setLooseRockType(Tile.LooseRockType.NONE); // Placing a block removes any loose rock
-        int chunkX = Math.floorDiv(globalC, CHUNK_SIZE_TILES);
-        int chunkY = Math.floorDiv(globalR, CHUNK_SIZE_TILES);
-        markChunkAsModified(chunkX, chunkY);
-
-        queueLightUpdateForArea(globalR, globalC, 2, this.lightManager);
-        if (targetTile.hasTorch()) { // If a torch was on the tile we built upon (e.g. if it was AIR)
-            lightManager.removeLightSource(globalR, globalC); // This will also set tile.hasTorch to false
-        }
+        // ... (rest of the method is fine) ...
         return true;
     }
 

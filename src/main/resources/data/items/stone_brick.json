@@ -1,0 +1,14 @@
+{
+  "id": "stone_brick",
+  "displayName": "Stone Brick",
+  "description": "A well-crafted brick, excellent for durable structures.",
+  "type": "RESOURCE",
+  "useStyle": "NONE",
+  "texture": {
+    "atlas": "tileAtlasTexture",
+    "x": 0.0,
+    "y": 128.0,
+    "w": 64.0,
+    "h": 64.0
+  }
+}
