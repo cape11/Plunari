@@ -995,67 +995,71 @@ public class Game {
             }
         }
 
-        private void renderGame() {
-            if (renderer == null || lightManager == null || map == null || player == null || cameraManager == null) {
-                System.err.println("Game.renderGame: Critical component is null. Skipping render. CurrentState: " + currentGameState);
-                glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-                return;
-            }
-
-            float rSky, gSky, bSky;
-            float lightRange = (float)(SKY_LIGHT_DAY - SKY_LIGHT_NIGHT_MINIMUM);
-            float lightRatio = 0.5f;
-            if (lightRange > 0.001f) {
-                lightRatio = (float)(lightManager.getCurrentGlobalSkyLightTarget() - SKY_LIGHT_NIGHT_MINIMUM) / lightRange;
-            }
-            lightRatio = Math.max(0, Math.min(1, lightRatio));
-
-            float dayR = 0.5f, dayG = 0.7f, dayB = 1.0f;
-            float nightR = 0.02f, nightG = 0.02f, nightB = 0.08f;
-
-            rSky = nightR + (dayR - nightR) * lightRatio;
-            gSky = nightG + (dayG - nightG) * lightRatio;
-            bSky = nightB + (dayB - nightB) * lightRatio;
-
-            glClearColor(rSky, gSky, bSky, 1.0f);
+    private void renderGame() {
+        if (renderer == null || lightManager == null || map == null || player == null || cameraManager == null) {
+            System.err.println("Game.renderGame: Critical component is null. Skipping render. CurrentState: " + currentGameState);
+            glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-            glEnable(GL_DEPTH_TEST);
-            renderer.render();
-
-            glDisable(GL_DEPTH_TEST);
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-            // Render UI Elements
-            renderer.renderPlayerHealthBar(player); // Draw the new health bar
-            if (this.showInventory) renderer.renderInventoryAndCraftingUI(player);
-            if (this.showHotbar) renderer.renderHotbar(player, player.getSelectedHotbarSlotIndex());
-
-            if (this.showDebugOverlay && inputHandler != null) {
-                List<String> debugLines = new ArrayList<>();
-                debugLines.add(String.format("FPS: %.1f", displayedFps));
-                debugLines.add(String.format("Time: %.3f, SkyLight (Actual/Target): %d/%d", pseudoTimeOfDay, currentGlobalSkyLightActual, lightManager.getCurrentGlobalSkyLightTarget()));
-                debugLines.add("Player: (" + player.getTileRow() + "," + player.getTileCol() + ") V(" + String.format("%.1f",player.getVisualRow()) + "," + String.format("%.1f",player.getVisualCol()) + ") A:" + player.getCurrentAction() + " D:" + player.getCurrentDirection());
-                if (currentWorldName != null && map != null) debugLines.add("World: " + currentWorldName + " (Seed: " + map.getWorldSeed() + ")");
-                else debugLines.add("World: (Unsaved/New)");
-
-                Tile selectedTile = (map != null) ? map.getTile(inputHandler.getSelectedRow(), inputHandler.getSelectedCol()) : null;
-                String selectedInfo = "Sel: ("+inputHandler.getSelectedRow()+","+inputHandler.getSelectedCol()+")";
-                if(selectedTile!=null) selectedInfo += " E:"+selectedTile.getElevation()+" T:"+selectedTile.getType()+" SL:"+selectedTile.getSkyLightLevel()+" BL:"+selectedTile.getBlockLightLevel()+" FL:"+selectedTile.getFinalLightLevel() + (selectedTile.hasTorch()?" (T)":"") + " Tree:" + selectedTile.getTreeType().name();
-                debugLines.add(selectedInfo);
-                debugLines.add(String.format("Cam: (%.1f,%.1f) Z:%.2f RD:%d AC:%d SkyQ:%d", cameraManager.getCameraX(),cameraManager.getCameraY(),cameraManager.getZoom(), currentRenderDistanceChunks, currentlyActiveLogicalChunks.size(), globalSkyRefreshNeededQueue.size()));
-                if (lightManager != null) {
-                    debugLines.add("RndQ: " + chunkRenderUpdateQueue.size() + " LightQ (SP,SR,BP,BR): " + lightManager.getSkyLightPropagationQueueSize() + "," + lightManager.getSkyLightRemovalQueueSize() + "," + lightManager.getBlockLightPropagationQueueSize() + "," + lightManager.getBlockLightRemovalQueueSize());
-                }
-                debugLines.add("Hotbar Sel: " + player.getSelectedHotbarSlotIndex() + (showInventory ? " InvShow" : ""));
-                renderer.renderDebugOverlay(10f, 10f, 1300f, 300f, debugLines);
-            }
-            glEnable(GL_DEPTH_TEST);
+            return;
         }
 
-        public void requestFullMapRegeneration() {
+        // --- Calculate Sky Color (Unchanged) ---
+        float rSky, gSky, bSky;
+        float lightRange = (float)(SKY_LIGHT_DAY - SKY_LIGHT_NIGHT_MINIMUM);
+        float lightRatio = 0.5f;
+        if (lightRange > 0.001f) {
+            lightRatio = (float)(lightManager.getCurrentGlobalSkyLightTarget() - SKY_LIGHT_NIGHT_MINIMUM) / lightRange;
+        }
+        lightRatio = Math.max(0, Math.min(1, lightRatio));
+        float dayR = 0.5f, dayG = 0.7f, dayB = 1.0f;
+        float nightR = 0.02f, nightG = 0.02f, nightB = 0.08f;
+        rSky = nightR + (dayR - nightR) * lightRatio;
+        gSky = nightG + (dayG - nightG) * lightRatio;
+        bSky = nightB + (dayB - nightB) * lightRatio;
+        glClearColor(rSky, gSky, bSky, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        glEnable(GL_DEPTH_TEST);
+
+        // --- MODIFICATION: Pass time of day to the renderer ---
+        renderer.render(pseudoTimeOfDay);
+
+        // --- Render UI Elements (Unchanged) ---
+        glDisable(GL_DEPTH_TEST);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        renderer.renderPlayerHealthBar(player);
+        if (this.showInventory) renderer.renderInventoryAndCraftingUI(player);
+        if (this.showHotbar) renderer.renderHotbar(player, player.getSelectedHotbarSlotIndex());
+        if (this.showDebugOverlay && inputHandler != null) {
+            List<String> debugLines = new ArrayList<>();
+            debugLines.add(String.format("FPS: %.1f", displayedFps));
+            debugLines.add(String.format("Time: %.3f, SkyLight (Actual/Target): %d/%d", pseudoTimeOfDay, currentGlobalSkyLightActual, lightManager.getCurrentGlobalSkyLightTarget()));
+            debugLines.add("Player: (" + player.getTileRow() + "," + player.getTileCol() + ") V(" + String.format("%.1f",player.getVisualRow()) + "," + String.format("%.1f",player.getVisualCol()) + ") A:" + player.getCurrentAction() + " D:" + player.getCurrentDirection());
+            if (currentWorldName != null && map != null) debugLines.add("World: " + currentWorldName + " (Seed: " + map.getWorldSeed() + ")");
+            else debugLines.add("World: (Unsaved/New)");
+
+            Tile selectedTile = (map != null) ? map.getTile(inputHandler.getSelectedRow(), inputHandler.getSelectedCol()) : null;
+            String selectedInfo = "Sel: ("+inputHandler.getSelectedRow()+","+inputHandler.getSelectedCol()+")";
+            if(selectedTile!=null) selectedInfo += " E:"+selectedTile.getElevation()+" T:"+selectedTile.getType()+" SL:"+selectedTile.getSkyLightLevel()+" BL:"+selectedTile.getBlockLightLevel()+" FL:"+selectedTile.getFinalLightLevel() + (selectedTile.hasTorch()?" (T)":"") + " Tree:" + selectedTile.getTreeType().name();
+            debugLines.add(selectedInfo);
+            debugLines.add(String.format("Cam: (%.1f,%.1f) Z:%.2f RD:%d AC:%d SkyQ:%d", cameraManager.getCameraX(),cameraManager.getCameraY(),cameraManager.getZoom(), currentRenderDistanceChunks, currentlyActiveLogicalChunks.size(), globalSkyRefreshNeededQueue.size()));
+            if (lightManager != null) {
+                debugLines.add("RndQ: " + chunkRenderUpdateQueue.size() + " LightQ (SP,SR,BP,BR): " + lightManager.getSkyLightPropagationQueueSize() + "," + lightManager.getSkyLightRemovalQueueSize() + "," + lightManager.getBlockLightPropagationQueueSize() + "," + lightManager.getBlockLightRemovalQueueSize());
+            }
+            debugLines.add("Hotbar Sel: " + player.getSelectedHotbarSlotIndex() + (showInventory ? " InvShow" : ""));
+            renderer.renderDebugOverlay(10f, 10f, 1300f, 300f, debugLines);
+        }
+        glEnable(GL_DEPTH_TEST);
+    }
+
+    // --- NEW GETTER (Optional but good practice) ---
+    public double getPseudoTimeOfDay() {
+        return this.pseudoTimeOfDay;
+    }
+
+
+    public void requestFullMapRegeneration() {
             System.out.println("Game: Full map regeneration requested (new world with new seed).");
             if (renderer != null && renderer.getMap() != null && currentlyActiveLogicalChunks != null) { // Check if renderer has an active map
                 System.out.println("requestFullMapRegeneration: Cleaning up graphics from previous world.");

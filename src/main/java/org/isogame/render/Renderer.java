@@ -65,6 +65,7 @@ public class Renderer {
     public static final int FLOATS_PER_VERTEX_TERRAIN_TEXTURED = 10;
     public static final int FLOATS_PER_VERTEX_SPRITE_TEXTURED = 10;
     public static final int FLOATS_PER_VERTEX_UI_COLORED = 7;
+    public static final int FLOATS_PER_VERTEX_SHADOW = 7; // NEW: x,y,z, r,g,b,a
 
     public static final float ATLAS_TOTAL_WIDTH = 256.0f;  // CORRECTED
     public static final float ATLAS_TOTAL_HEIGHT = 256.0f; // CORRECTED
@@ -128,6 +129,14 @@ public class Renderer {
     // UVs for Rock Type 6
     public static final float LOOSE_ROCK_6_X_PIX = 275.0f;
     public static final float LOOSE_ROCK_6_Y_PIX = 1550.0f;
+
+
+    // --- NEW: Shadow Rendering Resources ---
+    private int shadowVaoId, shadowVboId;
+    private FloatBuffer shadowVertexBuffer;
+    private static final int MAX_SHADOW_QUADS = 1024; // Max shadows per frame
+    private static final float[] SHADOW_COLOR = {0.0f, 0.0f, 0.0f, 0.4f}; // RGBA for shadows
+    private static final float Z_OFFSET_SHADOW = 0.001f; // Just above the tile surface
 
 
 
@@ -220,7 +229,7 @@ public class Renderer {
         initRenderObjects();
         initUiColoredResources();
         initHotbarGLResources();
-
+        initShadowResources();
         System.out.println("Renderer: Initialized. Map: " + (this.map != null) + ", Player: " + (this.player != null));
     }
 
@@ -328,6 +337,35 @@ public class Renderer {
             if (treeTexture == null) System.err.println("Failed to load: treeTexture");
         }
     }
+    // --- NEW METHOD ---
+    private void initShadowResources() {
+        shadowVaoId = glGenVertexArrays();
+        glBindVertexArray(shadowVaoId);
+        shadowVboId = glGenBuffers();
+        glBindBuffer(GL_ARRAY_BUFFER, shadowVboId);
+
+        int shadowBufferCapacityFloats = MAX_SHADOW_QUADS * 6 * FLOATS_PER_VERTEX_SHADOW;
+        if (shadowVertexBuffer != null) {
+            MemoryUtil.memFree(shadowVertexBuffer);
+        }
+        shadowVertexBuffer = MemoryUtil.memAllocFloat(shadowBufferCapacityFloats);
+        if (shadowVertexBuffer == null) {
+            System.err.println("Renderer CRITICAL: Failed to allocate shadowVertexBuffer!");
+            return;
+        }
+        glBufferData(GL_ARRAY_BUFFER, (long)shadowVertexBuffer.capacity() * Float.BYTES, GL_DYNAMIC_DRAW);
+
+        // This vertex format is the same as the UI colored quads (pos + color)
+        int stride = FLOATS_PER_VERTEX_SHADOW * Float.BYTES;
+        glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, 0L); // aPos
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 4, GL_FLOAT, false, stride, 3 * Float.BYTES); // aColor
+        glEnableVertexAttribArray(1);
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        System.out.println("[Renderer DEBUG] Shadow Resources Initialized. VAO: " + shadowVaoId + ", VBO: " + shadowVboId);
+    }
 
 
     private void initShaders() {
@@ -342,8 +380,9 @@ public class Renderer {
             defaultShader.createUniform("uHasTexture");
             defaultShader.createUniform("uIsFont");
             defaultShader.createUniform("uIsSimpleUiElement");
-            defaultShader.createUniform("u_time");             // NEW
-            defaultShader.createUniform("u_isSelectedIcon");   // NEW
+            defaultShader.createUniform("u_time");
+            defaultShader.createUniform("u_isSelectedIcon");
+            defaultShader.createUniform("uIsShadow"); // NEW
         } catch (Exception e) {
             System.err.println("Renderer CRITICAL: Error initializing shaders: " + e.getMessage());
             throw new RuntimeException("Failed to init shaders", e);
@@ -565,6 +604,8 @@ public class Renderer {
 
     public Font getTitleFont() { return titleFont; }
     public Font getUiFont() { return uiFont; }
+
+
 
 
     private int addPedestalSidesToList(FloatBuffer vertexBuffer,
@@ -1141,7 +1182,7 @@ public class Renderer {
     }
 
 
-    public void render() {
+    public void render(double pseudoTimeOfDay) { // MODIFIED to accept time
         if (defaultShader == null || camera == null) {
             return;
         }
@@ -1151,6 +1192,7 @@ public class Renderer {
         defaultShader.setUniform("uModelViewMatrix", camera.getViewMatrix());
         defaultShader.setUniform("uIsFont", 0);
         defaultShader.setUniform("uIsSimpleUiElement", 0);
+        defaultShader.setUniform("uIsShadow", 0); // Default to not drawing a shadow
         defaultShader.setUniform("u_isSelectedIcon", 0);
 
         // --- 1. RENDER WORLD TERRAIN ---
@@ -1167,11 +1209,159 @@ public class Renderer {
             tileAtlasTexture.unbind();
         }
 
-        // --- 2. RENDER ALL SPRITES (Player, Trees, Rocks, etc.) ---
+        // --- 2. NEW: RENDER SHADOWS ---
         if (map != null) {
+            // We need the entity list for shadows, so collect it once here.
             collectWorldEntities();
-            renderWorldSprites(); // This single call now handles everything correctly.
+            renderShadows(pseudoTimeOfDay); // Pass time of day
         }
+
+        // --- 3. RENDER ALL SPRITES (Player, Trees, Rocks, etc.) ---
+        if (map != null) {
+            // `worldEntities` was already collected before shadow rendering.
+            renderWorldSprites();
+        }
+    }
+
+    // --- ENTIRELY NEW METHOD FOR RENDERING SHADOWS ---
+    private void renderShadows(double timeOfDay) {
+        if (shadowVaoId == 0 || worldEntities.isEmpty()) return;
+
+        // --- Sun & Shadow Calculation ---
+        // We only render shadows during the day (time 0.0 to 0.5)
+        if (timeOfDay < 0.0 || timeOfDay > 0.5) {
+            return;
+        }
+
+        // Map the 0.0-0.5 day cycle to a 0-PI (0-180 degrees) sun angle.
+        // Sun starts in the East (0 rad), is North at noon (PI/2), and West at sunset (PI).
+        float sunAngle = (float)(timeOfDay / 0.5) * (float)Math.PI;
+
+        // The shadow is cast in the opposite direction of the sun.
+        // In a standard 2D plane, shadow vector would be (-cos(sunAngle), -sin(sunAngle)).
+        // In our isometric view, we need to adjust. A simple approach that works well:
+        // Let's define the shadow vector in screen-space-like coordinates.
+        float shadowAngle = sunAngle + (float)Math.PI; // Opposite direction
+        float shadowVectorX = (float)Math.cos(shadowAngle);
+        // We squash the Y component because of the isometric perspective.
+        float shadowVectorY = (float)Math.sin(shadowAngle) * 0.5f;
+
+        // Shadow length is based on sun elevation. Longest at sunrise/sunset, shortest at noon.
+        // sin(sunAngle) is 0 at sunrise/sunset and 1 at noon.
+        float sunElevation = (float)Math.sin(sunAngle);
+        if (sunElevation <= 0.01f) sunElevation = 0.01f; // Avoid division by zero
+
+        // The length is inversely proportional to the sun's height.
+        float shadowLengthFactor = 1.0f / sunElevation;
+        // Clamp the length to avoid excessively long shadows near sunrise/sunset.
+        shadowLengthFactor = Math.min(shadowLengthFactor, 5.0f);
+
+
+        // --- Prepare for Drawing ---
+        defaultShader.setUniform("uIsShadow", 1);
+        defaultShader.setUniform("uHasTexture", 0);
+        defaultShader.setUniform("uIsSimpleUiElement", 0); // Ensure it's not treated as UI
+
+        glBindVertexArray(shadowVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, shadowVboId);
+        shadowVertexBuffer.clear();
+
+        int shadowVertexCount = 0;
+
+        // --- Generate Shadow Geometry for Each Entity ---
+        for (Object entityObj : worldEntities) {
+            float casterHeight = 0;
+            float casterWidth = 0;
+            float baseIsoX = 0;
+            float baseIsoY = 0;
+            float baseWorldZ = 0;
+
+            if (entityObj instanceof Entity) {
+                Entity e = (Entity)entityObj;
+                Tile tile = map.getTile(e.getTileRow(), e.getTileCol());
+                if (tile == null) continue;
+
+                baseIsoX = (e.getVisualCol() - e.getVisualRow()) * tileHalfWidth;
+                baseIsoY = (e.getVisualCol() + e.getVisualRow()) * tileHalfHeight - (tile.getElevation() * TILE_THICKNESS);
+                baseWorldZ = (e.getVisualRow() + e.getVisualCol()) * DEPTH_SORT_FACTOR + (tile.getElevation() * 0.005f);
+
+                if (e instanceof PlayerModel) {
+                    casterHeight = PLAYER_WORLD_RENDER_HEIGHT * 0.9f; // Slightly less than player for effect
+                    casterWidth = PLAYER_WORLD_RENDER_WIDTH * 0.5f;  // Shadow is thinner than the sprite
+                } else { // Generic Animal
+                    casterHeight = e.getFrameHeight() * 0.7f;
+                    casterWidth = e.getFrameWidth() * 0.4f;
+                }
+            } else if (entityObj instanceof TreeData) {
+                TreeData tree = (TreeData)entityObj;
+                Tile tile = map.getTile(Math.round(tree.mapRow), Math.round(tree.mapCol));
+                if (tile == null) continue;
+
+                baseIsoX = (tree.mapCol - tree.mapRow) * tileHalfWidth;
+                baseIsoY = (tree.mapCol + tree.mapRow) * tileHalfHeight - (tree.elevation * TILE_THICKNESS);
+                baseWorldZ = (tree.mapRow + tree.mapCol) * DEPTH_SORT_FACTOR + (tree.elevation * 0.005f);
+
+                // These values should match the rendering logic in addTreeVerticesToBuffer_WorldSpace
+                float frameW = 90; float frameH = 130;
+                float renderWidth = TILE_WIDTH * 1.0f;
+                casterHeight = renderWidth * (frameH / frameW);
+                casterWidth = renderWidth * 0.6f; // Tree shadows are also thinner than the full sprite
+            }
+            // Note: LooseRockData could also cast shadows here if desired.
+
+            if (casterHeight > 0) {
+                float finalShadowLength = casterHeight * shadowLengthFactor;
+
+                float halfCasterWidth = casterWidth / 2.0f;
+                float shadowOffsetX = shadowVectorX * finalShadowLength;
+                float shadowOffsetY = shadowVectorY * finalShadowLength;
+
+                // Base of the shadow quad
+                float x1 = baseIsoX - halfCasterWidth;
+                float y1 = baseIsoY;
+                float x2 = baseIsoX + halfCasterWidth;
+                float y2 = baseIsoY;
+
+                // Tip of the shadow quad (displaced)
+                float x3 = x2 + shadowOffsetX;
+                float y3 = y2 + shadowOffsetY;
+                float x4 = x1 + shadowOffsetX;
+                float y4 = y1 + shadowOffsetY;
+
+                // Add the two triangles for the shadow quad to the buffer
+                addShadowQuadToBuffer(shadowVertexBuffer, x1, y1, x2, y2, x3, y3, x4, y4, baseWorldZ + Z_OFFSET_SHADOW);
+                shadowVertexCount += 6;
+            }
+        }
+
+        // --- Upload and Draw ---
+        if (shadowVertexCount > 0) {
+            shadowVertexBuffer.flip();
+            glBufferSubData(GL_ARRAY_BUFFER, 0, shadowVertexBuffer);
+            glDrawArrays(GL_TRIANGLES, 0, shadowVertexCount);
+        }
+
+        // --- Cleanup ---
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        defaultShader.setUniform("uIsShadow", 0); // Reset for next render passes
+    }
+
+    // --- NEW HELPER METHOD ---
+    /**
+     * Adds a skewed quad (a parallelogram) to the shadow vertex buffer.
+     * The quad is defined by its four world-space corner points.
+     */
+    private void addShadowQuadToBuffer(FloatBuffer buffer, float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, float z) {
+        // Triangle 1: (v1, v2, v4)
+        buffer.put(x1).put(y1).put(z).put(SHADOW_COLOR);
+        buffer.put(x2).put(y2).put(z).put(SHADOW_COLOR);
+        buffer.put(x4).put(y4).put(z).put(SHADOW_COLOR);
+
+        // Triangle 2: (v2, v3, v4)
+        buffer.put(x2).put(y2).put(z).put(SHADOW_COLOR);
+        buffer.put(x3).put(y3).put(z).put(SHADOW_COLOR);
+        buffer.put(x4).put(y4).put(z).put(SHADOW_COLOR);
     }
 
     private void renderWorldSprites() {
