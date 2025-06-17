@@ -67,6 +67,6 @@ public class Constants {
     public static final int HOTBAR_SIZE = 5;
 
     // Optimization Constants
-    public static final double DAY_NIGHT_CYCLE_SPEED = 0.05; // Slower for smoother visual lighting transitions
+    public static final double DAY_NIGHT_CYCLE_SPEED = 0.005; // Slower for smoother visual lighting transitions
     public static final int SKY_LIGHT_UPDATE_THRESHOLD = 1;
 }
