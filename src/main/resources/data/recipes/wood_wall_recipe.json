@@ -1,0 +1,10 @@
+{
+  "outputItemId": "wood_wall",
+  "outputQuantity": 2,
+  "ingredients": [
+    {
+      "itemId": "wood",
+      "quantity": 1
+    }
+  ]
+}
