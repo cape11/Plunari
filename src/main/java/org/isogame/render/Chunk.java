@@ -166,6 +166,8 @@ public class Chunk {
                                 (float) (globalStartTileR + r_local),
                                 tile.getElevation()));
                     }
+
+
                     // Check for and store loose rocks  <-- ADD THIS BLOCK STARTING HERE
                     if (tile != null && tile.getLooseRockType() != Tile.LooseRockType.NONE &&
                             tile.getType() != Tile.TileType.WATER && tile.getType() != Tile.TileType.AIR) { // Don't place rocks in water/air or on non-existent tiles
@@ -177,8 +179,13 @@ public class Chunk {
                                 (float) (globalStartTileR + r_local),
                                 tile.getElevation()
                         ));
+
+
+
                     }
+
                 }
+
                 if (chunkDataBuffer.remaining() < (MAX_VERTICES_PER_TILE_COLUMN * Renderer.FLOATS_PER_VERTEX_TERRAIN_TEXTURED)) {
                     if(chunkDataBuffer.position() > 0) {
                         System.err.println("Chunk VBO buffer potentially full after row in chunk ("+chunkGridX+","+chunkGridY+"). Breaking outer loop.");
@@ -243,6 +250,8 @@ public class Chunk {
         vboCapacityFloats = 0;
         treesInChunk.clear();
         looseRocksInChunk.clear();
+        torchesInChunk.clear(); // <-- Clear the torch list
+
     }
 
     public static class BoundingBox {
@@ -251,5 +260,11 @@ public class Chunk {
             this.minX = minX; this.minY = minY; this.maxX = maxX; this.maxY = maxY;
         }
     }
+
+    // Add this new list with the others
+    private final List<Renderer.TorchData> torchesInChunk = new ArrayList<>();
+
+    // Add a getter for it
+    public List<Renderer.TorchData> getTorchesInChunk() { return torchesInChunk; }
     public BoundingBox getBoundingBox() { return this.boundingBox; }
 }

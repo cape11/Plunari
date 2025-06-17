@@ -451,56 +451,68 @@ public class Map {
     }
 
     public boolean placeBlock(int globalR, int globalC, Item itemToPlace) {
-        Tile targetTile = getTile(globalR, globalC); // This now handles on-demand chunk loading/generation
-        if (targetTile == null) {
-            System.err.println("Map.placeBlock: Failed to get or generate tile at " + globalR + "," + globalC);
+        if (itemToPlace == null) return false;
+
+        Tile targetTile = getTile(globalR, globalC);
+        if (targetTile == null) return false;
+
+        // We can only place items that are "RESOURCE" type blocks
+        if (itemToPlace.type != Item.ItemType.RESOURCE) {
             return false;
         }
-        if (itemToPlace == null || itemToPlace.type != Item.ItemType.RESOURCE) {
+
+        // Prevent building above the max height
+        if (targetTile.getElevation() >= ALTURA_MAXIMA) {
             return false;
         }
 
         int currentElevation = targetTile.getElevation();
-        // Allow placing blocks up to ALTURA_MAXIMA.
-        // If placing on a tile already at ALTURA_MAXIMA, it's not allowed unless it's replacing AIR.
-        // This logic might need refinement based on desired game mechanics.
-        if (currentElevation >= ALTURA_MAXIMA && targetTile.getType() != Tile.TileType.AIR) {
-            // System.out.println("Cannot place block: Target tile is at max elevation.");
-            return false;
-        }
-        int newElevation = currentElevation + 1; // Typically, placing a block increases elevation by 1.
-
+        int newElevation = currentElevation + 1;
         Tile.TileType newType;
-        String itemId = itemToPlace.getItemId();
 
-        if (itemId.equals("dirt")) {
-            newType = determineTileTypeFromElevation(newElevation);
-            if (targetTile.getType() == Tile.TileType.WATER) {
-                newElevation = NIVEL_MAR;
+        // This switch statement correctly handles all known placeable blocks
+        switch (itemToPlace.getItemId()) {
+            case "dirt":
                 newType = determineTileTypeFromElevation(newElevation);
-            }
-        } else if (itemId.equals("stone")) {
-            newType = Tile.TileType.ROCK;
-        } else if (itemId.equals("sand")) {
-            newType = Tile.TileType.SAND;
-        } else if (itemId.equals("wood_plank")) {
-            newType = Tile.TileType.WOOD_PLANK;
-        } else if (itemId.equals("red_brick")) {
-            newType = Tile.TileType.RED_BRICK;
-        } else if (itemId.equals("stone_brick")) { // <-- ADD THIS
-            newType = Tile.TileType.STONE_WALL_SMOOTH; // Assign the tile type to render
-        } else {
-            // If the item is a resource but not a known placeable block, fail.
-            return false;
+                // Special logic for filling water
+                if (targetTile.getType() == Tile.TileType.WATER) {
+                    newElevation = NIVEL_MAR;
+                    newType = determineTileTypeFromElevation(newElevation);
+                }
+                break;
+            case "stone":
+                newType = Tile.TileType.ROCK;
+                break;
+            case "sand":
+                newType = Tile.TileType.SAND;
+                break;
+            case "wood_plank":
+                newType = Tile.TileType.WOOD_PLANK;
+                break;
+            case "red_brick":
+                newType = Tile.TileType.RED_BRICK;
+                break;
+            case "stone_brick":
+                newType = Tile.TileType.STONE_WALL_SMOOTH;
+                break;
+            default:
+                // If the item is a resource but not in this list, it's not placeable.
+                return false;
         }
-        // --- END OF REPLACEMENT ---
 
-        newElevation = Math.min(newElevation, ALTURA_MAXIMA);
-
+        // Commit the changes to the tile
         targetTile.setElevation(newElevation);
         targetTile.setType(newType);
-        // ... (rest of the method is fine) ...
-        return true;
+        targetTile.setTreeType(Tile.TreeVisualType.NONE); // Clear any foliage
+        targetTile.setLooseRockType(Tile.LooseRockType.NONE); // Clear any rocks
+
+        // Mark the chunk for saving and update lighting
+        int chunkX = Math.floorDiv(globalC, CHUNK_SIZE_TILES);
+        int chunkY = Math.floorDiv(globalR, CHUNK_SIZE_TILES);
+        markChunkAsModified(chunkX, chunkY);
+        queueLightUpdateForArea(globalR, globalC, 2, this.lightManager);
+
+        return true; // IMPORTANT: Signal that placement was successful
     }
 
 
