@@ -103,6 +103,13 @@ public class InputHandler {
             case GLFW_KEY_J:
                 performPlayerActionOnCurrentlySelectedTile();
                 break;
+
+            // vvv ADD THIS NEW CASE vvv
+            case GLFW_KEY_F1: // R for "Redraw"
+                System.out.println("DEBUG: Forcing render update for player's current chunk.");
+                gameInstance.requestTileRenderUpdate(player.getTileRow(), player.getTileCol());
+                break;
+            // ^^^ END OF NEW CASE ^^^
             case GLFW_KEY_C:
                 if (cameraManager != null) {
                     cameraManager.stopManualPan();
@@ -272,26 +279,37 @@ public class InputHandler {
         }
     }
 
+    // In InputHandler.java
+
     public void setSelectedTile(int col, int row) {
         if (map == null) {
             return;
         }
-        Tile newSelectedTile = map.getTile(row, col);
-        if (newSelectedTile == null) {
+        // Prevent selection from changing if it's the same tile
+        if (this.selectedRow == row && this.selectedCol == col) {
             return;
         }
-        if (this.selectedRow != row || this.selectedCol != col) {
-            int oldSelectedRow = this.selectedRow;
-            int oldSelectedCol = this.selectedCol;
-            this.selectedRow = row;
-            this.selectedCol = col;
-            if (gameInstance != null) {
-                Tile oldTile = map.getTile(oldSelectedRow, oldSelectedCol);
-                if (oldTile != null) {
-                    gameInstance.requestTileRenderUpdate(oldSelectedRow, oldSelectedCol);
-                }
-                gameInstance.requestTileRenderUpdate(this.selectedRow, this.selectedCol);
-            }
+
+        // Store the location of the previously selected tile
+        int oldSelectedRow = this.selectedRow;
+        int oldSelectedCol = this.selectedCol;
+
+        // Update to the new selection
+        this.selectedRow = row;
+        this.selectedCol = col;
+
+        if (gameInstance != null) {
+            // --- THIS IS THE IMPROVED LOGIC ---
+            // Request a redraw for the tile that is no longer selected
+            gameInstance.requestTileRenderUpdate(oldSelectedRow, oldSelectedCol);
+            // Request a redraw for the newly selected tile
+            gameInstance.requestTileRenderUpdate(this.selectedRow, this.selectedCol);
+
+            // Also request updates for neighbors to prevent visual artifacts
+            gameInstance.requestTileRenderUpdate(oldSelectedRow + 1, oldSelectedCol);
+            gameInstance.requestTileRenderUpdate(oldSelectedRow - 1, oldSelectedCol);
+            gameInstance.requestTileRenderUpdate(oldSelectedRow, oldSelectedCol + 1);
+            gameInstance.requestTileRenderUpdate(oldSelectedRow, oldSelectedCol - 1);
         }
     }
 

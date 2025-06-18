@@ -77,6 +77,10 @@ public class MouseHandler {
                     int[] hoveredCoords = camera.screenToAccurateMapTile(physicalMouseX, physicalMouseY, map);
                     if (hoveredCoords != null) {
                         inputHandlerRef.setSelectedTile(hoveredCoords[0], hoveredCoords[1]);
+                        if (gameInstance.getPlacementManager() != null && gameInstance.getPlacementManager().isPlacing()) {
+                            gameInstance.getPlacementManager().updatePlacement(hoveredCoords[0], hoveredCoords[1]);
+                        }
+
                     }
                 }
                 // Camera Panning
@@ -152,36 +156,25 @@ public class MouseHandler {
         }
     }
 
-    // --- HELPER METHOD for In-Game Clicks ---
-    private void handleGameMouseClick(int buttonId, int action, int mouseX, int mouseY) {
-        if (player == null) return; // Safety check
+    // In MouseHandler.java
 
+    private void handleGameMouseClick(int buttonId, int action, int mouseX, int mouseY) {
+        if (player == null || gameInstance.getPlacementManager() == null) return;
+
+        int[] hoveredCoords = camera.screenToAccurateMapTile(mouseX, mouseY, map);
+
+        // --- LEFT MOUSE BUTTON ---
         if (buttonId == GLFW_MOUSE_BUTTON_LEFT) {
             if (action == GLFW_PRESS) {
                 isLeftMousePressed = true;
-                pressMouseX = lastMouseX;
-                pressMouseY = lastMouseY;
                 uiHandledLeftMousePress = false;
 
                 if (gameInstance.isInventoryVisible()) {
-                    // Check inventory and crafting UI first
                     uiHandledLeftMousePress = checkInventoryClick(mouseX, mouseY) || checkCraftingClick(mouseX, mouseY);
                 }
-
-                // If the click was not on the UI, check for world actions
                 if (!uiHandledLeftMousePress) {
-                    // --- NEW TORCH PLACEMENT LOGIC ---
-
-                    // --- FIX: Declare the heldItem variable ---
-                    Item heldItem = player.getHeldItem();
-
-                    if (heldItem != null && heldItem.getItemId().equals("torch")) {
-                        placeTorch();
-                        return; // Torch action handled, do nothing else.
-                    }
                     inputHandlerRef.performPlayerActionOnCurrentlySelectedTile();
                 }
-
             } else if (action == GLFW_RELEASE) {
                 isLeftMousePressed = false;
                 if (gameInstance.isDraggingItem()) {
@@ -192,20 +185,17 @@ public class MouseHandler {
                     isLeftDraggingForPan = false;
                 }
             }
-        } else if (buttonId == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE) {
-            if (!gameInstance.isInventoryVisible()) {
-                Item heldItem = player.getHeldItem();
-                if (heldItem != null && heldItem.type == Item.ItemType.RESOURCE && player.getHeldItemCount() > 0) {
-                    // We have a placeable item, so place it.
-                    if (map.placeBlock(inputHandlerRef.getSelectedRow(), inputHandlerRef.getSelectedCol(), heldItem)) {
-                        // If placement was successful, consume one item.
-                        player.consumeHeldItem(1);
-                        // Mark the hotbar UI as dirty to update the quantity text
-                        gameInstance.setHotbarDirty(true);
-                    }
+        }
+        // --- RIGHT MOUSE BUTTON ---
+        else if (buttonId == GLFW_MOUSE_BUTTON_RIGHT) {
+            if (action == GLFW_PRESS) {
+                if (!gameInstance.isInventoryVisible() && hoveredCoords != null) {
+                    gameInstance.getPlacementManager().startPlacement(hoveredCoords[0], hoveredCoords[1]);
                 }
-
-                // Your right-click logic to place items
+            } else if (action == GLFW_RELEASE) {
+                if (gameInstance.getPlacementManager().isPlacing()) {
+                    gameInstance.getPlacementManager().finalizePlacement();
+                }
             }
         }
     }
@@ -214,25 +204,13 @@ public class MouseHandler {
     private boolean checkInventoryClick(int mouseX, int mouseY) {
         int slotIndex = getInventorySlotAt(mouseX, mouseY);
         if (slotIndex != -1) {
+            // If the click is on a valid slot, start dragging the item.
             gameInstance.startDraggingItem(slotIndex);
-            return true; // Click was on a slot, consume it
+            return true; // Click was handled by the UI
         }
-
-        // Check if the click was just inside the panel's general area (but not a slot)
-        float slotSize = 50f, slotMargin = 10f;
-        float panelMarginX = 30f, topMarginY = 40f;
-        int invSlotsPerRow = 5;
-        float invPanelWidth = (invSlotsPerRow * slotSize) + ((invSlotsPerRow + 1) * slotMargin);
-        float invPanelHeight = (float)(Math.ceil((double) player.getInventorySlots().size() / invSlotsPerRow) * (slotSize + slotMargin)) + slotMargin;
-        float invPanelX = camera.getScreenWidth() - invPanelWidth - panelMarginX;
-        float invPanelY = topMarginY;
-
-        if (mouseX >= invPanelX && mouseX <= invPanelX + invPanelWidth &&
-                mouseY >= invPanelY && mouseY <= invPanelY + invPanelHeight) {
-            return true; // Consume click even if it's in the margin
-        }
-        return false;
+        return false; // Click was not on an inventory slot
     }
+
 
     // --- HELPER METHOD to check for clicks on Craft Buttons ---
     private boolean checkCraftingClick(int mouseX, int mouseY) {
@@ -298,21 +276,6 @@ public class MouseHandler {
 
 
 
-    private void placeTorch() {
-        if (player.getHeldItemCount() > 0) {
-            Tile selectedTile = map.getTile(inputHandlerRef.getSelectedRow(), inputHandlerRef.getSelectedCol());
-            if (selectedTile != null && !selectedTile.hasTorch() && selectedTile.getType() != Tile.TileType.WATER) {
-                player.useItem(gameInstance);
-                player.consumeHeldItem(1);
-                selectedTile.setHasTorch(true);
-                gameInstance.getLightManager().addLightSource(inputHandlerRef.getSelectedRow(), inputHandlerRef.getSelectedCol(), (byte) TORCH_LIGHT_LEVEL);
-                gameInstance.requestTileRenderUpdate(inputHandlerRef.getSelectedRow(), inputHandlerRef.getSelectedCol());
-                gameInstance.setHotbarDirty(true);
-            }
-        } else {
-            System.out.println("No torches to place!");
-        }
-    }
 
 
 }

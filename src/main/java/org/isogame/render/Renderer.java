@@ -786,7 +786,7 @@ public class Renderer {
             float vSpanAtlas = v1Atlas - v0;
             // ... the rest of the method continues as before
             float vTopTex = v0;
-            float vBotTex = v0 + vSpanAtlas * SIDE_TEXTURE_DENSITY_FACTOR;
+            float vBotTex = v1Atlas;
 
             float sliceTopActualY    = gridPlaneCenterY - (elevUnit * elevSliceHeight);
             float sliceBottomActualY = gridPlaneCenterY - ((elevUnit - 1) * elevSliceHeight);

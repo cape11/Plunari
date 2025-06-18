@@ -6,7 +6,7 @@
   "useStyle": "SWING",
   "toolType": "AXE",
   "texture": {
-    "atlas": "playerTexture",
+    "atlas": "treeTexture",
     "x": 256,
     "y": 1664,
     "w": 64,

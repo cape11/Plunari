@@ -22,7 +22,7 @@ public class LightManager {
     public static final int BATCH_LIGHT_UPDATE_BUDGET = 10000; // Max total light updates across all queues per frame
     private static final int MAX_LIGHT_UPDATES_PER_QUEUE_PER_FRAME = 4000; // Max updates for a single queue type
 
-    private static final int MAX_ELEVATION_STEP_FOR_SKYLIGHT_PROPAGATION = 0;
+    private static final int MAX_ELEVATION_STEP_FOR_SKYLIGHT_PROPAGATION = 1;
     private static final int MAX_ELEVATION_STEP_FOR_BLOCKLIGHT_PROPAGATION = 2;
 
     private byte currentGlobalSkyLightTarget = SKY_LIGHT_DAY;
@@ -206,6 +206,8 @@ public class LightManager {
         return 1; // Default
     }
 
+    // In LightManager.java, inside the processSingleSkyPropagationStep_Heightmap method
+
     private void processSingleSkyPropagationStep_Heightmap(LightNode currentQueuedNode) {
         Tile sourceSurfaceTile = map.getTile(currentQueuedNode.r, currentQueuedNode.c);
         if (sourceSurfaceTile == null || sourceSurfaceTile.getSkyLightLevel() == 0) return;
@@ -214,14 +216,19 @@ public class LightManager {
         int[] dr = {-1, 1, 0, 0}; int[] dc = {0, 0, -1, 1};
         for (int i = 0; i < 4; i++) {
             int nr = currentQueuedNode.r + dr[i]; int nc = currentQueuedNode.c + dc[i];
-            // No map.isValid check needed, map.getTile handles it.
             Tile neighborSurfaceTile = map.getTile(nr, nc);
             if (neighborSurfaceTile == null || neighborSurfaceTile.getType() == Tile.TileType.WATER) continue;
 
             int elevationDifference = neighborSurfaceTile.getElevation() - sourceSurfaceTile.getElevation();
 
-            if (elevationDifference < 0) { // Propagating downwards
-                int stepCost = 0; // Sky light falls with no cost.
+            // --- THIS IS THE CORRECTED LOGIC ---
+            // Allow light to spread to neighbors of same-height or slightly higher/lower.
+            if (elevationDifference <= MAX_ELEVATION_STEP_FOR_SKYLIGHT_PROPAGATION) {
+
+                // Light spreading horizontally or upwards costs 1 light level.
+                // Spreading downwards is free (cost = 0).
+                int stepCost = (elevationDifference < 0) ? 0 : 1;
+
                 int opacityOfNeighborSurface = getHorizontalPassOpacity(neighborSurfaceTile);
                 byte lightReachingNeighbor = (byte) Math.max(0, propagatedLightStrength - stepCost - opacityOfNeighborSurface);
 
@@ -233,6 +240,28 @@ public class LightManager {
                     markChunkDirty(nr, nc);
                 }
             }
+            // --- END OF CORRECTION ---
+        }
+    }
+
+
+    // In LightManager.java, add this new method anywhere inside the class.
+
+    /**
+     * Processes all light queues until they are completely empty.
+     * This is an intensive operation and should be used sparingly, right after
+     * a world modification, to ensure lighting is visually correct in the same frame.
+     */
+    public void processAllQueuesToCompletion() {
+        int safetyCounter = 0;
+        // The safety counter prevents an infinite loop in case of an undiscovered bug in the lighting logic
+        while (isAnyLightQueueNotEmpty() && safetyCounter < 30) {
+            // Use a large budget to clear queues faster in a single pass
+            processLightQueuesIncrementally(BATCH_LIGHT_UPDATE_BUDGET * 5);
+            safetyCounter++;
+        }
+        if (safetyCounter >= 30) {
+            System.err.println("LightManager.processAllQueuesToCompletion: Hit safety limit. Possible infinite light loop detected.");
         }
     }
 

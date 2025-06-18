@@ -2,6 +2,7 @@ package org.isogame.map;
 
 import org.isogame.constants.Constants;
 import org.isogame.entity.*;
+import org.isogame.game.Game;
 import org.isogame.item.Item;
 import org.isogame.item.ItemRegistry;
 import org.isogame.savegame.EntitySaveData;
@@ -450,69 +451,79 @@ public class Map {
         return Tile.TileType.SNOW;
     }
 
-    public boolean placeBlock(int globalR, int globalC, Item itemToPlace) {
-        if (itemToPlace == null) return false;
+    // In Map.java - MAKE SURE THIS IS THE ONLY placeBlock METHOD
+    // In Map.java
+
+    public boolean placeBlock(int globalR, int globalC, Item itemToPlace, Game game) {
+        if (itemToPlace == null) {
+            System.err.println("PLACEMENT FAILED: Item to place was null.");
+            return false;
+        }
 
         Tile targetTile = getTile(globalR, globalC);
-        if (targetTile == null) return false;
+        if (targetTile == null) {
+            System.err.println("PLACEMENT FAILED: Target tile at (" + globalR + ", " + globalC + ") is null.");
+            return false;
+        }
 
-        // We can only place items that are "RESOURCE" type blocks
         if (itemToPlace.type != Item.ItemType.RESOURCE) {
+            System.err.println("PLACEMENT FAILED: Item '" + itemToPlace.getDisplayName() + "' is not a RESOURCE.");
             return false;
         }
 
-        // Prevent building above the max height
         if (targetTile.getElevation() >= ALTURA_MAXIMA) {
+            System.err.println("PLACEMENT FAILED: Cannot place block. Target tile is already at max elevation (" + targetTile.getElevation() + ").");
             return false;
         }
 
-        int currentElevation = targetTile.getElevation();
-        int newElevation = currentElevation + 1;
+        int newElevation = targetTile.getElevation() + 1;
         Tile.TileType newType;
 
-        // This switch statement correctly handles all known placeable blocks
         switch (itemToPlace.getItemId()) {
             case "dirt":
                 newType = determineTileTypeFromElevation(newElevation);
-                // Special logic for filling water
                 if (targetTile.getType() == Tile.TileType.WATER) {
                     newElevation = NIVEL_MAR;
                     newType = determineTileTypeFromElevation(newElevation);
                 }
                 break;
-            case "stone":
-                newType = Tile.TileType.ROCK;
-                break;
-            case "sand":
-                newType = Tile.TileType.SAND;
-                break;
-            case "wood_plank":
-                newType = Tile.TileType.WOOD_PLANK;
-                break;
-            case "red_brick":
-                newType = Tile.TileType.RED_BRICK;
-                break;
-            case "stone_brick":
-                newType = Tile.TileType.STONE_WALL_SMOOTH;
-                break;
+            case "stone": newType = Tile.TileType.ROCK; break;
+            case "sand": newType = Tile.TileType.SAND; break;
+            case "wood_plank": newType = Tile.TileType.WOOD_PLANK; break;
+            case "red_brick": newType = Tile.TileType.RED_BRICK; break;
+            case "stone_brick": newType = Tile.TileType.STONE_WALL_SMOOTH; break;
             default:
-                // If the item is a resource but not in this list, it's not placeable.
+                System.err.println("PLACEMENT FAILED: Item ID '" + itemToPlace.getItemId() + "' has no placement rule in Map.java's switch statement.");
                 return false;
         }
 
-        // Commit the changes to the tile
+        // 1. Set the tile properties first.
         targetTile.setElevation(newElevation);
         targetTile.setType(newType);
-        targetTile.setTreeType(Tile.TreeVisualType.NONE); // Clear any foliage
-        targetTile.setLooseRockType(Tile.LooseRockType.NONE); // Clear any rocks
+        targetTile.setTreeType(Tile.TreeVisualType.NONE);
+        targetTile.setLooseRockType(Tile.LooseRockType.NONE);
 
-        // Mark the chunk for saving and update lighting
+        // 2. Mark the chunk as logically modified for saving purposes.
         int chunkX = Math.floorDiv(globalC, CHUNK_SIZE_TILES);
         int chunkY = Math.floorDiv(globalR, CHUNK_SIZE_TILES);
         markChunkAsModified(chunkX, chunkY);
+
+        // 3. IMPORTANT: Queue up all the necessary lighting calculations for the affected area.
+        // This MUST be done BEFORE requesting the render update.
         queueLightUpdateForArea(globalR, globalC, 2, this.lightManager);
 
-        return true; // IMPORTANT: Signal that placement was successful
+        // 4. NOW, with the lighting work queued, request the render update.
+        if (game != null) {
+            System.out.println("PLACEMENT SUCCESSFUL. Requesting render update for chunk containing tile (" + globalR + "," + globalC + ").");
+            // This call will correctly mark the chunk as dirty in the LightManager.
+            this.lightManager.processAllQueuesToCompletion();
+
+            game.requestTileRenderUpdate(globalR, globalC);
+        }
+
+        // --- END OF CORRECTED LOGIC ---
+
+        return true;
     }
 
 

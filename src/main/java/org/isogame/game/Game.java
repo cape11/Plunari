@@ -62,6 +62,8 @@ public class Game {
     private Map map;
     private PlayerModel player;
     private LightManager lightManager;
+    private PlacementManager placementManager;
+
 
     private double pseudoTimeOfDay = 0.0005;
     private byte currentGlobalSkyLightActual;
@@ -75,6 +77,8 @@ public class Game {
     private boolean showInventory = false;
     private boolean showHotbar = true;
     private boolean showDebugOverlay = true;
+
+
 
     // --- NEW FIELDS FOR DYNAMIC SPAWNING ---
     private double spawnTimer = 0.0;
@@ -581,6 +585,9 @@ public class Game {
         }
 
         this.player = new PlayerModel(this.map.getCharacterSpawnRow(), this.map.getCharacterSpawnCol());
+        this.placementManager = new PlacementManager(this, this.map, this.player); //
+
+        this.placementManager = new PlacementManager(this, this.map, this.player); //
         if (!this.player.loadState(saveState.playerData)) {
             System.err.println("Failed to load player state. Player state may be inconsistent.");
         }
@@ -856,8 +863,10 @@ public class Game {
 
         this.map = new Map(new Random().nextLong());
         this.player = new PlayerModel(map.getCharacterSpawnRow(), map.getCharacterSpawnCol());
+        this.placementManager = new PlacementManager(this, this.map, this.player); // <-- ADD THIS LINE
         this.player.getInventorySlots().forEach(InventorySlot::clearSlot);
         this.player.setSelectedHotbarSlotIndex(0);
+        this.placementManager = new PlacementManager(this, this.map, this.player); //
 
         this.currentWorldName = newWorldName;
         initializeGameWorldCommonLogic();
@@ -1083,16 +1092,23 @@ public class Game {
             System.out.println("Game: Full map regeneration processing complete. World is now unsaved.");
         }
 
-        public void requestTileRenderUpdate(int r, int c) {
-            if (renderer != null && CHUNK_SIZE_TILES > 0 && map != null) {
-                int chunkX = Math.floorDiv(c, CHUNK_SIZE_TILES);
-                int chunkY = Math.floorDiv(r, CHUNK_SIZE_TILES);
-                LightManager.ChunkCoordinate coord = new LightManager.ChunkCoordinate(chunkX, chunkY);
-                if (!chunkRenderUpdateQueue.contains(coord) && currentlyActiveLogicalChunks.contains(coord)) {
-                    chunkRenderUpdateQueue.offer(coord);
-                }
-            }
+    // In Game.java
+
+    public void requestTileRenderUpdate(int r, int c) {
+        if (renderer == null || lightManager == null || map == null || CHUNK_SIZE_TILES <= 0) {
+            return;
         }
+        // This is the direct, unified fix.
+        // Instead of using our own queue, we tell the LightManager the chunk is dirty.
+        // The main game loop already has logic to process the LightManager's dirty list.
+        // This ensures lighting and block updates are handled by the same system.
+        lightManager.markChunkDirty(r, c);
+
+        // We can add a debug message here to be 100% certain the call is happening.
+        System.out.println("GAME: Acknowledged tile change at (" + r + "," + c + "). Marked chunk as dirty in LightManager.");
+    }
+
+
         public boolean isShowHotbar() { return this.showHotbar; }
 
 
@@ -1129,6 +1145,11 @@ public class Game {
         setHotbarDirty(true); // Mark UI for redraw
     }
 
+
+
+    public PlacementManager getPlacementManager() {
+        return this.placementManager;
+    }
     /**
      * Called by MouseHandler when the mouse button is released.
      * @param dropSlotIndex The inventory slot index where the item was dropped, or -1 if outside.

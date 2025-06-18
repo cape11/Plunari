@@ -495,12 +495,10 @@ public class PlayerModel extends Entity {
         if (slotIndex < 0 || slotIndex >= inventorySlots.size()) return null;
         return inventorySlots.get(slotIndex).getItem();
     }
+    // In PlayerModel.java
+
     public Item getHeldItem() {
-        Item item = getItemInSlot(selectedHotbarSlotIndex);
-        if (item != null && item.type == Item.ItemType.TOOL) {
-            return item;
-        }
-        return null;
+        return getItemInSlot(selectedHotbarSlotIndex);
     }
 
     // --- RESTORED LEVITATE METHODS ---
