@@ -26,6 +26,11 @@ public class Map {
     private final long worldSeed;
     private final List<Entity> entities;
 
+
+
+    // --- ADD THE NEW HASHMAP BELOW ---
+    private final HashMap<LightManager.ChunkCoordinate, MapSaveData.ChunkDiskData> modifiedUnloadedChunks;
+
     public static final int MAX_ANIMALS = 25;
 
     public Map(long seed) {
@@ -35,7 +40,10 @@ public class Map {
         this.chunkModificationStatus = new HashMap<>();
         this.lightManager = new LightManager(this);
         this.entities = new ArrayList<>();
+        this.modifiedUnloadedChunks = new HashMap<>();
+
         findSuitableCharacterPositionInChunk(0, 0);
+
     }
 
     public List<Entity> getEntities() {
@@ -54,11 +62,29 @@ public class Map {
 
     public Tile[][] getOrGenerateChunkTiles(int chunkX, int chunkY) {
         LightManager.ChunkCoordinate coord = new LightManager.ChunkCoordinate(chunkX, chunkY);
+
+        // 1. Check if the chunk is already loaded in active memory.
         if (loadedChunkTiles.containsKey(coord)) {
             return loadedChunkTiles.get(coord);
         }
 
+        // 2. Check if there is a modified, unloaded version of this chunk in our storage.
+        if (modifiedUnloadedChunks.containsKey(coord)) {
+            System.out.println("Map: Reloading modified chunk " + coord + " from storage.");
+            MapSaveData.ChunkDiskData chunkData = modifiedUnloadedChunks.get(coord);
+            Tile[][] tiles = convertSaveFormatToChunkTiles(chunkData.tiles);
+
+            // Load the tiles back into active memory and remove from temporary storage.
+            loadedChunkTiles.put(coord, tiles);
+            chunkModificationStatus.put(coord, true); // It was modified, so keep the flag.
+            modifiedUnloadedChunks.remove(coord);
+            return tiles;
+        }
+
+        // 3. If no saved version exists, generate the chunk from scratch.
+        System.out.println("Map: Generating new chunk " + coord + " from seed.");
         Tile[][] chunkTiles = new Tile[CHUNK_SIZE_TILES][CHUNK_SIZE_TILES];
+        // ... (the rest of the generation logic remains the same)
         int globalStartX = chunkX * CHUNK_SIZE_TILES;
         int globalStartY = chunkY * CHUNK_SIZE_TILES;
 
@@ -70,8 +96,6 @@ public class Map {
 
                 Tile.TileType type = determineTileTypeFromElevation(elevation);
                 chunkTiles[y][x] = new Tile(type, elevation);
-
-                // --- ANIMAL SPAWNING LOGIC HAS BEEN REMOVED FROM THIS METHOD ---
 
                 if (type == Tile.TileType.GRASS && elevation >= NIVEL_ARENA && elevation < NIVEL_ROCA) {
                     if (random.nextFloat() < 0.08) {
@@ -91,7 +115,6 @@ public class Map {
         chunkModificationStatus.put(coord, false);
         return chunkTiles;
     }
-
     /**
      * Retrieves a tile from global map coordinates.
      * Handles loading or generating the chunk if it's not already in memory.
@@ -149,13 +172,16 @@ public class Map {
     public void unloadChunkData(int chunkX, int chunkY) {
         LightManager.ChunkCoordinate coord = new LightManager.ChunkCoordinate(chunkX, chunkY);
         if (loadedChunkTiles.containsKey(coord)) {
+            // If the chunk was modified, save its state before removing it from memory.
             if (chunkModificationStatus.getOrDefault(coord, false)) {
-                System.out.println("Map: Chunk " + coord + " was modified and is being unloaded. (Disk saving not yet implemented in this method).");
-                // TODO: Phase 2 - Call saveChunkToDisk(coord, loadedChunkTiles.get(coord));
+                System.out.println("Map: Storing modified chunk " + coord + " before unloading.");
+                Tile[][] tilesToSave = loadedChunkTiles.get(coord);
+                MapSaveData.ChunkDiskData chunkData = new MapSaveData.ChunkDiskData(chunkX, chunkY);
+                chunkData.tiles = convertChunkTilesToSaveFormat(tilesToSave);
+                modifiedUnloadedChunks.put(coord, chunkData);
             }
             loadedChunkTiles.remove(coord);
             chunkModificationStatus.remove(coord);
-            // System.out.println("Unloaded tile data for chunk: (" + chunkX + ", " + chunkY + ")");
         }
     }
 
@@ -286,25 +312,23 @@ public class Map {
         saveData.playerSpawnC = this.characterSpawnCol;
         saveData.explicitlySavedChunks = new ArrayList<>();
 
-        // In a full system, you'd iterate through `chunkModificationStatus`
-        // and for each modified chunk, serialize its `loadedChunkTiles.get(coord)`
-        // into a format suitable for `saveData` or individual files.
-        // For now, let's imagine it saves a few loaded & modified chunks.
-        saveData.explicitlySavedChunks = new ArrayList<>();
-        int numSaved = 0;
+        // 1. Add all modified chunks that are currently loaded.
         for (java.util.Map.Entry<LightManager.ChunkCoordinate, Boolean> entry : chunkModificationStatus.entrySet()) {
-            if (entry.getValue() && loadedChunkTiles.containsKey(entry.getKey())) { // If modified and loaded
+            if (entry.getValue() && loadedChunkTiles.containsKey(entry.getKey())) {
                 MapSaveData.ChunkDiskData cdd = new MapSaveData.ChunkDiskData(entry.getKey().chunkX, entry.getKey().chunkY);
                 cdd.tiles = convertChunkTilesToSaveFormat(loadedChunkTiles.get(entry.getKey()));
                 saveData.explicitlySavedChunks.add(cdd);
-                numSaved++;
-                if (numSaved > 50) break; // Limit for this placeholder
             }
         }
-        System.out.println("Map.populateSaveData: Would save " + saveData.explicitlySavedChunks.size() + " modified/loaded chunks (placeholder).");
+
+        // 2. Add all modified chunks that have been unloaded.
+        saveData.explicitlySavedChunks.addAll(modifiedUnloadedChunks.values());
+
+        System.out.println("Map.populateSaveData: Saved " + saveData.explicitlySavedChunks.size() + " total modified chunks.");
+
+        // ... (rest of the method for saving entities)
         saveData.entities.clear();
         for (Entity entity : this.entities) {
-            // This now skips the Player AND any subclasses of Projectile
             if (!(entity instanceof PlayerModel) && !(entity instanceof Projectile)) {
                 EntitySaveData entityData = new EntitySaveData();
                 entity.populateSaveData(entityData);
@@ -312,17 +336,6 @@ public class Map {
             }
         }
         System.out.println("Map.populateSaveData: Saved " + saveData.entities.size() + " non-player entities.");
-
-        for (Entity entity : this.entities) {
-            if (!(entity instanceof PlayerModel)) { // Don't save the player here
-                EntitySaveData entityData = new EntitySaveData();
-                entity.populateSaveData(entityData);
-                saveData.entities.add(entityData);
-            }
-        }
-        System.out.println("Map.populateSaveData: Saved " + saveData.entities.size() + " non-player entities.");
-
-
     }
 
 
