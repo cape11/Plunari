@@ -1,0 +1,7 @@
+{
+  "id": "loose_rock",
+  "displayName": "Loose Rock",
+  "description": "A small rock, easily picked up.",
+  "type": "RESOURCE",
+  "texture": { "atlas": "treeTexture", "x": 95, "y": 1526, "w": 69, "h": 69 }
+}

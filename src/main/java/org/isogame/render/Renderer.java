@@ -1,79 +1,222 @@
+// File: Renderer.java
+
 package org.isogame.render;
 
 import org.isogame.camera.CameraManager;
-import org.isogame.entitiy.PlayerModel; // Ensure correct package
+import org.isogame.constants.Constants;
+import org.isogame.entity.*;
+// import org.isogame.game.Game; // Removed to reduce coupling
+import org.isogame.game.Game;
 import org.isogame.input.InputHandler;
+import org.isogame.inventory.InventorySlot;
+import org.isogame.item.Item;
+import org.isogame.map.LightManager;
 import org.isogame.map.Map;
 import org.isogame.tile.Tile;
+import org.isogame.ui.MenuItemButton;
+import org.joml.Matrix4f;
+import org.joml.Vector4f;
+import org.lwjgl.glfw.GLFW;
+import org.lwjgl.system.MemoryUtil;
+import static org.lwjgl.glfw.GLFW.*; // <<< ADD THIS LINE
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Random;
+import java.nio.FloatBuffer;
+import java.util.*;
 
 import static org.isogame.constants.Constants.*;
 import static org.lwjgl.opengl.GL11.*;
+import static org.lwjgl.opengl.GL13.GL_TEXTURE0;
+import static org.lwjgl.opengl.GL15.*;
+import static org.lwjgl.opengl.GL20.glEnableVertexAttribArray;
+import static org.lwjgl.opengl.GL20.glVertexAttribPointer;
+import static org.lwjgl.opengl.GL30.*;
 
 public class Renderer {
     private final CameraManager camera;
-    private final Map map;
-    private final PlayerModel player;
-    private final InputHandler inputHandler;
-    private int frameCount = 0;
+    // These will be updated via setGameContext
+    private Map map;
+    private PlayerModel player;
+    private InputHandler inputHandler; // Store InputHandler reference
+
     private Texture playerTexture;
     private Texture treeTexture;
     private Font uiFont;
+    private Font titleFont;
     private Random tileDetailRandom;
+    private java.util.Map<LightManager.ChunkCoordinate, Chunk> activeMapChunks;
 
-    // Helper class/record for items that need sorting
-    private static class SortableItem {
-        float screenYSortKey;
-        int zOrder; // 0 for trees, 1 for player
-        Object entity; // Can be PlayerModel or TreeData
+    private Shader defaultShader;
+    private Matrix4f projectionMatrix;
+    private int spriteVaoId, spriteVboId;
+    private FloatBuffer spriteVertexBuffer;
 
-        // Constructor for Player
-        public SortableItem(PlayerModel player, CameraManager camera, Map gameMap) {
-            this.entity = player;
-            this.zOrder = 1; // Player
+    private int hotbarVaoId, hotbarVboId;
+    private FloatBuffer hotbarVertexDataBuffer;
+    private int hotbarVertexCount = 0;
+    private boolean hotbarDirty = true;
 
-            Tile currentTile = gameMap.getTile(player.getTileRow(), player.getTileCol());
-            int playerBaseElevation = (currentTile != null) ? currentTile.getElevation() : 0;
-            int[] screenCoords = camera.mapToScreenCoords(player.getMapCol(), player.getMapRow(), playerBaseElevation);
-            this.screenYSortKey = screenCoords[1];
-        }
+    private int uiColoredVaoId, uiColoredVboId;
+    private FloatBuffer uiColoredVertexBuffer;
+    private static final int MAX_UI_COLORED_QUADS = 512;
 
-        // Constructor for Tree (using TreeData)
-        public SortableItem(TreeData tree, CameraManager camera, Map gameMap) {
-            this.entity = tree;
-            this.zOrder = 0; // Tree
+    private Texture tileAtlasTexture;
+    private Texture mainMenuBackgroundTexture;
 
-            int[] screenCoords = camera.mapToScreenCoords(tree.mapCol, tree.mapRow, tree.elevation);
-            this.screenYSortKey = screenCoords[1];
+    public static final int FLOATS_PER_VERTEX_TERRAIN_TEXTURED = 10;
+    public static final int FLOATS_PER_VERTEX_SPRITE_TEXTURED = 10;
+    public static final int FLOATS_PER_VERTEX_UI_COLORED = 7;
+    public static final int FLOATS_PER_VERTEX_SHADOW = 7; // NEW: x,y,z, r,g,b,a
+
+    public static final float ATLAS_TOTAL_WIDTH = 256.0f;  // CORRECTED
+    public static final float ATLAS_TOTAL_HEIGHT = 256.0f; // CORRECTED
+
+    public static final float SUB_TEX_WIDTH = 64.0f, SUB_TEX_HEIGHT = 64.0f;
+    // Column 0
+    public static final float GRASS_ATLAS_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, GRASS_ATLAS_V0 = (0*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float GRASS_ATLAS_U1 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, GRASS_ATLAS_V1 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+
+    public static final float ROCK_ATLAS_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, ROCK_ATLAS_V0 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float ROCK_ATLAS_U1 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, ROCK_ATLAS_V1 = (2*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+
+    public static final float STONE_WALL_SMOOTH_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, STONE_WALL_SMOOTH_V0 = (2*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float STONE_WALL_SMOOTH_U1 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, STONE_WALL_SMOOTH_V1 = (3*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+
+    public static final float STONE_WALL_ROUGH_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, STONE_WALL_ROUGH_V0 = (3*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float STONE_WALL_ROUGH_U1 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, STONE_WALL_ROUGH_V1 = (4*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+
+    // Column 1
+    public static final float DIRT_ATLAS_U0 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, DIRT_ATLAS_V0 = (0*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float DIRT_ATLAS_U1 = (2*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, DIRT_ATLAS_V1 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+
+    public static final float SAND_ATLAS_U0 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, SAND_ATLAS_V0 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float SAND_ATLAS_U1 = (2*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, SAND_ATLAS_V1 = (2*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+
+    public static final float WOOD_PLANK_U0 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, WOOD_PLANK_V0 = (2*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float WOOD_PLANK_U1 = (2*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, WOOD_PLANK_V1 = (3*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+
+    public static final float SNOW_ATLAS_U0 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, SNOW_ATLAS_V0 = (3*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float SNOW_ATLAS_U1 = (2*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, SNOW_ATLAS_V1 = (4*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+
+    // Column 2
+    public static final float RED_BRICK_U0 = (2*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, RED_BRICK_V0 = (0*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+    public static final float RED_BRICK_U1 = (3*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, RED_BRICK_V1 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
+
+    // Default side texture (can be any you prefer, e.g., DIRT)
+    public static final float DEFAULT_SIDE_U0 = DIRT_ATLAS_U0, DEFAULT_SIDE_V0 = DIRT_ATLAS_V0;
+    public static final float DEFAULT_SIDE_U1 = DIRT_ATLAS_U1, DEFAULT_SIDE_V1 = DIRT_ATLAS_V1;
+
+    public static final float SNOW_SIDE_ATLAS_U0 = ROCK_ATLAS_U0, SNOW_SIDE_ATLAS_V0 = ROCK_ATLAS_V0;
+    public static final float SNOW_SIDE_ATLAS_U1 = ROCK_ATLAS_U1, SNOW_SIDE_ATLAS_V1 = ROCK_ATLAS_V1;
+
+    // --- UPDATE THESE UVs FOR THE LOOSE ROCK if GIMP selection is correct ---
+    public static final float LOOSE_ROCK_SPRITE_X_PIX = 25.0f;    // New X from GIMP
+    public static final float LOOSE_ROCK_SPRITE_Y_PIX = 1550.0f;  // New Y from GIMP
+    public static final float LOOSE_ROCK_SPRITE_W_PIX = 50.0f;    // Assuming still 32px wide
+    public static final float LOOSE_ROCK_SPRITE_H_PIX = 50.0f;    // Assuming still 32px high
+
+    // UVs for Rock Type 2
+    public static final float LOOSE_ROCK_2_X_PIX = 75.0f;
+    public static final float LOOSE_ROCK_2_Y_PIX = 1550.0f;
+    // UVs for Rock Type 3
+    public static final float LOOSE_ROCK_3_X_PIX = 125.0f;
+    public static final float LOOSE_ROCK_3_Y_PIX = 1550.0f;
+    // UVs for Rock Type 4
+    public static final float LOOSE_ROCK_4_X_PIX = 175.0f;
+    public static final float LOOSE_ROCK_4_Y_PIX = 1550.0f;
+    // UVs for Rock Type 5
+    public static final float LOOSE_ROCK_5_X_PIX = 225.0f;
+    public static final float LOOSE_ROCK_5_Y_PIX = 1550.0f;
+    // UVs for Rock Type 6
+    public static final float LOOSE_ROCK_6_X_PIX = 275.0f;
+    public static final float LOOSE_ROCK_6_Y_PIX = 1550.0f;
+
+
+    // --- NEW: Shadow Rendering Resources ---
+    private int shadowVaoId, shadowVboId;
+    private FloatBuffer shadowVertexBuffer;
+    private static final int MAX_SHADOW_QUADS = 1024; // Max shadows per frame
+    private static final float[] SHADOW_COLOR = {0.0f, 0.0f, 0.0f, 0.4f}; // RGBA for shadows
+    private static final float Z_OFFSET_SHADOW = 0.001f; // Just above the tile surface
+
+
+
+    private static final float SIDE_TEXTURE_DENSITY_FACTOR = 1.0f;
+    private static final float DUMMY_U = 0.0f, DUMMY_V = 0.0f;
+    private static final float[] SELECTED_TINT = {1.0f, 0.8f, 0.0f, 0.8f};
+    private static final float[] DIRT_TOP_COLOR = {0.6f, 0.4f, 0.2f, 1.0f};
+    private static final float[] WATER_TOP_COLOR = {0.05f, 0.25f, 0.5f, 0.85f};
+    private static final float[] SAND_TOP_COLOR = {0.82f,0.7f,0.55f,1f};
+    private static final float[] GRASS_TOP_COLOR = {0.20f,0.45f,0.10f,1f};
+    private static final float[] ROCK_TOP_COLOR = {0.45f,0.45f,0.45f,1f};
+    private static final float[] SNOW_TOP_COLOR = {0.95f,0.95f,1.0f,1f};
+    private static final float[] DEFAULT_TOP_COLOR = {1f,0f,1f,1f};
+    private static final float[] WHITE_TINT = {1.0f, 1.0f, 1.0f, 1.0f};
+
+
+
+
+    private static final float Z_OFFSET_SPRITE_PLAYER = 0.1f;
+    private static final float Z_OFFSET_SPRITE_ANIMAL = 0.09f;
+    private static final float Z_OFFSET_SPRITE_TREE = 0.05f;
+    private static final float Z_OFFSET_TILE_TOP_SURFACE = 0.0f;
+    private static final float Z_OFFSET_TILE_SIDES = 0.01f;
+    private static final float Z_OFFSET_TILE_PEDESTAL = 0.02f;
+    private static final float Z_OFFSET_UI_BACKGROUND = 0.05f;
+    private static final float Z_OFFSET_UI_PANEL = 0.04f;
+    private static final float Z_OFFSET_UI_BORDER = 0.03f;
+    private static final float Z_OFFSET_UI_ELEMENT = 0.02f;
+
+    private final float tileHalfWidth = TILE_WIDTH / 2.0f;
+    private final float tileHalfHeight = TILE_HEIGHT / 2.0f;
+    private final float diamondTopOffsetY = -this.tileHalfHeight;
+    private final float diamondLeftOffsetX = -this.tileHalfWidth;
+    private final float diamondSideOffsetY = 0;
+    private final float diamondRightOffsetX = this.tileHalfWidth;
+    private final float diamondBottomOffsetY = this.tileHalfHeight;
+
+
+
+
+    public static final float STONE_BRICK_SIDE_U0 = RED_BRICK_U0;
+    public static final float STONE_BRICK_SIDE_V0 = RED_BRICK_V0;
+    public static final float STONE_BRICK_SIDE_U1 = RED_BRICK_U1;
+    public static final float STONE_BRICK_SIDE_V1 = RED_BRICK_V1;
+
+
+    // Actual coordinates from crude_axe.json
+    public static final float CRUDE_AXE_SPRITE_X_PIX = 35.0f;
+    public static final float CRUDE_AXE_SPRITE_Y_PIX = 1665.0f;
+    public static final float CRUDE_AXE_SPRITE_W_PIX = 49.0f;
+    public static final float CRUDE_AXE_SPRITE_H_PIX = 56.0f;
+
+    // Render size for the held crude axe (adjusted to maintain correct aspect ratio)
+    public static final float CRUDE_AXE_RENDER_WIDTH = 17.5f;
+    public static final float CRUDE_AXE_RENDER_HEIGHT = 20.0f;
+
+
+    public static class TreeData {
+        public Tile.TreeVisualType treeVisualType;
+        public float mapCol, mapRow;
+        public int elevation;
+        public TreeData(Tile.TreeVisualType type, float tc, float tr, int te) {
+            this.treeVisualType = type; this.mapCol = tc; this.mapRow = tr; this.elevation = te;
         }
     }
 
-    // Lightweight class to hold tree data for sorting and rendering
-    private static class TreeData {
-        Tile.TreeVisualType treeVisualType;
-        float mapCol, mapRow;
-        int elevation;
-        float topDiamondCenterX, topDiamondCenterY_tileTip, topDiamondIsoHeight_tileFace;
+    // --- ADD THIS NEW INNER CLASS ---
+    public static class LooseRockData {
+        public Tile.LooseRockType rockVisualType; // In case you add more rock types later
+        public float mapCol, mapRow;
+        public int elevation;
 
-        public TreeData(Tile.TreeVisualType type, float tileCol, float tileRow, int tileElev,
-                        float topDiamondCenterX, float topDiamondCenterY_tileTip, float topDiamondIsoHeight_tileFace) {
-            this.treeVisualType = type;
-            this.mapCol = tileCol;
-            this.mapRow = tileRow;
-            this.elevation = tileElev;
-            this.topDiamondCenterX = topDiamondCenterX;
-            this.topDiamondCenterY_tileTip = topDiamondCenterY_tileTip;
-            this.topDiamondIsoHeight_tileFace = topDiamondIsoHeight_tileFace;
+        public LooseRockData(Tile.LooseRockType type, float tc, float tr, int te) {
+            this.rockVisualType = type;
+            this.mapCol = tc;
+            this.mapRow = tr;
+            this.elevation = te;
         }
     }
-
-    private List<SortableItem> sortableItems = new ArrayList<>();
+    private List<Object> worldEntities = new ArrayList<>();
 
     public Renderer(CameraManager camera, Map map, PlayerModel player, InputHandler inputHandler) {
         this.camera = camera;
@@ -81,392 +224,2513 @@ public class Renderer {
         this.player = player;
         this.inputHandler = inputHandler;
         this.tileDetailRandom = new Random();
+        this.projectionMatrix = new Matrix4f();
+        this.activeMapChunks = new HashMap<>();
         loadAssets();
+        initShaders();
+        initRenderObjects();
+        initUiColoredResources();
+        initHotbarGLResources();
+        initShadowResources();
+        System.out.println("Renderer: Initialized. Map: " + (this.map != null) + ", Player: " + (this.player != null));
     }
+
+    /**
+     * Sets the game-specific context for the renderer.
+     * Called when a game is loaded or a new game starts.
+     */
+    public void setGameSpecificReferences(Map map, PlayerModel player, InputHandler inputHandler) {
+        System.out.println("Renderer: Setting game context. Current map: " + (this.map != null) + " -> New map: " + (map != null));
+        this.map = map;
+        this.player = player;
+        this.inputHandler = inputHandler;
+
+        if (this.activeMapChunks != null) {
+            for (Chunk chunk : this.activeMapChunks.values()) {
+                chunk.cleanup();
+            }
+            this.activeMapChunks.clear();
+        }
+        if (this.worldEntities != null) {
+            this.worldEntities.clear();
+        }
+        System.out.println("Renderer: Game context set. Active chunks and entities cleared.");
+    }
+
+    public void clearGameContext() {
+        System.out.println("Renderer: Clearing game context.");
+        if (this.activeMapChunks != null && !this.activeMapChunks.isEmpty()) {
+            System.out.println("Renderer.clearGameContext: Unloading " + this.activeMapChunks.size() + " active chunk graphics.");
+            List<LightManager.ChunkCoordinate> coordsToUnload = new ArrayList<>(this.activeMapChunks.keySet());
+            for (LightManager.ChunkCoordinate coord : coordsToUnload) {
+                Chunk chunk = this.activeMapChunks.remove(coord);
+                if (chunk != null) {
+                    chunk.cleanup();
+                }
+            }
+        }
+        if (this.worldEntities != null) {
+            this.worldEntities.clear();
+        }
+        this.map = null;
+        this.player = null;
+        // this.inputHandler = null; // Keep inputHandler if it's managed globally by Game
+        System.out.println("Renderer: Game context cleared.");
+    }
+
+
+    private void initUiColoredResources() {
+        uiColoredVaoId = glGenVertexArrays();
+        glBindVertexArray(uiColoredVaoId);
+        uiColoredVboId = glGenBuffers();
+        glBindBuffer(GL_ARRAY_BUFFER, uiColoredVboId);
+
+        int uiBufferCapacityFloats = MAX_UI_COLORED_QUADS * 6 * FLOATS_PER_VERTEX_UI_COLORED;
+        if (uiColoredVertexBuffer != null) {
+            MemoryUtil.memFree(uiColoredVertexBuffer);
+        }
+        uiColoredVertexBuffer = MemoryUtil.memAllocFloat(uiBufferCapacityFloats);
+        if (uiColoredVertexBuffer == null) {
+            System.err.println("Renderer CRITICAL: Failed to allocate uiColoredVertexBuffer!");
+            return;
+        }
+        glBufferData(GL_ARRAY_BUFFER, (long)uiColoredVertexBuffer.capacity() * Float.BYTES, GL_DYNAMIC_DRAW);
+
+        int stride = FLOATS_PER_VERTEX_UI_COLORED * Float.BYTES;
+        glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, 0L);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 4, GL_FLOAT, false, stride, 3 * Float.BYTES);
+        glEnableVertexAttribArray(1);
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        System.out.println("[Renderer DEBUG] UI Colored Resources Initialized. VAO: " + uiColoredVaoId + ", VBO: " + uiColoredVboId);
+    }
+
+    public java.util.Map<String, Texture> getTextureMap() {
+        java.util.Map<String, Texture> textureMap = new HashMap<>();
+        if (playerTexture != null) textureMap.put("playerTexture", playerTexture);
+        if (treeTexture != null) textureMap.put("treeTexture", treeTexture);
+        if (tileAtlasTexture != null) textureMap.put("tileAtlasTexture", tileAtlasTexture);;
+        // Add other atlases here as they are created
+        return textureMap;
+    }
+
+
 
     private void loadAssets() {
-        // Ensure these paths are correct relative to your working directory or classpath
-        this.playerTexture = Texture.loadTexture("textures/lpc_character.png");
-        if (this.playerTexture == null) System.err.println("CRITICAL: Player texture failed to load.");
-        this.treeTexture = Texture.loadTexture("textures/fruit-trees.png");
-        if (this.treeTexture == null) System.err.println("CRITICAL: Tree texture failed to load.");
+        System.out.println("Renderer: Loading assets...");
         try {
-            this.uiFont = new Font("fonts/PressStart2P-Regular.ttf", 16f);
-        } catch (IOException e) {
-            System.err.println("CRITICAL: Failed to load UI font. " + e.getMessage());
-            this.uiFont = null;
+            tileAtlasTexture = Texture.loadTexture("/org/isogame/render/textures/textu.png");
+            mainMenuBackgroundTexture = Texture.loadTexture("/org/isogame/render/textures/main_menu_background.png");
+            uiFont = new Font("/org/isogame/render/fonts/PressStart2P-Regular.ttf", 16f, this);
+            titleFont = new Font("/org/isogame/render/fonts/PressStart2P-Regular.ttf", 32f, this);
+            playerTexture = Texture.loadTexture("/org/isogame/render/textures/lpc_character.png");
+            treeTexture = Texture.loadTexture("/org/isogame/render/textures/fruit-trees.png");
+            System.out.println("Renderer: Assets loaded.");
+
+        } catch (Exception e) {
+            System.err.println("Renderer CRITICAL: Error loading assets: " + e.getMessage());
+            e.printStackTrace();
+            if (tileAtlasTexture == null) System.err.println("Failed to load: tileAtlasTexture");
+            if (mainMenuBackgroundTexture == null) System.err.println("Failed to load: mainMenuBackgroundTexture");
+            if (uiFont == null) System.err.println("Failed to load: uiFont");
+            if (titleFont == null) System.err.println("Failed to load: titleFont");
+            if (playerTexture == null) System.err.println("Failed to load: playerTexture");
+            if (treeTexture == null) System.err.println("Failed to load: treeTexture");
+        }
+    }
+    // --- NEW METHOD ---
+    private void initShadowResources() {
+        shadowVaoId = glGenVertexArrays();
+        glBindVertexArray(shadowVaoId);
+        shadowVboId = glGenBuffers();
+        glBindBuffer(GL_ARRAY_BUFFER, shadowVboId);
+
+        int shadowBufferCapacityFloats = MAX_SHADOW_QUADS * 6 * FLOATS_PER_VERTEX_SHADOW;
+        if (shadowVertexBuffer != null) {
+            MemoryUtil.memFree(shadowVertexBuffer);
+        }
+        shadowVertexBuffer = MemoryUtil.memAllocFloat(shadowBufferCapacityFloats);
+        if (shadowVertexBuffer == null) {
+            System.err.println("Renderer CRITICAL: Failed to allocate shadowVertexBuffer!");
+            return;
+        }
+        glBufferData(GL_ARRAY_BUFFER, (long)shadowVertexBuffer.capacity() * Float.BYTES, GL_DYNAMIC_DRAW);
+
+        // This vertex format is the same as the UI colored quads (pos + color)
+        int stride = FLOATS_PER_VERTEX_SHADOW * Float.BYTES;
+        glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, 0L); // aPos
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 4, GL_FLOAT, false, stride, 3 * Float.BYTES); // aColor
+        glEnableVertexAttribArray(1);
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        System.out.println("[Renderer DEBUG] Shadow Resources Initialized. VAO: " + shadowVaoId + ", VBO: " + shadowVboId);
+    }
+
+
+    private void initShaders() {
+        try {
+            defaultShader = new Shader();
+            defaultShader.createVertexShader(Shader.loadResource("/org/isogame/render/shaders/vertex.glsl"));
+            defaultShader.createFragmentShader(Shader.loadResource("/org/isogame/render/shaders/fragment.glsl"));
+            defaultShader.link();
+            defaultShader.createUniform("uProjectionMatrix");
+            defaultShader.createUniform("uModelViewMatrix");
+            defaultShader.createUniform("uTextureSampler");
+            defaultShader.createUniform("uHasTexture");
+            defaultShader.createUniform("uIsFont");
+            defaultShader.createUniform("uIsSimpleUiElement");
+            defaultShader.createUniform("u_time");
+            defaultShader.createUniform("u_isSelectedIcon");
+            defaultShader.createUniform("uIsShadow"); // NEW
+        } catch (Exception e) {
+            System.err.println("Renderer CRITICAL: Error initializing shaders: " + e.getMessage());
+            throw new RuntimeException("Failed to init shaders", e);
         }
     }
 
-    public void onResize(int fbWidth, int fbHeight) {
-        if (fbWidth <= 0 || fbHeight <= 0) return;
-        glViewport(0, 0, fbWidth, fbHeight);
-        glMatrixMode(GL_PROJECTION);
-        glLoadIdentity();
-        glOrtho(0, fbWidth, fbHeight, 0, -1, 1);
-        glMatrixMode(GL_MODELVIEW);
-        glLoadIdentity();
+    private void initRenderObjects() {
+        spriteVaoId = glGenVertexArrays();
+        glBindVertexArray(spriteVaoId);
+        spriteVboId = glGenBuffers();
+        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+        int initialSpriteBufferCapacityFloats = 2048 * 6 * FLOATS_PER_VERTEX_SPRITE_TEXTURED;
+        spriteVertexBuffer = MemoryUtil.memAllocFloat(initialSpriteBufferCapacityFloats);
+        glBufferData(GL_ARRAY_BUFFER, (long) spriteVertexBuffer.capacity() * Float.BYTES, GL_DYNAMIC_DRAW);
+
+        int spriteStride = FLOATS_PER_VERTEX_SPRITE_TEXTURED * Float.BYTES;
+        glVertexAttribPointer(0, 3, GL_FLOAT, false, spriteStride, 0L);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 4, GL_FLOAT, false, spriteStride, 3 * Float.BYTES);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(2, 2, GL_FLOAT, false, spriteStride, (3 + 4) * Float.BYTES);
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(3, 1, GL_FLOAT, false, spriteStride, (3+4+2) * Float.BYTES);
+        glEnableVertexAttribArray(3);
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
     }
 
-    public void render() {
-        frameCount++;
-        glMatrixMode(GL_MODELVIEW);
-        glLoadIdentity();
 
-        sortableItems.clear();
-        collectSortableItems();
+    private void initHotbarGLResources() {
+        hotbarVaoId = glGenVertexArrays();
+        glBindVertexArray(hotbarVaoId);
+        hotbarVboId = glGenBuffers();
+        glBindBuffer(GL_ARRAY_BUFFER, hotbarVboId);
 
-        Collections.sort(sortableItems, new Comparator<SortableItem>() {
-            @Override
-            public int compare(SortableItem item1, SortableItem item2) {
-                if (item1.screenYSortKey != item2.screenYSortKey) {
-                    return Float.compare(item1.screenYSortKey, item2.screenYSortKey);
+        int maxHotbarVertices = HOTBAR_SIZE * 3 * 6;
+        int hotbarBufferCapacityFloats = maxHotbarVertices * FLOATS_PER_VERTEX_UI_COLORED;
+
+        if (hotbarVertexDataBuffer != null) {
+            MemoryUtil.memFree(hotbarVertexDataBuffer);
+        }
+        hotbarVertexDataBuffer = MemoryUtil.memAllocFloat(hotbarBufferCapacityFloats);
+        glBufferData(GL_ARRAY_BUFFER, (long)hotbarBufferCapacityFloats * Float.BYTES, GL_DYNAMIC_DRAW);
+
+        int stride = FLOATS_PER_VERTEX_UI_COLORED * Float.BYTES;
+        glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, 0L);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 4, GL_FLOAT, false, stride, 3 * Float.BYTES);
+        glEnableVertexAttribArray(1);
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        hotbarDirty = true;
+    }
+
+    public void setHotbarDirty(boolean dirty) {
+        this.hotbarDirty = dirty;
+    }
+
+    public void ensureChunkGraphicsLoaded(int chunkGridX, int chunkGridY) {
+        if (map == null || camera == null) {
+            System.err.println("Renderer.ensureChunkGraphicsLoaded: Map or Camera is null. Cannot load chunk graphics for (" + chunkGridX + "," + chunkGridY + ")");
+            return;
+        }
+        LightManager.ChunkCoordinate coord = new LightManager.ChunkCoordinate(chunkGridX, chunkGridY);
+        Chunk chunk = activeMapChunks.get(coord);
+        if (chunk == null) {
+            chunk = new Chunk(chunkGridX, chunkGridY, CHUNK_SIZE_TILES);
+            chunk.setupGLResources();
+            activeMapChunks.put(coord, chunk);
+        }
+        chunk.uploadGeometry(this.map, this.inputHandler, this, camera);
+    }
+
+    public boolean isChunkGraphicsLoaded(int chunkGridX, int chunkGridY) {
+        return activeMapChunks.containsKey(new LightManager.ChunkCoordinate(chunkGridX, chunkGridY));
+    }
+
+    public void unloadChunkGraphics(int chunkGridX, int chunkGridY) {
+        LightManager.ChunkCoordinate coord = new LightManager.ChunkCoordinate(chunkGridX, chunkGridY);
+        Chunk chunk = activeMapChunks.remove(coord);
+        if (chunk != null) {
+            chunk.cleanup();
+        }
+    }
+
+    public void updateChunkByGridCoords(int chunkGridX, int chunkGridY) {
+        if (map == null || camera == null) {
+            System.err.println("Renderer.updateChunkByGridCoords: Map or Camera is null. Cannot update chunk (" + chunkGridX + "," + chunkGridY + ")");
+            return;
+        }
+        LightManager.ChunkCoordinate coord = new LightManager.ChunkCoordinate(chunkGridX, chunkGridY);
+        Chunk chunk = activeMapChunks.get(coord);
+        if (chunk != null) {
+            chunk.uploadGeometry(this.map, this.inputHandler, this, camera);
+        } else {
+            ensureChunkGraphicsLoaded(chunkGridX, chunkGridY);
+        }
+    }
+
+    @Deprecated
+    public void uploadTileMapGeometry() {
+        System.out.println("Renderer: Full tile map geometry upload requested (all active chunks).");
+        if (map == null) {
+            System.err.println("Renderer.uploadTileMapGeometry: Map is null. Cannot upload.");
+            return;
+        }
+        for (Chunk chunk : activeMapChunks.values()) {
+            chunk.uploadGeometry(map, inputHandler, this, camera);
+        }
+    }
+
+
+
+
+    public void onResize(int fbW, int fbH) {
+        if (fbW <= 0 || fbH <= 0) return;
+        glViewport(0, 0, fbW, fbH);
+        projectionMatrix.identity().ortho(0, fbW, fbH, 0, -2000.0f, 2000.0f);
+
+        if (camera != null) {
+            camera.setProjectionMatrixForCulling(projectionMatrix);
+            camera.forceUpdateViewMatrix();
+        }
+
+        // Add this line to force the hotbar's vertex buffer to be rebuilt.
+        this.hotbarDirty = true;
+
+        // You should do this for any other UI elements that cache their geometry, too.
+        // For example: this.inventoryDirty = true;
+    }
+
+    private float[] determineTopSurfaceColor(Tile.TileType surfaceType, boolean isSelected) {
+        if (isSelected) {
+            float pulseFactor = (float) (Math.sin(GLFW.glfwGetTime() * 6.0) + 1.0) / 2.0f;
+            float baseAlpha = SELECTED_TINT[3];
+            float minPulseAlpha = baseAlpha * 0.5f;
+            float animatedAlpha = minPulseAlpha + (baseAlpha - minPulseAlpha) * pulseFactor;
+            return new float[]{SELECTED_TINT[0], SELECTED_TINT[1], SELECTED_TINT[2], animatedAlpha};
+        }
+        switch (surfaceType) {
+            case WATER: return WATER_TOP_COLOR;
+            case SAND:  return SAND_TOP_COLOR;
+            case GRASS: return GRASS_TOP_COLOR;
+            case ROCK:  return ROCK_TOP_COLOR;
+            case DIRT:  return DIRT_TOP_COLOR;
+            case SNOW:  return SNOW_TOP_COLOR;
+            case AIR:   return DEFAULT_TOP_COLOR;
+            default:    return DEFAULT_TOP_COLOR;
+        }
+    }
+
+    private void addVertexToBuffer(FloatBuffer vertexBuffer, float x, float y, float z, float[] color, float u, float v, float light) {
+        vertexBuffer.put(x).put(y).put(z);
+        vertexBuffer.put(color[0]).put(color[1]).put(color[2]).put(color[3]);
+        vertexBuffer.put(u).put(v);
+        vertexBuffer.put(light);
+    }
+
+    public int addSingleTileVerticesToList_WorldSpace_ForChunk(
+            int tileR_map, int tileC_map, Tile tile, boolean isSelected,
+            FloatBuffer vertexBuffer,
+            float[] chunkVisualBounds) {
+
+        if (tile.getType() == Tile.TileType.AIR) {
+            return 0;
+        }
+
+        int currentTileElevation = tile.getElevation();
+        Tile.TileType currentTileTopSurfaceType = tile.getType();
+
+        final float tileGridPlaneCenterX = (tileC_map - tileR_map) * this.tileHalfWidth;
+        final float tileGridPlaneCenterY = (tileC_map + tileR_map) * this.tileHalfHeight;
+
+        final float tileBaseZ = (tileR_map + tileC_map) * DEPTH_SORT_FACTOR + (currentTileElevation * 0.005f);
+        final float tileTopSurfaceZ = tileBaseZ + Z_OFFSET_TILE_TOP_SURFACE;
+
+        float[] topSurfaceColor = determineTopSurfaceColor(currentTileTopSurfaceType, isSelected);
+        float[] sideTintToUse = isSelected ? topSurfaceColor : WHITE_TINT;
+
+        int verticesAddedCount = 0;
+        float normalizedLightValue = tile.getFinalLightLevel() / (float) MAX_LIGHT_LEVEL;
+        normalizedLightValue = Math.max(0.05f, normalizedLightValue);
+
+        if (currentTileTopSurfaceType != Tile.TileType.WATER) {
+            verticesAddedCount += addPedestalSidesToList(
+                    vertexBuffer, tileGridPlaneCenterX, tileGridPlaneCenterY, tileBaseZ + Z_OFFSET_TILE_PEDESTAL,
+                    sideTintToUse, normalizedLightValue);
+        }
+
+        float currentTileTopSurfaceActualY = tileGridPlaneCenterY - (currentTileElevation * TILE_THICKNESS);
+        if (currentTileTopSurfaceType == Tile.TileType.WATER) {
+            currentTileTopSurfaceActualY = tileGridPlaneCenterY - (Math.max(NIVEL_MAR -1, currentTileElevation) * TILE_THICKNESS);
+        }
+
+        verticesAddedCount += addTopSurfaceToList(
+                vertexBuffer, currentTileTopSurfaceType, isSelected,
+                tileGridPlaneCenterX, currentTileTopSurfaceActualY, tileTopSurfaceZ,
+                topSurfaceColor, WHITE_TINT, normalizedLightValue);
+
+
+        if (currentTileElevation > 0 && currentTileTopSurfaceType != Tile.TileType.WATER) {
+            verticesAddedCount += addStratifiedElevatedSidesToList(
+                    vertexBuffer, currentTileElevation,
+                    tileGridPlaneCenterX, tileGridPlaneCenterY, tileBaseZ + Z_OFFSET_TILE_SIDES,
+                    (float)TILE_THICKNESS,
+                    sideTintToUse, normalizedLightValue,
+                    tileR_map, tileC_map);
+        }
+
+        updateChunkVisualBounds(chunkVisualBounds, tileGridPlaneCenterX, tileGridPlaneCenterY,
+                currentTileElevation, TILE_THICKNESS,
+                this.diamondLeftOffsetX, this.diamondRightOffsetX,
+                this.diamondTopOffsetY, this.diamondBottomOffsetY);
+
+        return verticesAddedCount;
+    }
+
+    public Font getTitleFont() { return titleFont; }
+    public Font getUiFont() { return uiFont; }
+
+
+
+
+    private int addPedestalSidesToList(FloatBuffer vertexBuffer,
+                                       float tileCenterX, float gridPlaneY, float worldZ,
+                                       float[] tint, float lightVal) {
+        int vCount = 0;
+        float pedestalTopY = gridPlaneY;
+        float pedestalBottomY = gridPlaneY + BASE_THICKNESS;
+
+        float pTopLx = tileCenterX + this.diamondLeftOffsetX, pTopLy = pedestalTopY + this.diamondSideOffsetY;
+        float pTopRx = tileCenterX + this.diamondRightOffsetX, pTopRy = pedestalTopY + this.diamondSideOffsetY;
+        float pTopBx = tileCenterX,                               pTopBy = pedestalTopY + this.diamondBottomOffsetY;
+        float pBotLx = tileCenterX + this.diamondLeftOffsetX, pBotLy = pedestalBottomY + this.diamondSideOffsetY;
+        float pBotRx = tileCenterX + this.diamondRightOffsetX, pBotRy = pedestalBottomY + this.diamondSideOffsetY;
+        float pBotBx = tileCenterX,                               pBotBy = pedestalBottomY + this.diamondBottomOffsetY;
+
+        float u0 = DEFAULT_SIDE_U0, v0 = DEFAULT_SIDE_V0, u1 = DEFAULT_SIDE_U1, vSpan = DEFAULT_SIDE_V1 - v0;
+        float vRepeats = (BASE_THICKNESS / (float) TILE_HEIGHT) * SIDE_TEXTURE_DENSITY_FACTOR;
+        float vBotTex = v0 + vSpan * vRepeats;
+
+        addVertexToBuffer(vertexBuffer, pTopLx, pTopLy, worldZ, tint, u0, v0, lightVal);
+        addVertexToBuffer(vertexBuffer, pBotLx, pBotLy, worldZ, tint, u0, vBotTex, lightVal);
+        addVertexToBuffer(vertexBuffer, pTopBx, pTopBy, worldZ, tint, u1, v0, lightVal);
+        vCount += 3;
+        addVertexToBuffer(vertexBuffer, pTopBx, pTopBy, worldZ, tint, u1, v0, lightVal);
+        addVertexToBuffer(vertexBuffer, pBotLx, pBotLy, worldZ, tint, u0, vBotTex, lightVal);
+        addVertexToBuffer(vertexBuffer, pBotBx, pBotBy, worldZ, tint, u1, vBotTex, lightVal);
+        vCount += 3;
+
+        addVertexToBuffer(vertexBuffer, pTopBx, pTopBy, worldZ, tint, u0, v0, lightVal);
+        addVertexToBuffer(vertexBuffer, pBotBx, pBotBy, worldZ, tint, u0, vBotTex, lightVal);
+        addVertexToBuffer(vertexBuffer, pTopRx, pTopRy, worldZ, tint, u1, v0, lightVal);
+        vCount += 3;
+        addVertexToBuffer(vertexBuffer, pTopRx, pTopRy, worldZ, tint, u1, v0, lightVal);
+        addVertexToBuffer(vertexBuffer, pBotBx, pBotBy, worldZ, tint, u0, vBotTex, lightVal);
+        addVertexToBuffer(vertexBuffer, pBotRx, pBotRy, worldZ, tint, u1, vBotTex, lightVal);
+        vCount += 3;
+        return vCount;
+    }
+
+
+    private int addTopSurfaceToList(FloatBuffer vertexBuffer,
+                                    Tile.TileType topSurfaceType, boolean isSelected,
+                                    float topCenterX, float topCenterY, float worldZ,
+                                    float[] actualTopColor, float[] whiteTint, float lightVal) {
+        int vCount = 0;
+        float topLx = topCenterX + this.diamondLeftOffsetX,  topLy = topCenterY + this.diamondSideOffsetY;
+        float topRx = topCenterX + this.diamondRightOffsetX, topRy = topCenterY + this.diamondSideOffsetY;
+        float topTx = topCenterX,                            topTy = topCenterY + this.diamondTopOffsetY;
+        float topBx = topCenterX,                            topBy = topCenterY + this.diamondBottomOffsetY;
+
+        float[] colorToUse = actualTopColor;
+        boolean textureTop = false;
+        float u0 = DUMMY_U, v0 = DUMMY_V, u1 = DUMMY_U, v1Atlas = DUMMY_V;
+
+        if (topSurfaceType != Tile.TileType.WATER && topSurfaceType != Tile.TileType.AIR) {
+            textureTop = true;
+            switch (topSurfaceType) {
+                case GRASS: u0 = GRASS_ATLAS_U0; v0 = GRASS_ATLAS_V0; u1 = GRASS_ATLAS_U1; v1Atlas = GRASS_ATLAS_V1; break;
+                case DIRT:  u0 = DIRT_ATLAS_U0;  v0 = DIRT_ATLAS_V0;  u1 = DIRT_ATLAS_U1;  v1Atlas = DIRT_ATLAS_V1;  break;
+                case SAND:  u0 = SAND_ATLAS_U0;  v0 = SAND_ATLAS_V0;  u1 = SAND_ATLAS_U1;  v1Atlas = SAND_ATLAS_V1;  break;
+                case ROCK:  u0 = ROCK_ATLAS_U0;  v0 = ROCK_ATLAS_V0;  u1 = ROCK_ATLAS_U1;  v1Atlas = ROCK_ATLAS_V1;  break;
+                case SNOW:  u0 = SNOW_ATLAS_U0;  v0 = SNOW_ATLAS_V0;  u1 = SNOW_ATLAS_U1;  v1Atlas = SNOW_ATLAS_V1;  break;
+                // --- ADD THESE NEW CASES ---
+                case RED_BRICK: u0 = RED_BRICK_U0; v0 = RED_BRICK_V0; u1 = RED_BRICK_U1; v1Atlas = RED_BRICK_V1; break;
+                case WOOD_PLANK: u0 = WOOD_PLANK_U0; v0 = WOOD_PLANK_V0; u1 = WOOD_PLANK_U1; v1Atlas = WOOD_PLANK_V1; break;
+                case STONE_WALL_SMOOTH: u0 = STONE_WALL_SMOOTH_U0; v0 = STONE_WALL_SMOOTH_V0; u1 = STONE_WALL_SMOOTH_U1; v1Atlas = STONE_WALL_SMOOTH_V1; break;
+                case STONE_WALL_ROUGH: u0 = STONE_WALL_ROUGH_U0; v0 = STONE_WALL_ROUGH_V0; u1 = STONE_WALL_ROUGH_U1; v1Atlas = STONE_WALL_ROUGH_V1; break;
+                default: textureTop = false; break;
+            }
+            if (textureTop && !isSelected) {
+                colorToUse = whiteTint;
+            }
+        }
+
+        if (textureTop) {
+            float midU = (u0 + u1) / 2f; float midV = (v0 + v1Atlas) / 2f;
+            addVertexToBuffer(vertexBuffer, topTx, topTy, worldZ, colorToUse, midU, v0, lightVal);
+            addVertexToBuffer(vertexBuffer, topLx, topLy, worldZ, colorToUse, u0, midV, lightVal);
+            addVertexToBuffer(vertexBuffer, topBx, topBy, worldZ, colorToUse, midU, v1Atlas, lightVal);
+            vCount += 3;
+            addVertexToBuffer(vertexBuffer, topTx, topTy, worldZ, colorToUse, midU, v0, lightVal);
+            addVertexToBuffer(vertexBuffer, topBx, topBy, worldZ, colorToUse, midU, v1Atlas, lightVal);
+            addVertexToBuffer(vertexBuffer, topRx, topRy, worldZ, colorToUse, u1, midV, lightVal);
+            vCount += 3;
+        } else {
+            addVertexToBuffer(vertexBuffer, topTx, topTy, worldZ, colorToUse, DUMMY_U, DUMMY_V, lightVal);
+            addVertexToBuffer(vertexBuffer, topLx, topLy, worldZ, colorToUse, DUMMY_U, DUMMY_V, lightVal);
+            addVertexToBuffer(vertexBuffer, topBx, topBy, worldZ, colorToUse, DUMMY_U, DUMMY_V, lightVal);
+            vCount += 3;
+            addVertexToBuffer(vertexBuffer, topTx, topTy, worldZ, colorToUse, DUMMY_U, DUMMY_V, lightVal);
+            addVertexToBuffer(vertexBuffer, topBx, topBy, worldZ, colorToUse, DUMMY_U, DUMMY_V, lightVal);
+            addVertexToBuffer(vertexBuffer, topRx, topRy, worldZ, colorToUse, DUMMY_U, DUMMY_V, lightVal);
+            vCount += 3;
+        }
+        return vCount;
+    }
+
+    private int addStratifiedElevatedSidesToList(FloatBuffer vertexBuffer,
+                                                 int totalElevationUnits,
+                                                 float tileCenterX, float gridPlaneCenterY, float worldZ,
+                                                 float elevSliceHeight, float[] tint, float initialLightVal,
+                                                 int tileR_map, int tileC_map) {
+        int vCount = 0;
+        float sideLightVal = initialLightVal;
+
+        LightManager lm = null;
+        // Access LightManager via the Map instance stored in this Renderer
+        if (this.map != null) {
+            lm = this.map.getLightManager();
+        }
+
+
+        if (map != null && lm != null) {
+            Tile topTileForColumn = map.getTile(tileR_map, tileC_map);
+            if (topTileForColumn != null && topTileForColumn.getType() != Tile.TileType.WATER) {
+                if (lm.isSurfaceTileExposedToSky(tileR_map, tileC_map, topTileForColumn.getElevation())) {
+                    float directSkyContribution = lm.getCurrentGlobalSkyLightTarget() / (float)MAX_LIGHT_LEVEL;
+                    float minLightFromSky = directSkyContribution * 0.65f;
+                    sideLightVal = Math.max(sideLightVal, minLightFromSky);
+                    sideLightVal = Math.min(sideLightVal, directSkyContribution);
+                } else {
+                    float ambientForSides = lm.getCurrentGlobalSkyLightTarget() * 0.20f / (float)MAX_LIGHT_LEVEL;
+                    sideLightVal = Math.max(sideLightVal, ambientForSides);
                 }
-                return Integer.compare(item1.zOrder, item2.zOrder);
-            }
-        });
-
-        renderMapBaseGeometry();
-
-        glEnable(GL_TEXTURE_2D);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-        for (SortableItem item : sortableItems) {
-            if (item.entity instanceof PlayerModel) {
-                drawPlayerInstance((PlayerModel) item.entity);
-            } else if (item.entity instanceof TreeData) {
-                drawTreeInstance((TreeData) item.entity);
             }
         }
-        glDisable(GL_TEXTURE_2D);
-        renderUI();
+        sideLightVal = Math.max(0.05f, sideLightVal);
+
+
+        // In Renderer.java -> addStratifiedElevatedSidesToList()
+
+        for (int elevUnit = 1; elevUnit <= totalElevationUnits; elevUnit++) {
+            float u0, v0, u1, v1Atlas;
+            Tile topTile = (map != null) ? map.getTile(tileR_map, tileC_map) : null;
+
+            // --- REPLACE THE OLD IF/ELSE IF BLOCK WITH THIS SWITCH STATEMENT ---
+            if (topTile != null) {
+                switch (topTile.getType()) {
+                    case GRASS:
+                        // Grass blocks should have dirt sides
+                        u0 = DIRT_ATLAS_U0; v0 = DIRT_ATLAS_V0; u1 = DIRT_ATLAS_U1; v1Atlas = DIRT_ATLAS_V1;
+                        break;
+                    case DIRT:
+                        u0 = DIRT_ATLAS_U0; v0 = DIRT_ATLAS_V0; u1 = DIRT_ATLAS_U1; v1Atlas = DIRT_ATLAS_V1;
+                        break;
+                    case SAND:
+                        u0 = SAND_ATLAS_U0; v0 = SAND_ATLAS_V0; u1 = SAND_ATLAS_U1; v1Atlas = SAND_ATLAS_V1;
+                        break;
+                    case ROCK:
+                        u0 = ROCK_ATLAS_U0; v0 = ROCK_ATLAS_V0; u1 = ROCK_ATLAS_U1; v1Atlas = ROCK_ATLAS_V1;
+                        break;
+                    case SNOW:
+                        u0 = SNOW_SIDE_ATLAS_U0; v0 = SNOW_SIDE_ATLAS_V0; u1 = SNOW_SIDE_ATLAS_U1; v1Atlas = SNOW_SIDE_ATLAS_V1;
+                        break;
+                    case RED_BRICK:
+                    case STONE_WALL_SMOOTH: // You can group cases that use the same side texture
+                    case STONE_WALL_ROUGH:
+                        u0 = STONE_BRICK_SIDE_U0; v0 = STONE_BRICK_SIDE_V0; u1 = STONE_BRICK_SIDE_U1; v1Atlas = STONE_BRICK_SIDE_V1;
+                        break;
+                    case WOOD_PLANK:
+                        u0 = WOOD_PLANK_U0; v0 = WOOD_PLANK_V0; u1 = WOOD_PLANK_U1; v1Atlas = WOOD_PLANK_V1;
+                        break;
+                    default:
+                        // Fallback for any other tile type
+                        u0 = DEFAULT_SIDE_U0; v0 = DEFAULT_SIDE_V0; u1 = DEFAULT_SIDE_U1; v1Atlas = DEFAULT_SIDE_V1;
+                        break;
+                }
+            } else {
+                // Default if tile is null
+                u0 = DEFAULT_SIDE_U0; v0 = DEFAULT_SIDE_V0; u1 = DEFAULT_SIDE_U1; v1Atlas = DEFAULT_SIDE_V1;
+            }
+            // --- END OF REPLACEMENT ---
+
+            float vSpanAtlas = v1Atlas - v0;
+            // ... the rest of the method continues as before
+            float vTopTex = v0;
+            float vBotTex = v1Atlas;
+
+            float sliceTopActualY    = gridPlaneCenterY - (elevUnit * elevSliceHeight);
+            float sliceBottomActualY = gridPlaneCenterY - ((elevUnit - 1) * elevSliceHeight);
+
+            float sTopLx = tileCenterX + this.diamondLeftOffsetX,  sTopLy = sliceTopActualY + this.diamondSideOffsetY;
+            float sTopRx = tileCenterX + this.diamondRightOffsetX, sTopRy = sliceTopActualY + this.diamondSideOffsetY;
+            float sTopBx = tileCenterX,                             sTopBy = sliceTopActualY + this.diamondBottomOffsetY;
+
+            float sBotLx = tileCenterX + this.diamondLeftOffsetX,  sBotLy = sliceBottomActualY + this.diamondSideOffsetY;
+            float sBotRx = tileCenterX + this.diamondRightOffsetX, sBotRy = sliceBottomActualY + this.diamondSideOffsetY;
+            float sBotBx = tileCenterX,                             sBotBy = sliceBottomActualY + this.diamondBottomOffsetY;
+
+            addVertexToBuffer(vertexBuffer, sTopLx, sTopLy, worldZ, tint, u0, vTopTex, sideLightVal);
+            addVertexToBuffer(vertexBuffer, sBotLx, sBotLy, worldZ, tint, u0, vBotTex, sideLightVal);
+            addVertexToBuffer(vertexBuffer, sTopBx, sTopBy, worldZ, tint, u1, vTopTex, sideLightVal);
+            vCount += 3;
+            addVertexToBuffer(vertexBuffer, sTopBx, sTopBy, worldZ, tint, u1, vTopTex, sideLightVal);
+            addVertexToBuffer(vertexBuffer, sBotLx, sBotLy, worldZ, tint, u0, vBotTex, sideLightVal);
+            addVertexToBuffer(vertexBuffer, sBotBx, sBotBy, worldZ, tint, u1, vBotTex, sideLightVal);
+            vCount += 3;
+
+            addVertexToBuffer(vertexBuffer, sTopBx, sTopBy, worldZ, tint, u0, vTopTex, sideLightVal);
+            addVertexToBuffer(vertexBuffer, sBotBx, sBotBy, worldZ, tint, u0, vBotTex, sideLightVal);
+            addVertexToBuffer(vertexBuffer, sTopRx, sTopRy, worldZ, tint, u1, vTopTex, sideLightVal);
+            vCount += 3;
+            addVertexToBuffer(vertexBuffer, sTopRx, sTopRy, worldZ, tint, u1, vTopTex, sideLightVal);
+            addVertexToBuffer(vertexBuffer, sBotBx, sBotBy, worldZ, tint, u0, vBotTex, sideLightVal);
+            addVertexToBuffer(vertexBuffer, sBotRx, sBotRy, worldZ, tint, u1, vBotTex, sideLightVal);
+            vCount += 3;
+        }
+        return vCount;
     }
 
-    private void collectSortableItems() {
-        if (this.player != null) {
-            sortableItems.add(new SortableItem(this.player, this.camera, this.map));
+    private void updateChunkVisualBounds(float[] chunkVisualBounds, float tileCenterX, float tileCenterY,
+                                         int elevUnits, float elevSliceH,
+                                         float diamondLeftOffsetX, float diamondRightOffsetX,
+                                         float diamondTopOffsetY, float diamondBottomOffsetY) {
+        float tileMinX = tileCenterX + diamondLeftOffsetX;
+        float tileMaxX = tileCenterX + diamondRightOffsetX;
+        float tileMinY = tileCenterY - (elevUnits * elevSliceH) + diamondTopOffsetY;
+        float tileMaxY = tileCenterY + BASE_THICKNESS + diamondBottomOffsetY;
+
+        chunkVisualBounds[0] = Math.min(chunkVisualBounds[0], tileMinX);
+        chunkVisualBounds[1] = Math.min(chunkVisualBounds[1], tileMinY);
+        chunkVisualBounds[2] = Math.max(chunkVisualBounds[2], tileMaxX);
+        chunkVisualBounds[3] = Math.max(chunkVisualBounds[3], tileMaxY);
+    }
+
+    private void collectWorldEntities() {
+        worldEntities.clear();
+        if (map != null && map.getEntities() != null) {
+            worldEntities.addAll(map.getEntities());
         }
 
-        int mapW = map.getWidth();
-        int mapH = map.getHeight();
-        for (int r = 0; r < mapH; r++) {
-            for (int c = 0; c < mapW; c++) {
-                Tile tile = map.getTile(r, c);
-                if (tile != null && tile.getTreeType() != Tile.TreeVisualType.NONE && tile.getType() != Tile.TileType.WATER) {
-                    int elevation = tile.getElevation();
-                    int[] baseScreenCoords = camera.mapToScreenCoords(c, r, 0);
-                    int effWidth = camera.getEffectiveTileWidth();
-                    int effHeight = camera.getEffectiveTileHeight();
-                    int effThickness = camera.getEffectiveTileThickness();
+        // Add trees and rocks from visible chunks
+        if (activeMapChunks != null && !activeMapChunks.isEmpty() && camera != null) {
+            for (Chunk chunk : activeMapChunks.values()) {
+                if (camera.isChunkVisible(chunk.getBoundingBox())) {
+                    worldEntities.addAll(chunk.getTreesInChunk());
+                    worldEntities.addAll(chunk.getLooseRocksInChunk());
+                    worldEntities.addAll(chunk.getTorchesInChunk());
 
-                    float topDiamondDrawCenterX;
-                    float topDiamondDrawTipY;
-                    float topDiamondDrawIsoHeight_tileFace;
-
-                    if (elevation > 0) {
-                        topDiamondDrawTipY = baseScreenCoords[1] - (elevation * effThickness);
-                    } else {
-                        topDiamondDrawTipY = baseScreenCoords[1];
-                    }
-                    topDiamondDrawCenterX = baseScreenCoords[0] + effWidth / 2.0f;
-                    topDiamondDrawIsoHeight_tileFace = effHeight;
-
-                    TreeData treeData = new TreeData(tile.getTreeType(), (float)c, (float)r, elevation,
-                            topDiamondDrawCenterX, topDiamondDrawTipY, topDiamondDrawIsoHeight_tileFace);
-                    sortableItems.add(new SortableItem(treeData, this.camera, this.map));
                 }
             }
         }
+
+        // Sort everything by a calculated Y-depth for correct draw order
+        worldEntities.sort(Comparator.comparingDouble(e -> {
+            if (e instanceof Entity) {
+                Entity entity = (Entity) e;
+                return entity.getVisualRow() + entity.getVisualCol();
+            } else if (e instanceof TreeData) {
+                TreeData tree = (TreeData) e;
+                return tree.mapRow + tree.mapCol;
+            } else if (e instanceof LooseRockData) {
+                LooseRockData rock = (LooseRockData) e;
+                return rock.mapRow + rock.mapCol;
+            }
+            return 0; // Default case
+        }));
     }
 
-    private void drawPlayerInstance(PlayerModel p) {
-        if (playerTexture == null) return;
 
-        Tile currentTile = map.getTile(p.getTileRow(), p.getTileCol());
-        int playerBaseElevation = (currentTile != null) ? currentTile.getElevation() : 0;
-        int[] playerScreenBaseCoords = camera.mapToScreenCoords(p.getMapCol(), p.getMapRow(), playerBaseElevation);
-        float screenX = playerScreenBaseCoords[0];
-        float screenY = playerScreenBaseCoords[1];
 
-        playerTexture.bind();
-        glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+    private void addVertexToSpriteBuffer(FloatBuffer buffer, float x, float y, float z, float[] color, float u, float v, float light) {
+        buffer.put(x).put(y).put(z);
+        buffer.put(color[0]).put(color[1]).put(color[2]).put(color[3]); // <-- This was the bug
+        buffer.put(u).put(v);
+        buffer.put(light);
+    }
 
-        int frameWidthPx = PlayerModel.FRAME_WIDTH;
-        int frameHeightPx = PlayerModel.FRAME_HEIGHT;
-        int animFrameCol = p.getVisualFrameIndex();
-        int animFrameRow = p.getAnimationRow();
 
-        float texSrcX = animFrameCol * frameWidthPx;
-        float texSrcY = animFrameRow * frameHeightPx;
-        float texSheetWidth = playerTexture.getWidth();
-        float texSheetHeight = playerTexture.getHeight();
+    private int addPlayerVerticesToBuffer_WorldSpace(PlayerModel p, FloatBuffer buffer) {
+        if (playerTexture == null || camera == null || map == null) return 0;
 
-        float u0 = texSrcX / texSheetWidth;
-        float v0 = texSrcY / texSheetHeight;
-        float u1 = (texSrcX + frameWidthPx) / texSheetWidth;
-        float v1 = (texSrcY + frameHeightPx) / texSheetHeight;
+        float pR = p.getVisualRow();
+        float pC = p.getVisualCol();
+        Tile tile = map.getTile(p.getTileRow(), p.getTileCol());
+        int elev = (tile != null) ? tile.getElevation() : 0;
+        float lightVal = (tile != null) ? tile.getFinalLightLevel() / (float) MAX_LIGHT_LEVEL : 1.0f;
+        lightVal = Math.max(0.1f, lightVal);
 
-        float scaledSpriteWidth = frameWidthPx * camera.getZoom();
-        float scaledSpriteHeight = frameHeightPx * camera.getZoom();
-        float drawX = screenX - (scaledSpriteWidth / 2.0f);
-        float drawY = screenY - scaledSpriteHeight;
+        float pIsoX = (pC - pR) * this.tileHalfWidth;
+        float pIsoY = (pC + pR) * this.tileHalfHeight - (elev * TILE_THICKNESS);
+        float playerWorldZ = (pR + pC) * DEPTH_SORT_FACTOR + (elev * 0.005f) + Z_OFFSET_SPRITE_PLAYER;
 
         if (p.isLevitating()) {
-            drawY -= (int) (Math.sin(p.getLevitateTimer()) * 8 * camera.getZoom());
+            pIsoY -= (Math.sin(p.getLevitateTimer() * 5f) * 8);
         }
 
-        glBegin(GL_QUADS);
-        glTexCoord2f(u0, v0); glVertex2f(drawX, drawY);
-        glTexCoord2f(u1, v0); glVertex2f(drawX + scaledSpriteWidth, drawY);
-        glTexCoord2f(u1, v1); glVertex2f(drawX + scaledSpriteWidth, drawY + scaledSpriteHeight);
-        glTexCoord2f(u0, v1); glVertex2f(drawX, drawY + scaledSpriteHeight);
-        glEnd();
+        float halfPlayerRenderWidth = PLAYER_WORLD_RENDER_WIDTH / 2.0f;
+        float playerRenderHeight = PLAYER_WORLD_RENDER_HEIGHT;
+
+        float xL = pIsoX - halfPlayerRenderWidth;
+        float xR = pIsoX + halfPlayerRenderWidth;
+        float yT = pIsoY - playerRenderHeight;
+        float yB = pIsoY;
+
+        int animCol = p.getVisualFrameIndex();
+        int animRow = p.getAnimationRow();
+
+        float u0 = (float) (animCol * p.getFrameWidth()) / playerTexture.getWidth();
+        float v0 = (float) (animRow * p.getFrameHeight()) / playerTexture.getHeight();
+        float u1 = (float) ((animCol + 1) * p.getFrameWidth()) / playerTexture.getWidth();
+        float v1 = (float) ((animRow + 1) * p.getFrameHeight()) / playerTexture.getHeight();
+
+        // Get the tint from the entity to apply the damage flash
+        float[] tint = p.getHealthTint();
+
+        addVertexToSpriteBuffer(buffer, xL, yT, playerWorldZ, tint, u0, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yB, playerWorldZ, tint, u0, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yB, playerWorldZ, tint, u1, v1, lightVal);
+
+        addVertexToSpriteBuffer(buffer, xR, yB, playerWorldZ, tint, u1, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yT, playerWorldZ, tint, u1, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yT, playerWorldZ, tint, u0, v0, lightVal);
+        return 6;
     }
 
-    private void drawTreeInstance(TreeData tree) {
-        if (treeTexture == null || tree.treeVisualType == Tile.TreeVisualType.NONE) return;
+    private int addAnimalVerticesToBuffer_WorldSpace(Animal animal, FloatBuffer buffer) {
+        if (playerTexture == null || camera == null || map == null) return 0;
 
-        treeTexture.bind();
-        glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+        float aR = animal.getVisualRow();
+        float aC = animal.getVisualCol();
+        Tile tile = map.getTile(animal.getTileRow(), animal.getTileCol());
+        int elev = (tile != null) ? tile.getElevation() : 0;
+        float lightVal = (tile != null) ? tile.getFinalLightLevel() / (float) MAX_LIGHT_LEVEL : 1.0f;
+        lightVal = Math.max(0.1f, lightVal);
 
-        float u0=0,v0=0,u1=0,v1=0;
-        float treeFrameWidthSpritePx=0, treeFrameHeightSpritePx=0;
-        float anchorOffsetYFromVisualBase=0;
+        float aIsoX = (aC - aR) * this.tileHalfWidth;
+        float aIsoY = (aC + aR) * this.tileHalfHeight - (elev * TILE_THICKNESS);
+        float animalWorldZ = (aR + aC) * DEPTH_SORT_FACTOR + (elev * 0.005f) + Z_OFFSET_SPRITE_ANIMAL;
 
-        switch(tree.treeVisualType){
-            case APPLE_TREE_FRUITING:
-                treeFrameWidthSpritePx=90.0f; treeFrameHeightSpritePx=130.0f;
-                float appleSX=0.0f,appleSY=0.0f; anchorOffsetYFromVisualBase=10.0f;
-                u0=appleSX/treeTexture.getWidth(); v0=appleSY/treeTexture.getHeight();
-                u1=(appleSX+treeFrameWidthSpritePx)/treeTexture.getWidth();
-                v1=(appleSY+treeFrameHeightSpritePx)/treeTexture.getHeight(); break;
-            case PINE_TREE_SMALL:
-                treeFrameWidthSpritePx=90.0f; treeFrameHeightSpritePx=180.0f;
-                float pineSX=90.0f,pineSY=0.0f; anchorOffsetYFromVisualBase=5.0f;
-                u0=pineSX/treeTexture.getWidth(); v0=pineSY/treeTexture.getHeight();
-                u1=(pineSX+treeFrameWidthSpritePx)/treeTexture.getWidth();
-                v1=(pineSY+treeFrameHeightSpritePx)/treeTexture.getHeight(); break;
-            default: return; // Unknown tree type
-        }
+        float renderWidth = animal.getFrameWidth() * 0.75f;
+        float renderHeight = animal.getFrameHeight() * 0.75f;
+        float halfRenderWidth = renderWidth / 2.0f;
 
-        if (treeFrameWidthSpritePx <= 0 || treeFrameHeightSpritePx <= 0) return;
+        float xL = aIsoX - halfRenderWidth;
+        float xR = aIsoX + halfRenderWidth;
+        float yT = aIsoY - renderHeight;
+        float yB = aIsoY;
 
-        float artScale = 1.0f;
-        float treeDrawWidth = treeFrameWidthSpritePx * camera.getZoom() * artScale;
-        float treeDrawHeight = treeFrameHeightSpritePx * camera.getZoom() * artScale;
-        float screenAnchorOffsetY = anchorOffsetYFromVisualBase * camera.getZoom() * artScale;
+        int animCol = animal.getVisualFrameIndex();
+        int animRow = animal.getAnimationRow();
 
-        float visualAnchorYOnTileSurface = tree.topDiamondCenterY_tileTip + (tree.topDiamondIsoHeight_tileFace / 2.0f);
-        float drawX = tree.topDiamondCenterX - (treeDrawWidth / 2.0f);
-        float drawY = visualAnchorYOnTileSurface - treeDrawHeight + screenAnchorOffsetY;
+        float u0 = (float) (animCol * animal.getFrameWidth()) / playerTexture.getWidth();
+        float v0 = (float) (animRow * animal.getFrameHeight()) / playerTexture.getHeight();
+        float u1 = (float) ((animCol + 1) * animal.getFrameWidth()) / playerTexture.getWidth();
+        float v1 = (float) ((animRow + 1) * animal.getFrameHeight()) / playerTexture.getHeight();
 
-        glBegin(GL_QUADS);
-        glTexCoord2f(u0, v0); glVertex2f(drawX, drawY);
-        glTexCoord2f(u1, v0); glVertex2f(drawX + treeDrawWidth, drawY);
-        glTexCoord2f(u1, v1); glVertex2f(drawX + treeDrawWidth, drawY + treeDrawHeight);
-        glTexCoord2f(u0, v1); glVertex2f(drawX, drawY + treeDrawHeight);
-        glEnd();
+        // Get the tint from the entity to apply the damage flash
+        float[] tint = animal.getHealthTint();
+
+        addVertexToSpriteBuffer(buffer, xL, yT, animalWorldZ, tint, u0, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yB, animalWorldZ, tint, u0, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yB, animalWorldZ, tint, u1, v1, lightVal);
+
+        addVertexToSpriteBuffer(buffer, xR, yB, animalWorldZ, tint, u1, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yT, animalWorldZ, tint, u1, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yT, animalWorldZ, tint, u0, v0, lightVal);
+        return 6;
     }
 
-
-    // Add a flag to toggle debug drawing
-    private boolean DEBUG_DRAW_PICKING_DIAMONDS = true; // Set to true to see them
-
-// ... (rest of Renderer.java up to renderMapBaseGeometry)
-
-    private void renderMapBaseGeometry() {
-        int mapW = map.getWidth();
-        int mapH = map.getHeight();
-        glDisable(GL_TEXTURE_2D);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-        for (int sum = 0; sum <= mapW + mapH - 2; sum++) {
-            for (int r_loop = 0; r_loop <= sum; r_loop++) { // Renamed loop variable to avoid confusion
-                int c_loop = sum - r_loop;                 // Renamed loop variable
-                if (map.isValid(r_loop, c_loop)) {
-                    Tile tile = map.getTile(r_loop, c_loop);
-                    if (tile != null) {
-                        renderTileGeometry(r_loop, c_loop, tile, (r_loop == inputHandler.getSelectedRow() && c_loop == inputHandler.getSelectedCol()));
-
-                        if (DEBUG_DRAW_PICKING_DIAMONDS) {
-                            // Pass the correct loop variables c_loop and r_loop
-                            if (Math.abs(r_loop - inputHandler.getSelectedRow()) <= 5 && Math.abs(c_loop - inputHandler.getSelectedCol()) <= 5) {
-                                drawPickableDiamondOutline(c_loop, r_loop, tile.getElevation());
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Corrected debug drawing method in Renderer.java
-    // In Renderer.java
-    private void drawPickableDiamondOutline(int mapCol, int mapRow, int elevation) {
-        int effTileWidth = camera.getEffectiveTileWidth();
-        int effTileHeight = camera.getEffectiveTileHeight();
-
-        // mapToScreenCoords now assumed to return the CENTER of the diamond's top face
-        int[] diamondCenterScreenCoords = camera.mapToScreenCoords((float)mapCol, (float)mapRow, elevation);
-        float centerX = diamondCenterScreenCoords[0];
-        float centerY = diamondCenterScreenCoords[1];
-
-        float halfW = effTileWidth / 2.0f;
-        float halfH = effTileHeight / 2.0f;
-
-        // Calculate diamond corners from the center
-        float pointTopX = centerX;
-        float pointTopY = centerY - halfH;
-        float pointLeftX = centerX - halfW;
-        float pointLeftY = centerY;
-        float pointRightX = centerX + halfW;
-        float pointRightY = centerY;
-        float pointBottomX = centerX;
-        float pointBottomY = centerY + halfH;
-
-        glDisable(GL_TEXTURE_2D);
-        // Draw the PICKING diamond outline (YELLOW)
-        glColor4f(1.0f, 1.0f, 0.0f, 0.7f); // Yellow
-        glBegin(GL_LINE_LOOP);
-        glVertex2f(pointTopX, pointTopY);
-        glVertex2f(pointLeftX, pointLeftY);
-        glVertex2f(pointBottomX, pointBottomY);
-        glVertex2f(pointRightX, pointRightY);
-        glEnd();
-
-        // Draw the CYAN debug dot AT THE CENTER (which is now directly from mapToScreenCoords)
-        glColor4f(0.0f, 1.0f, 1.0f, 0.8f); // Cyan
-        float radius = 3 * camera.getZoom();
-        glBegin(GL_TRIANGLE_FAN);
-        glVertex2f(centerX, centerY); // Center point IS diamondCenterScreenCoords[0], diamondCenterScreenCoords[1]
-        for (int i = 0; i <= 16; i++) {
-            double angle = Math.PI * 2.0 * i / 16.0;
-            glVertex2f(centerX + (float)(Math.cos(angle) * radius),
-                    centerY + (float)(Math.sin(angle) * radius));
-        }
-        glEnd();
-    }
-
-
-
-    private void renderTileGeometry(int tileR, int tileC, Tile tile, boolean isSelected) {
-        int elevation = tile.getElevation();
-        Tile.TileType type = tile.getType();
-        int[] baseScreenCoords = camera.mapToScreenCoords(tileC, tileR, 0);
-        int tileBaseX = baseScreenCoords[0]; int tileBaseY = baseScreenCoords[1];
-        int effWidth = camera.getEffectiveTileWidth(); int effHeight = camera.getEffectiveTileHeight();
-        int effThickness = camera.getEffectiveTileThickness();
-
-        int margin = Math.max(effWidth, effHeight) * 2;
-        if (tileBaseX < -margin || tileBaseX > camera.getScreenWidth() + margin ||
-                tileBaseY < -margin - (ALTURA_MAXIMA * effThickness) || tileBaseY > camera.getScreenHeight() + margin + (effHeight * 2)) {
+    public void renderPlayerHealthBar(PlayerModel player) {
+        if (player == null || camera == null || defaultShader == null || uiColoredVaoId == 0 || uiFont == null) {
             return;
         }
 
-        float[] topColor = {1f,0f,1f,1f}, side1Color= {1f,0f,1f,1f}, side2Color= {1f,0f,1f,1f}, baseTopColor= {1f,0f,1f,1f}, baseSide1Color= {1f,0f,1f,1f}, baseSide2Color= {1f,0f,1f,1f};
-        boolean isWater = (type == Tile.TileType.WATER);
+        // --- Layout Calculation (to position above hotbar) ---
+        float slotSize = 55f;
+        float slotMargin = 6f;
+        float hotbarY = camera.getScreenHeight() - slotSize - (slotMargin * 3);
 
-        if (isSelected) {
-            topColor = new float[]{1.0f, 0.8f, 0.0f, 0.8f}; side1Color = new float[]{0.9f, 0.7f, 0.0f, 0.8f}; side2Color = new float[]{0.8f, 0.6f, 0.0f, 0.8f};
-            baseTopColor = new float[]{0.5f, 0.4f, 0.0f, 0.8f}; baseSide1Color = new float[]{0.4f, 0.3f, 0.0f, 0.8f}; baseSide2Color = new float[]{0.3f, 0.2f, 0.0f, 0.8f};
-        } else {
-            switch (type) {
-                case WATER:
-                    double tS1=0.05,tS2=0.03,sS1=0.4,sS2=0.6,bB=0.3,bA=0.15,gSB=0.3,gSA=0.1;
-                    double wF1=(frameCount*tS1+(tileR+tileC)*sS1),wF2=(frameCount*tS2+(tileR*0.7-tileC*0.6)*sS2);
-                    double wV=(Math.sin(wF1)+Math.cos(wF2))/2.0; float blV=(float)Math.max(0.1,Math.min(1.0,bB+wV*bA));
-                    float grV=(float)Math.max(0.0,Math.min(1.0,blV*(gSB+Math.sin(wF1+tileC*0.5)*gSA)));
-                    topColor=new float[]{0.0f,grV,blV,0.85f}; side1Color=topColor; side2Color=topColor;
-                    baseTopColor=new float[]{0.05f,0.1f,0.2f,1.0f}; baseSide1Color=new float[]{0.04f,0.08f,0.18f,1.0f}; baseSide2Color=new float[]{0.03f,0.06f,0.16f,1.0f}; break;
-                case SAND: topColor=new float[]{0.82f,0.7f,0.55f,1.0f}; side1Color=new float[]{0.75f,0.65f,0.49f,1.0f}; side2Color=new float[]{0.67f,0.59f,0.43f,1.0f}; baseTopColor=new float[]{0.59f,0.51f,0.35f,1.0f}; baseSide1Color=new float[]{0.51f,0.43f,0.27f,1.0f}; baseSide2Color=new float[]{0.43f,0.35f,0.19f,1.0f}; break;
-                case GRASS: topColor=new float[]{0.13f,0.55f,0.13f,1.0f}; side1Color=new float[]{0.12f,0.47f,0.12f,1.0f}; side2Color=new float[]{0.10f,0.39f,0.10f,1.0f}; baseTopColor=new float[]{0.31f,0.24f,0.16f,1.0f}; baseSide1Color=new float[]{0.27f,0.20f,0.14f,1.0f}; baseSide2Color=new float[]{0.24f,0.16f,0.12f,1.0f}; break;
-                case ROCK: topColor=new float[]{0.5f,0.5f,0.5f,1.0f}; side1Color=new float[]{0.45f,0.45f,0.45f,1.0f}; side2Color=new float[]{0.4f,0.4f,0.4f,1.0f}; baseTopColor=new float[]{0.35f,0.35f,0.35f,1.0f}; baseSide1Color=new float[]{0.3f,0.3f,0.3f,1.0f}; baseSide2Color=new float[]{0.25f,0.25f,0.25f,1.0f}; break;
-                case SNOW: topColor=new float[]{0.95f,0.95f,1.0f,1.0f}; side1Color=new float[]{0.9f,0.9f,0.95f,1.0f}; side2Color=new float[]{0.85f,0.85f,0.9f,1.0f}; baseTopColor=new float[]{0.5f,0.5f,0.55f,1.0f}; baseSide1Color=new float[]{0.45f,0.45f,0.5f,1.0f}; baseSide2Color=new float[]{0.4f,0.4f,0.45f,1.0f}; break;
+        float barWidth = 200f;
+        float barHeight = 20f;
+        float barX = (camera.getScreenWidth() - barWidth) / 2.0f; // Centered
+        float barY = hotbarY - barHeight - slotMargin; // Positioned above the hotbar
+        float border = 2f;
+
+        // --- Health Calculation ---
+        float healthPercentage = (float) player.getHealth() / (float) player.getMaxHealth();
+        float currentHealthWidth = barWidth * healthPercentage;
+
+        // --- Colors ---
+        float[] bgColor = {0.1f, 0.1f, 0.1f, 0.8f};
+        float[] healthColor = {0.8f, 0.2f, 0.2f, 0.9f};
+        float[] borderColor = {0.8f, 0.8f, 0.8f, 1.0f};
+
+        // --- Rendering ---
+        defaultShader.bind();
+        defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
+        defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
+        defaultShader.setUniform("uHasTexture", 0);
+        defaultShader.setUniform("uIsSimpleUiElement", 1);
+
+        glBindVertexArray(uiColoredVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, uiColoredVboId);
+        uiColoredVertexBuffer.clear();
+
+        // Border
+        addQuadToUiColoredBuffer(uiColoredVertexBuffer, barX - border, barY - border, barWidth + (border * 2), barHeight + (border * 2), Z_OFFSET_UI_BORDER, borderColor);
+        // Background
+        addQuadToUiColoredBuffer(uiColoredVertexBuffer, barX, barY, barWidth, barHeight, Z_OFFSET_UI_PANEL, bgColor);
+        // Current Health
+        if (currentHealthWidth > 0) {
+            addQuadToUiColoredBuffer(uiColoredVertexBuffer, barX, barY, currentHealthWidth, barHeight, Z_OFFSET_UI_ELEMENT, healthColor);
+        }
+
+        uiColoredVertexBuffer.flip();
+        glBufferSubData(GL_ARRAY_BUFFER, 0, uiColoredVertexBuffer);
+        glDrawArrays(GL_TRIANGLES, 0, 18); // 3 quads * 6 vertices/quad
+
+        glBindVertexArray(0);
+
+        // Render health text over the bar
+        if (uiFont.isInitialized()) {
+            String healthText = player.getHealth() + " / " + player.getMaxHealth();
+            float textWidth = uiFont.getTextWidth(healthText);
+            float textX = barX + (barWidth - textWidth) / 2;
+            float textY = barY + barHeight / 2 + uiFont.getAscent() / 2 - 2f;
+            uiFont.drawText(textX, textY, healthText, 1f, 1f, 1f);
+        }
+    }
+
+
+    private int addLooseRockVerticesToBuffer_WorldSpace(LooseRockData rock, FloatBuffer buffer) {
+        // Ensure the texture for rocks (treeTexture in this case) is loaded
+        if (treeTexture == null || rock.rockVisualType == Tile.LooseRockType.NONE || camera == null || map == null || treeTexture.getWidth() == 0) {
+            return 0;
+        }
+
+        // --- This top part remains the same ---
+        float rR = rock.mapRow; // Rock's map row
+        float rC = rock.mapCol; // Rock's map column
+        int elev = rock.elevation;
+
+        Tile tile = map.getTile(Math.round(rR), Math.round(rC));
+        float lightVal = (tile != null) ? tile.getFinalLightLevel() / (float)MAX_LIGHT_LEVEL : 1.0f;
+        lightVal = Math.max(0.1f, lightVal); // Ensure minimum brightness
+
+        float rockBaseIsoX = (rC - rR) * this.tileHalfWidth;
+        float rockBaseIsoY = (rC + rR) * this.tileHalfHeight - (elev * TILE_THICKNESS);
+
+        float tileLogicalZ = (rR + rC) * DEPTH_SORT_FACTOR + (elev * 0.005f);
+        float rockWorldZ = tileLogicalZ + Z_OFFSET_SPRITE_TREE;
+
+        float renderWidth = Constants.TILE_WIDTH * 0.4f; // Adjust size as desired
+        float renderHeight = renderWidth;
+
+        // --- This is the new logic ---
+        float texTotalWidth = treeTexture.getWidth();
+        float texTotalHeight = treeTexture.getHeight();
+        float spriteX, spriteY, spriteW, spriteH;
+
+        // Select the correct sprite coordinates based on the rock type
+        switch (rock.rockVisualType) {
+            case TYPE_2:
+                spriteX = LOOSE_ROCK_2_X_PIX;
+                spriteY = LOOSE_ROCK_2_Y_PIX;
+                break;
+            case TYPE_3:
+                spriteX = LOOSE_ROCK_3_X_PIX;
+                spriteY = LOOSE_ROCK_3_Y_PIX;
+                break;
+            case TYPE_4:
+                spriteX = LOOSE_ROCK_4_X_PIX;
+                spriteY = LOOSE_ROCK_4_Y_PIX;
+                break;
+            case TYPE_5:
+                spriteX = LOOSE_ROCK_5_X_PIX;
+                spriteY = LOOSE_ROCK_5_Y_PIX;
+                break;
+            case TYPE_6:
+                spriteX = LOOSE_ROCK_6_X_PIX;
+                spriteY = LOOSE_ROCK_6_Y_PIX;
+                break;
+            case TYPE_1:
+            default: // Default to TYPE_1 if something goes wrong
+                spriteX = LOOSE_ROCK_SPRITE_X_PIX;
+                spriteY = LOOSE_ROCK_SPRITE_Y_PIX;
+                break;
+        }
+        // Assuming all rock sprites have the same dimensions
+        spriteW = LOOSE_ROCK_SPRITE_W_PIX;
+        spriteH = LOOSE_ROCK_SPRITE_H_PIX;
+
+        // Calculate final UVs from the selected sprite coordinates
+        float u0 = spriteX / texTotalWidth;
+        float v0 = spriteY / texTotalHeight;
+        float u1 = (spriteX + spriteW) / texTotalWidth;
+        float v1 = (spriteY + spriteH) / texTotalHeight;
+
+        // --- The vertex generation part remains the same ---
+        float halfRockRenderWidth = renderWidth / 2.0f;
+        float yTop = rockBaseIsoY - renderHeight;
+        float yBottom = rockBaseIsoY;
+
+        float xBL = rockBaseIsoX - halfRockRenderWidth;
+        float yBL_sprite = yBottom;
+        float xTL = rockBaseIsoX - halfRockRenderWidth;
+        float yTL_sprite = yTop;
+        float xTR = rockBaseIsoX + halfRockRenderWidth;
+        float yTR_sprite = yTop;
+        float xBR = rockBaseIsoX + halfRockRenderWidth;
+        float yBR_sprite = yBottom;
+
+        addVertexToSpriteBuffer(buffer, xTL, yTL_sprite, rockWorldZ, WHITE_TINT, u0, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xBL, yBL_sprite, rockWorldZ, WHITE_TINT, u0, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xTR, yTR_sprite, rockWorldZ, WHITE_TINT, u1, v0, lightVal);
+
+        addVertexToSpriteBuffer(buffer, xTR, yTR_sprite, rockWorldZ, WHITE_TINT, u1, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xBL, yBL_sprite, rockWorldZ, WHITE_TINT, u0, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xBR, yBR_sprite, rockWorldZ, WHITE_TINT, u1, v1, lightVal);
+
+        return 6;
+    }
+
+    private int addTreeVerticesToBuffer_WorldSpace(TreeData tree, FloatBuffer buffer) {
+        if (treeTexture == null || tree.treeVisualType == Tile.TreeVisualType.NONE || camera == null || map == null || treeTexture.getWidth() == 0) return 0;
+
+        float tR = tree.mapRow;
+        float tC = tree.mapCol;
+        int elev = tree.elevation;
+
+        Tile tile = map.getTile(Math.round(tR), Math.round(tC));
+        float lightVal = (tile != null) ? tile.getFinalLightLevel() / (float)MAX_LIGHT_LEVEL : 1.0f;
+        lightVal = Math.max(0.1f, lightVal);
+
+        float tBaseIsoX = (tC - tR) * this.tileHalfWidth;
+        float tBaseIsoY = (tC + tR) * this.tileHalfHeight - (elev * TILE_THICKNESS);
+
+        float tileLogicalZ = (tR + tC) * DEPTH_SORT_FACTOR + (elev * 0.005f);
+        float treeWorldZ = tileLogicalZ + Z_OFFSET_SPRITE_TREE;
+
+        float frameW=0, frameH=0, atlasU0val=0, atlasV0val=0;
+        float renderWidth, renderHeight;
+        float anchorYOffsetFromBase;
+
+        switch(tree.treeVisualType){
+            case APPLE_TREE_FRUITING:
+                frameW = 90; frameH = 130; atlasU0val = 0; atlasV0val = 0;
+                renderWidth = TILE_WIDTH * 1.0f;
+                renderHeight = renderWidth * (frameH / frameW);
+                anchorYOffsetFromBase = TILE_HEIGHT * 0.15f;
+                break;
+            case PINE_TREE_SMALL:
+                frameW = 90; frameH = 130; atlasU0val = 90; atlasV0val = 0;
+                renderWidth = TILE_WIDTH * 1.0f;
+                renderHeight = renderWidth * (frameH / frameW);
+                anchorYOffsetFromBase = TILE_HEIGHT * 0.1f;
+                break;
+            default: return 0;
+        }
+
+        float treeRenderAnchorY = tBaseIsoY + anchorYOffsetFromBase;
+
+        float texU0 = atlasU0val / treeTexture.getWidth();
+        float texV0 = atlasV0val / treeTexture.getHeight();
+        float texU1 = (atlasU0val + frameW) / treeTexture.getWidth();
+        float texV1 = (atlasV0val + frameH) / treeTexture.getHeight();
+
+        float halfTreeRenderWidth = renderWidth / 2.0f;
+        float yTop = treeRenderAnchorY - renderHeight;
+        float yBottom = treeRenderAnchorY;
+
+        float xBL = tBaseIsoX - halfTreeRenderWidth; float yBL_sprite = yBottom;
+        float xTL = tBaseIsoX - halfTreeRenderWidth; float yTL_sprite = yTop;
+        float xTR = tBaseIsoX + halfTreeRenderWidth; float yTR_sprite = yTop;
+        float xBR = tBaseIsoX + halfTreeRenderWidth; float yBR_sprite = yBottom;
+
+        addVertexToSpriteBuffer(buffer, xTL, yTL_sprite, treeWorldZ, WHITE_TINT, texU0, texV0, lightVal);
+        addVertexToSpriteBuffer(buffer, xBL, yBL_sprite, treeWorldZ, WHITE_TINT, texU0, texV1, lightVal);
+        addVertexToSpriteBuffer(buffer, xTR, yTR_sprite, treeWorldZ, WHITE_TINT, texU1, texV0, lightVal);
+        addVertexToSpriteBuffer(buffer, xTR, yTR_sprite, treeWorldZ, WHITE_TINT, texU1, texV0, lightVal);
+        addVertexToSpriteBuffer(buffer, xBL, yBL_sprite, treeWorldZ, WHITE_TINT, texU0, texV1, lightVal);
+        addVertexToSpriteBuffer(buffer, xBR, yBR_sprite, treeWorldZ, WHITE_TINT, texU1, texV1, lightVal);
+        return 6;
+    }
+
+
+    public void render(double pseudoTimeOfDay) { // MODIFIED to accept time
+        if (defaultShader == null || camera == null) {
+            return;
+        }
+
+        defaultShader.bind();
+        defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
+        defaultShader.setUniform("uModelViewMatrix", camera.getViewMatrix());
+        defaultShader.setUniform("uIsFont", 0);
+        defaultShader.setUniform("uIsSimpleUiElement", 0);
+        defaultShader.setUniform("uIsShadow", 0); // Default to not drawing a shadow
+        defaultShader.setUniform("u_isSelectedIcon", 0);
+
+        // --- 1. RENDER WORLD TERRAIN ---
+        if (map != null && tileAtlasTexture != null && tileAtlasTexture.getId() != 0) {
+            glActiveTexture(GL_TEXTURE0);
+            tileAtlasTexture.bind();
+            defaultShader.setUniform("uTextureSampler", 0);
+            defaultShader.setUniform("uHasTexture", 1);
+            for (Chunk chunk : activeMapChunks.values()) {
+                if (camera.isChunkVisible(chunk.getBoundingBox())) {
+                    chunk.render();
+                }
+            }
+            tileAtlasTexture.unbind();
+        }
+
+        // --- 2. NEW: RENDER SHADOWS ---
+        if (map != null) {
+            // We need the entity list for shadows, so collect it once here.
+            collectWorldEntities();
+            renderShadows(pseudoTimeOfDay); // Pass time of day
+        }
+
+        // --- 3. RENDER ALL SPRITES (Player, Trees, Rocks, etc.) ---
+        if (map != null) {
+            // `worldEntities` was already collected before shadow rendering.
+            renderWorldSprites();
+        }
+    }
+
+    // In Renderer.java
+
+    // --- NEW HELPER METHOD TO DRAW AND RESIZE ---
+    private void flushAndResizeShadowBatch() {
+        if (shadowVertexBuffer.position() == 0) {
+            return; // Nothing to draw
+        }
+
+        shadowVertexBuffer.flip();
+
+        // Calculate vertex count directly from the buffer's state
+        int verticesToDraw = shadowVertexBuffer.limit() / FLOATS_PER_VERTEX_SHADOW;
+        if (verticesToDraw == 0) {
+            shadowVertexBuffer.clear();
+            return;
+        }
+
+        glBindBuffer(GL_ARRAY_BUFFER, shadowVboId);
+
+        // Check if the VBO on the GPU is big enough for our data
+        if (shadowVertexBuffer.capacity() > glGetBufferParameteri(GL_ARRAY_BUFFER, GL_BUFFER_SIZE)) {
+            // If not, reallocate the GPU buffer to be the new, larger size
+            glBufferData(GL_ARRAY_BUFFER, shadowVertexBuffer.capacity(), GL_DYNAMIC_DRAW);
+        }
+
+        // Upload the vertex data
+        glBufferSubData(GL_ARRAY_BUFFER, 0, shadowVertexBuffer);
+
+        // Draw the batch
+        glDrawArrays(GL_TRIANGLES, 0, verticesToDraw);
+
+        // Clear the client-side buffer for the next batch
+        shadowVertexBuffer.clear();
+    }
+
+
+    // --- REWRITTEN AND CORRECTED SHADOW RENDERING LOGIC ---
+    private void renderShadows(double timeOfDay) {
+        if (shadowVaoId == 0 || worldEntities.isEmpty() || map == null) return;
+        if (timeOfDay < 0.0 || timeOfDay > 0.5) return;
+
+        // --- Sun & Shadow Calculation (this part is correct) ---
+        float sunAngle = (float) (timeOfDay / 0.5) * (float) Math.PI;
+        float shadowAngle = sunAngle + (float) Math.PI;
+        float shadowVectorX = (float) Math.cos(shadowAngle);
+        float shadowVectorY = (float) Math.sin(shadowAngle) * 0.5f;
+        float sunElevation = (float) Math.sin(sunAngle);
+        if (sunElevation <= 0.01f) sunElevation = 0.01f;
+        float shadowLengthFactor = Math.min(1.0f / sunElevation, 5.0f);
+
+        // --- Prepare for Drawing ---
+        defaultShader.setUniform("uIsShadow", 1);
+        defaultShader.setUniform("uHasTexture", 0);
+        glBindVertexArray(shadowVaoId);
+        shadowVertexBuffer.clear();
+
+        // --- Generate Shadow Geometry for Each Entity ---
+        for (Object entityObj : worldEntities) {
+            // Check if there's enough space in the buffer for the next shadow quad.
+            if (shadowVertexBuffer.remaining() < 6 * FLOATS_PER_VERTEX_SHADOW) {
+                // If not, flush the current batch. Our helper will handle resizing if needed.
+                flushAndResizeShadowBatch();
+
+                // Now we check again. If it's *still* too small, we need a bigger buffer.
+                if (shadowVertexBuffer.remaining() < 6 * FLOATS_PER_VERTEX_SHADOW) {
+                    System.out.println("Resizing shadow buffer from " + shadowVertexBuffer.capacity() + " to " + shadowVertexBuffer.capacity() * 2);
+                    FloatBuffer newBuffer = MemoryUtil.memAllocFloat(shadowVertexBuffer.capacity() * 2);
+                    MemoryUtil.memFree(shadowVertexBuffer); // Free the old, small buffer
+                    shadowVertexBuffer = newBuffer; // Assign the new, bigger buffer
+                }
+            }
+
+            // --- All your existing logic for calculating shadow geometry goes here ---
+            // (calculating casterHeight, baseIsoX, x1, y1, etc.)
+            float casterHeight = 0;
+            float casterWidth = 0;
+            float baseIsoX = 0;
+            float baseIsoY = 0;
+            float baseWorldZ = 0;
+
+            if (entityObj instanceof Entity) {
+                Entity e = (Entity)entityObj;
+                Tile tile = map.getTile(e.getTileRow(), e.getTileCol());
+                if (tile == null) continue;
+                baseIsoX = (e.getVisualCol() - e.getVisualRow()) * tileHalfWidth;
+                baseIsoY = (e.getVisualCol() + e.getVisualRow()) * tileHalfHeight - (tile.getElevation() * TILE_THICKNESS);
+                baseWorldZ = (e.getVisualRow() + e.getVisualCol()) * DEPTH_SORT_FACTOR + (tile.getElevation() * 0.005f);
+                if (e instanceof PlayerModel) {
+                    casterHeight = PLAYER_WORLD_RENDER_HEIGHT * 0.9f;
+                    casterWidth = PLAYER_WORLD_RENDER_WIDTH * 0.5f;
+                } else {
+                    casterHeight = e.getFrameHeight() * 0.7f;
+                    casterWidth = e.getFrameWidth() * 0.4f;
+                }
+            } else if (entityObj instanceof TreeData) {
+                TreeData tree = (TreeData)entityObj;
+                Tile tile = map.getTile(Math.round(tree.mapRow), Math.round(tree.mapCol));
+                if (tile == null) continue;
+                baseIsoX = (tree.mapCol - tree.mapRow) * tileHalfWidth;
+                baseIsoY = (tree.mapCol + tree.mapRow) * tileHalfHeight - (tree.elevation * TILE_THICKNESS);
+                baseWorldZ = (tree.mapRow + tree.mapCol) * DEPTH_SORT_FACTOR + (tree.elevation * 0.005f);
+                float frameW = 90; float frameH = 130;
+                float renderWidth = TILE_WIDTH * 1.0f;
+                casterHeight = renderWidth * (frameH / frameW);
+                casterWidth = renderWidth * 0.6f;
+            }
+
+            if (casterHeight > 0) {
+                float finalShadowLength = casterHeight * shadowLengthFactor;
+                float halfCasterWidth = casterWidth / 2.0f;
+                float shadowOffsetX = shadowVectorX * finalShadowLength;
+                float shadowOffsetY = shadowVectorY * finalShadowLength;
+                float x1 = baseIsoX - halfCasterWidth; float y1 = baseIsoY;
+                float x2 = baseIsoX + halfCasterWidth; float y2 = baseIsoY;
+                float x3 = x2 + shadowOffsetX; float y3 = y2 + shadowOffsetY;
+                float x4 = x1 + shadowOffsetX; float y4 = y1 + shadowOffsetY;
+                addShadowQuadToBuffer(shadowVertexBuffer, x1, y1, x2, y2, x3, y3, x4, y4, baseWorldZ + Z_OFFSET_SHADOW);
             }
         }
-        int effBT=camera.getEffectiveBaseThickness();
-        int[]bT={tileBaseX+effWidth/2,tileBaseY},bL={tileBaseX,tileBaseY+effHeight/2},bR={tileBaseX+effWidth,tileBaseY+effHeight/2},bB={tileBaseX+effWidth/2,tileBaseY+effHeight};
-        int[]bBL={bL[0],bL[1]+effBT},bBR={bR[0],bR[1]+effBT},bBB={bB[0],bB[1]+effBT};
 
-        glColor4f(baseSide1Color[0],baseSide1Color[1],baseSide1Color[2],baseSide1Color[3]);glBegin(GL_QUADS);glVertex2f(bL[0],bL[1]);glVertex2f(bBL[0],bBL[1]);glVertex2f(bBB[0],bBB[1]);glVertex2f(bB[0],bB[1]);glEnd();
-        glColor4f(baseSide2Color[0],baseSide2Color[1],baseSide2Color[2],baseSide2Color[3]);glBegin(GL_QUADS);glVertex2f(bR[0],bR[1]);glVertex2f(bBR[0],bBR[1]);glVertex2f(bBB[0],bBB[1]);glVertex2f(bB[0],bB[1]);glEnd();
-        glColor4f(baseTopColor[0],baseTopColor[1],baseTopColor[2],baseTopColor[3]);glBegin(GL_QUADS);glVertex2f(bL[0],bL[1]);glVertex2f(bT[0],bT[1]);glVertex2f(bR[0],bR[1]);glVertex2f(bB[0],bB[1]);glEnd();
+        // After the loop, render any remaining shadows
+        flushAndResizeShadowBatch();
 
-        float topDiamondCenterX_render=0,topDiamondCenterY_render=0,topDiamondIsoWidth_render=0,topDiamondIsoHeight_render=0;
-        boolean validSurf=false;
-
-        if(!isWater&&elevation>0){
-            int tEO=elevation*effThickness;int tSPY=tileBaseY-tEO;
-            int[]fT={tileBaseX+effWidth/2,tSPY},fL={tileBaseX,tSPY+effHeight/2},fR={tileBaseX+effWidth,tSPY+effHeight/2},fB={tileBaseX+effWidth/2,tSPY+effHeight};
-            int[] gL = {tileBaseX, tileBaseY + effHeight / 2}; // Ground level points for sides
-            int[] gR = {tileBaseX + effWidth, tileBaseY + effHeight / 2};
-            int[] gB = {tileBaseX + effWidth / 2, tileBaseY + effHeight};
-            glColor4f(side1Color[0],side1Color[1],side1Color[2],side1Color[3]);glBegin(GL_QUADS);glVertex2f(gL[0],gL[1]);glVertex2f(gB[0],gB[1]);glVertex2f(fB[0],fB[1]);glVertex2f(fL[0],fL[1]);glEnd();
-            glColor4f(side2Color[0],side2Color[1],side2Color[2],side2Color[3]);glBegin(GL_QUADS);glVertex2f(gR[0],gR[1]);glVertex2f(gB[0],gB[1]);glVertex2f(fB[0],fB[1]);glVertex2f(fR[0],fR[1]);glEnd();
-            glColor4f(topColor[0],topColor[1],topColor[2],topColor[3]);glBegin(GL_QUADS);glVertex2f(fL[0],fL[1]);glVertex2f(fT[0],fT[1]);glVertex2f(fR[0],fR[1]);glVertex2f(fB[0],fB[1]);glEnd();
-            topDiamondCenterX_render=fT[0]; topDiamondCenterY_render=(fT[1]+fB[1])/2.0f; topDiamondIsoWidth_render=fR[0]-fL[0]; topDiamondIsoHeight_render=fB[1]-fT[1]; validSurf=true;
-        }else if(!isWater){
-            glColor4f(topColor[0],topColor[1],topColor[2],topColor[3]);glBegin(GL_QUADS);glVertex2f(bL[0],bL[1]);glVertex2f(bT[0],bT[1]);glVertex2f(bR[0],bR[1]);glVertex2f(bB[0],bB[1]);glEnd();
-            topDiamondCenterX_render=bT[0]; topDiamondCenterY_render=(bT[1]+bB[1])/2.0f; topDiamondIsoWidth_render=bR[0]-bL[0]; topDiamondIsoHeight_render=bB[1]-bT[1]; validSurf=true;
-        }
-
-        if(validSurf && type == Tile.TileType.GRASS){
-            long seed=(long)tileR*map.getWidth()+tileC;
-            this.tileDetailRandom.setSeed(seed);
-            Grass.renderThickGrassTufts(this.tileDetailRandom,topDiamondCenterX_render,topDiamondCenterY_render,topDiamondIsoWidth_render,topDiamondIsoHeight_render,15,topColor[0]*0.75f,topColor[1]*0.85f,topColor[2]*0.7f,camera.getZoom());
-        }
+        // --- Cleanup ---
+        glBindVertexArray(0);
+        defaultShader.setUniform("uIsShadow", 0);
     }
 
-    private void renderUI() {
-        glMatrixMode(GL_PROJECTION);
-        glPushMatrix();
-        glLoadIdentity();
-        glOrtho(0, camera.getScreenWidth(), camera.getScreenHeight(), 0, -1, 1);
 
-        glMatrixMode(GL_MODELVIEW);
-        glPushMatrix();
-        glLoadIdentity();
 
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-        int yP=20,yI=18;
-        Tile selT=map.getTile(inputHandler.getSelectedRow(),inputHandler.getSelectedCol());String selI="Selected: ("+inputHandler.getSelectedRow()+", "+inputHandler.getSelectedCol()+")";
-        if(selT!=null){selI+=" Elev: "+selT.getElevation()+" Type: "+selT.getType();}
-        drawText(10,yP,"Player: ("+player.getTileRow()+", "+player.getTileCol()+") Act: "+player.getCurrentAction()+" Dir: "+player.getCurrentDirection()+" F:"+player.getVisualFrameIndex());yP+=yI;
-        drawText(10,yP,selI);yP+=yI;drawText(10,yP,String.format("Camera: (%.1f, %.1f) Zoom: %.2f",camera.getCameraX(),camera.getCameraY(),camera.getZoom()));yP+=yI;
-        drawText(10,yP,"Move: Click | Sel: Mouse | Elev Sel +/-: Q/E | Dig: J");yP+=yI;
-        drawText(10,yP,"Levitate: F | Center Cam: C | Regen Map: G");yP+=yI;yP+=yI;drawText(10,yP,"Inventory:");yP+=yI;
-        java.util.Map<String,Integer> inv=player.getInventory();
-        if(inv.isEmpty()){drawText(20,yP,"- Empty -");}else{for(java.util.Map.Entry<String,Integer>e:inv.entrySet()){drawText(20,yP,"- "+e.getKey()+": "+e.getValue());yP+=yI;}}
+    // --- NEW HELPER METHOD ---
+    /**
+     * Adds a skewed quad (a parallelogram) to the shadow vertex buffer.
+     * The quad is defined by its four world-space corner points.
+     */
+    private void addShadowQuadToBuffer(FloatBuffer buffer, float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, float z) {
+        // Triangle 1: (v1, v2, v4)
+        buffer.put(x1).put(y1).put(z).put(SHADOW_COLOR);
+        buffer.put(x2).put(y2).put(z).put(SHADOW_COLOR);
+        buffer.put(x4).put(y4).put(z).put(SHADOW_COLOR);
 
-        glMatrixMode(GL_MODELVIEW);
-        glPopMatrix();
-        glMatrixMode(GL_PROJECTION);
-        glPopMatrix();
-        glMatrixMode(GL_MODELVIEW);
+        // Triangle 2: (v2, v3, v4)
+        buffer.put(x2).put(y2).put(z).put(SHADOW_COLOR);
+        buffer.put(x3).put(y3).put(z).put(SHADOW_COLOR);
+        buffer.put(x4).put(y4).put(z).put(SHADOW_COLOR);
     }
 
-    private void drawText(int x, int y, String text) {
-        if(uiFont!=null){
-            uiFont.drawText((float)x,(float)y,text);
+    private void renderWorldSprites() {
+        if (spriteVaoId == 0 || worldEntities.isEmpty()) return;
+
+        glBindVertexArray(spriteVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+        spriteVertexBuffer.clear();
+
+        int verticesInBatch = 0;
+        Texture currentBatchTexture = null;
+
+        defaultShader.setUniform("uHasTexture", 1);
+        defaultShader.setUniform("uTextureSampler", 0);
+
+        for (Object entityObj : worldEntities) {
+            Texture textureForThisEntity;
+            int verticesAdded = 0;
+            boolean isPlayer = entityObj instanceof PlayerModel;
+
+            // Determine texture for the entity itself
+            if (entityObj instanceof Particle) {
+                // Particles don't use a texture, so we set the texture to null.
+                // This will force a batch break, which is what we want.
+                textureForThisEntity = null;
+            } else if (entityObj instanceof Entity) {
+                textureForThisEntity = playerTexture;
+            } else if (entityObj instanceof TreeData || entityObj instanceof LooseRockData) {
+                textureForThisEntity = treeTexture;
+            } else if (entityObj instanceof TorchData) { // <-- ADD THIS CASE
+                textureForThisEntity = playerTexture; // Assuming torch sprite is on player sheet
+            } else {
+                continue;
+            }
+
+            // --- BATCH BREAKING LOGIC ---
+            // If texture changes, draw the previous batch
+            if (currentBatchTexture != null && (textureForThisEntity == null || textureForThisEntity.getId() != currentBatchTexture.getId())) {
+                renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
+                spriteVertexBuffer.clear();
+                verticesInBatch = 0;
+            }
+            currentBatchTexture = textureForThisEntity;
+
+            // --- ADD VERTICES TO BUFFER ---
+            if (entityObj instanceof Particle) {
+                verticesAdded = addParticleVerticesToBuffer((Particle) entityObj, spriteVertexBuffer);
+            } else if (entityObj instanceof Entity) {
+                verticesAdded = addGenericEntityVerticesToBuffer((Entity) entityObj, spriteVertexBuffer);
+            } else if (entityObj instanceof TreeData) {
+                verticesAdded = addTreeVerticesToBuffer_WorldSpace((TreeData) entityObj, spriteVertexBuffer);
+            } else if (entityObj instanceof LooseRockData) {
+                verticesAdded = addLooseRockVerticesToBuffer_WorldSpace((LooseRockData) entityObj, spriteVertexBuffer);
+            } else if (entityObj instanceof TorchData) { // <-- ADD THIS CASE
+                verticesAdded = addTorchVerticesToBuffer_WorldSpace((TorchData) entityObj, spriteVertexBuffer);
+            }
+            verticesInBatch += verticesAdded;
+
+            // --- NEW: SPECIAL HANDLING FOR PLAYER'S WEAPON ---
+            if (isPlayer) {
+                PlayerModel p = (PlayerModel) entityObj;
+                Item heldItem = p.getHeldItem();
+                PlayerModel.AnchorPoint anchor = p.getAnchorForCurrentFrame();
+
+                // Check if holding an item that needs the *other* texture sheet
+                if (heldItem != null && anchor != null && treeTexture != null) {
+                    // The item needs drawing. First, draw everything we've batched so far (including the player model).
+                    renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
+                    spriteVertexBuffer.clear();
+                    verticesInBatch = 0;
+
+                    // Now, add the item's vertices to the empty buffer
+                    float playerZ = (p.getVisualRow() + p.getVisualCol()) * DEPTH_SORT_FACTOR + (map.getTile(p.getTileRow(), p.getTileCol()).getElevation() * 0.005f) + Z_OFFSET_SPRITE_PLAYER;
+                    float lightVal = map.getTile(p.getTileRow(), p.getTileCol()).getFinalLightLevel() / (float) MAX_LIGHT_LEVEL;
+                    float itemZ = anchor.drawBehind ? playerZ + 0.001f : playerZ - 0.001f;
+
+                    int itemVerts = addHeldItemVerticesToBuffer(p, heldItem, anchor, spriteVertexBuffer, itemZ, lightVal);
+
+                    // Draw the item immediately in its own batch, using the correct texture (treeTexture)
+                    renderSpriteBatch(spriteVertexBuffer, itemVerts, treeTexture);
+                    spriteVertexBuffer.clear();
+
+                    // Set the current texture back to the player texture for the next entities in the loop
+                    currentBatchTexture = playerTexture;
+                }
+            }
+        }
+
+        // Render any remaining vertices after the loop finishes
+        if (verticesInBatch > 0) {
+            renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
+        }
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
+
+    private int addTorchVerticesToBuffer_WorldSpace(TorchData torch, FloatBuffer buffer) {
+        // This assumes your torch animation is on the playerTexture sheet.
+        // You will need to find the correct coordinates for your torch sprite.
+        // Let's assume a 4-frame animation starting at (0, 24) on the sheet.
+        int animCol = (int) ((GLFW.glfwGetTime() * 4) % 4); // 4 frames per second animation
+        int animRow = 24; // The row of your torch animation on the sprite sheet
+        int frameWidth = 16; // The width of a single torch frame
+        int frameHeight = 32; // The height of a single torch frame
+
+        float tR = torch.mapRow;
+        float tC = torch.mapCol;
+        int elev = torch.elevation;
+
+        Tile tile = map.getTile(Math.round(tR), Math.round(tC));
+        float lightVal = 1.0f; // Torches should be fully lit
+
+        float tBaseIsoX = (tC - tR) * this.tileHalfWidth;
+        float tBaseIsoY = (tC + tR) * this.tileHalfHeight - (elev * TILE_THICKNESS);
+        float torchWorldZ = (tR + tC) * DEPTH_SORT_FACTOR - 0.01f; // In front of tile
+
+        float renderWidth = frameWidth;
+        float renderHeight = frameHeight;
+        float yOffset = -TILE_HEIGHT / 2.0f; // Position it in the middle of the tile face
+
+        float xL = tBaseIsoX - renderWidth / 2;
+        float xR = tBaseIsoX + renderWidth / 2;
+        float yT = tBaseIsoY + yOffset - renderHeight;
+        float yB = tBaseIsoY + yOffset;
+
+        float u0 = (float) (animCol * frameWidth) / playerTexture.getWidth();
+        float v0 = (float) (animRow * frameHeight) / playerTexture.getHeight();
+        float u1 = (float) ((animCol + 1) * frameWidth) / playerTexture.getWidth();
+        float v1 = (float) ((animRow + 1) * frameHeight) / playerTexture.getHeight();
+
+        addVertexToSpriteBuffer(buffer, xL, yT, torchWorldZ, WHITE_TINT, u0, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yB, torchWorldZ, WHITE_TINT, u0, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yB, torchWorldZ, WHITE_TINT, u1, v1, lightVal);
+
+        addVertexToSpriteBuffer(buffer, xR, yB, torchWorldZ, WHITE_TINT, u1, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yT, torchWorldZ, WHITE_TINT, u1, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yT, torchWorldZ, WHITE_TINT, u0, v0, lightVal);
+        return 6;
+    }
+
+    private void renderSpriteBatch(FloatBuffer buffer, int vertexCount, Texture texture) {
+        if (vertexCount == 0 || texture == null) return;
+
+        buffer.flip();
+        glBufferSubData(GL_ARRAY_BUFFER, 0, buffer);
+        glActiveTexture(GL_TEXTURE0);
+        texture.bind();
+        glDrawArrays(GL_TRIANGLES, 0, vertexCount);
+        texture.unbind(); // Good practice to unbind
+    }
+
+    private int addParticleVerticesToBuffer(Particle particle, FloatBuffer buffer) {
+        if (map == null) return 0;
+
+        // Get particle's base position
+        float pR = particle.getVisualRow();
+        float pC = particle.getVisualCol();
+
+        // Calculate isometric screen position
+        float pIsoX = (pC - pR) * tileHalfWidth;
+        float pIsoY = (pC + pR) * tileHalfHeight - particle.getZ(); // Use the particle's own Z
+
+        // Use a high Z-depth value to ensure particles draw in front of most things
+        float particleWorldZ = (pR + pC) * DEPTH_SORT_FACTOR - 0.1f;
+
+        // Define the quad size based on the particle's size property
+        float halfSize = particle.size / 2.0f;
+        float xL = pIsoX - halfSize;
+        float xR = pIsoX + halfSize;
+        float yT = pIsoY - halfSize;
+        float yB = pIsoY + halfSize;
+
+        // Use the particle's color
+        float[] tint = particle.color;
+
+        // Fade the particle out as it nears the end of its life
+        // We can use the lightValue attribute for this, re-purposing it as an alpha multiplier
+        float alpha_fade = 1.0f; // You could calculate this based on particle.life
+
+        // Add vertices. Since it's a simple colored square, texture coordinates (u,v) are irrelevant (0,0).
+        // We pass the alpha fade in the 'light' attribute slot.
+        addVertexToSpriteBuffer(buffer, xL, yT, particleWorldZ, tint, 0, 0, alpha_fade);
+        addVertexToSpriteBuffer(buffer, xL, yB, particleWorldZ, tint, 0, 0, alpha_fade);
+        addVertexToSpriteBuffer(buffer, xR, yB, particleWorldZ, tint, 0, 0, alpha_fade);
+
+        addVertexToSpriteBuffer(buffer, xR, yB, particleWorldZ, tint, 0, 0, alpha_fade);
+        addVertexToSpriteBuffer(buffer, xR, yT, particleWorldZ, tint, 0, 0, alpha_fade);
+        addVertexToSpriteBuffer(buffer, xL, yT, particleWorldZ, tint, 0, 0, alpha_fade);
+
+        return 6;
+    }
+
+    private int addGenericEntityVerticesToBuffer(Entity entity, FloatBuffer buffer) {
+        if (playerTexture == null || camera == null || map == null) return 0;
+
+        float eR = entity.getVisualRow();
+        float eC = entity.getVisualCol();
+        Tile tile = map.getTile(entity.getTileRow(), entity.getTileCol());
+        int elev = (tile != null) ? tile.getElevation() : 0;
+        float lightVal = (tile != null) ? tile.getFinalLightLevel() / (float) MAX_LIGHT_LEVEL : 1.0f;
+        lightVal = Math.max(0.1f, lightVal);
+
+        float eIsoX = (eC - eR) * this.tileHalfWidth;
+        float eIsoY = (eC + eR) * this.tileHalfHeight - (elev * TILE_THICKNESS);
+
+        // Determine Z-depth based on entity type
+        float entityWorldZ = (eR + eC) * DEPTH_SORT_FACTOR + (elev * 0.005f);
+        if (entity instanceof PlayerModel) {
+            entityWorldZ += Z_OFFSET_SPRITE_PLAYER;
         } else {
-            glDisable(GL_TEXTURE_2D);
-            glColor4f(0.1f,0.1f,0.1f,0.6f);glBegin(GL_QUADS);glVertex2f(x-2,y-2);glVertex2f(x-2+text.length()*8+4,y-2);glVertex2f(x-2+text.length()*8+4,y+15+2);glVertex2f(x-2,y+15+2);glEnd();
-            glColor4f(1.0f,1.0f,1.0f,0.8f);glBegin(GL_LINES);glVertex2f(x,y+15/2.0f);glVertex2f(x+text.length()*8,y+15/2.0f);glEnd();
+            entityWorldZ += Z_OFFSET_SPRITE_ANIMAL;
+        }
+
+        float renderWidth = (entity instanceof PlayerModel) ? PLAYER_WORLD_RENDER_WIDTH : entity.getFrameWidth() * 0.75f;
+        float renderHeight = (entity instanceof PlayerModel) ? PLAYER_WORLD_RENDER_HEIGHT : entity.getFrameHeight() * 0.75f;
+
+        float halfRenderWidth = renderWidth / 2.0f;
+        float xL = eIsoX - halfRenderWidth;
+        float xR = eIsoX + halfRenderWidth;
+        float yT = eIsoY - renderHeight;
+        float yB = eIsoY;
+
+        int animCol = entity.getVisualFrameIndex();
+        int animRow = entity.getAnimationRow();
+
+        float u0 = (float) (animCol * entity.getFrameWidth()) / playerTexture.getWidth();
+        float v0 = (float) (animRow * entity.getFrameHeight()) / playerTexture.getHeight();
+        float u1 = (float) ((animCol + 1) * entity.getFrameWidth()) / playerTexture.getWidth();
+        float v1 = (float) ((animRow + 1) * entity.getFrameHeight()) / playerTexture.getHeight();
+
+        float[] tint = entity.getHealthTint();
+
+        addVertexToSpriteBuffer(buffer, xL, yT, entityWorldZ, tint, u0, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yB, entityWorldZ, tint, u0, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yB, entityWorldZ, tint, u1, v1, lightVal);
+
+        addVertexToSpriteBuffer(buffer, xR, yB, entityWorldZ, tint, u1, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yT, entityWorldZ, tint, u1, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yT, entityWorldZ, tint, u0, v0, lightVal);
+
+        return 6; // It always adds 6 vertices
+    }
+
+
+    private int addHeldItemVerticesToBuffer(PlayerModel player, Item item, PlayerModel.AnchorPoint anchor, FloatBuffer buffer, float itemWorldZ, float lightVal) {
+        if (treeTexture == null || map == null || anchor == null) return 0;
+
+        float pR = player.getVisualRow();
+        float pC = player.getVisualCol();
+        Tile tile = map.getTile(player.getTileRow(), player.getTileCol());
+        int elev = (tile != null) ? tile.getElevation() : 0;
+
+        // FIX: Removed duplicate variable declarations for 'lightVal' and 'itemWorldZ'.
+        // We now use the values passed into the method.
+
+        float playerRenderWidth = Constants.PLAYER_WORLD_RENDER_WIDTH;
+        float playerRenderHeight = Constants.PLAYER_WORLD_RENDER_HEIGHT;
+        float playerBaseIsoX = (pC - pR) * tileHalfWidth;
+        float playerBaseIsoY = (pC + pR) * tileHalfHeight - (elev * TILE_THICKNESS);
+
+        float playerCenterX = playerBaseIsoX;
+        float playerCenterY = playerBaseIsoY - playerRenderHeight / 2.0f;
+
+        float pixelToWorldScale = playerRenderWidth / (float) player.getFrameWidth();
+        float scaledAnchorDx = anchor.dx * pixelToWorldScale;
+        float scaledAnchorDy = anchor.dy * pixelToWorldScale;
+
+        float renderW = CRUDE_AXE_RENDER_WIDTH;
+        float renderH = CRUDE_AXE_RENDER_HEIGHT;
+        float pivotX = renderW * 0.2f;
+        float pivotY = renderH * 0.8f;
+
+        Matrix4f modelMatrix = new Matrix4f();
+        modelMatrix.translate(playerCenterX + scaledAnchorDx, playerCenterY + scaledAnchorDy, 0);
+        modelMatrix.rotateZ((float) Math.toRadians(anchor.rotation));
+        modelMatrix.translate(-pivotX, -pivotY, 0);
+
+        Vector4f vertTopLeft     = new Vector4f(0, 0, 0, 1).mul(modelMatrix);
+        Vector4f vertBottomLeft  = new Vector4f(0, renderH, 0, 1).mul(modelMatrix);
+        Vector4f vertTopRight    = new Vector4f(renderW, 0, 0, 1).mul(modelMatrix);
+        Vector4f vertBottomRight = new Vector4f(renderW, renderH, 0, 1).mul(modelMatrix);
+
+        float u0 = item.getIconU0(), v0 = item.getIconV0();
+        float u1 = item.getIconU1(), v1 = item.getIconV1();
+
+        addVertexToSpriteBuffer(buffer, vertTopLeft.x, vertTopLeft.y, itemWorldZ, WHITE_TINT, u0, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, vertBottomLeft.x, vertBottomLeft.y, itemWorldZ, WHITE_TINT, u0, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, vertTopRight.x, vertTopRight.y, itemWorldZ, WHITE_TINT, u1, v0, lightVal);
+
+        addVertexToSpriteBuffer(buffer, vertTopRight.x, vertTopRight.y, itemWorldZ, WHITE_TINT, u1, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, vertBottomLeft.x, vertBottomLeft.y, itemWorldZ, WHITE_TINT, u0, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, vertBottomRight.x, vertBottomRight.y, itemWorldZ, WHITE_TINT, u1, v1, lightVal);
+
+        return 6;
+    }
+
+
+    public void renderHotbar(PlayerModel playerForHotbar, int currentlySelectedHotbarSlot) {
+        Font currentUiFont = getUiFont();
+        if (currentUiFont == null || !currentUiFont.isInitialized() ||
+                playerForHotbar == null || defaultShader == null || camera == null) {
+            return;
+        }
+
+        // Cache hotbar layout calculations
+        final float slotSize = 55f;
+        final float slotMargin = 6f;
+        final int hotbarSlotsToDisplay = HOTBAR_SIZE;
+        final float totalHotbarWidth = (hotbarSlotsToDisplay * slotSize) +
+                ((Math.max(0, hotbarSlotsToDisplay - 1)) * slotMargin);
+        final float hotbarX = (camera.getScreenWidth() - totalHotbarWidth) / 2.0f;
+        final float hotbarY = camera.getScreenHeight() - slotSize - (slotMargin * 3);
+        final float itemRenderSize = slotSize * 0.9f;
+        final float itemOffset = (slotSize - itemRenderSize) / 2f;
+        float pR = player.getVisualRow();
+
+        List<InventorySlot> playerInventorySlots = playerForHotbar.getInventorySlots();
+
+        // --- Part 1: Draw Hotbar Slot Backgrounds and Borders ---
+        defaultShader.bind();
+        defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
+        defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
+        defaultShader.setUniform("uIsFont", 0);
+        defaultShader.setUniform("uHasTexture", 0);
+        defaultShader.setUniform("uIsSimpleUiElement", 1);
+
+        glBindVertexArray(hotbarVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, hotbarVboId);
+
+        // Only rebuild if dirty or selection changed
+        if (hotbarDirty || hasSelectionChanged(currentlySelectedHotbarSlot)) {
+            hotbarVertexDataBuffer.clear();
+            hotbarVertexCount = 0;
+
+            // Single pass for backgrounds and borders
+            for (int i = 0; i < hotbarSlotsToDisplay; i++) {
+                float currentSlotDrawX = hotbarX + i * (slotSize + slotMargin);
+                InventorySlot slot = (i < playerInventorySlots.size()) ? playerInventorySlots.get(i) : null;
+                boolean isSelected = (i == currentlySelectedHotbarSlot);
+                boolean isEmpty = (slot == null || slot.isEmpty());
+
+                // Determine colors and border width based on state
+                SlotStyle style = getSlotStyle(isSelected, isEmpty);
+
+                // Draw slot background with gradient
+                addGradientQuadToUiColoredBuffer(hotbarVertexDataBuffer,
+                        currentSlotDrawX, hotbarY, slotSize, slotSize,
+                        Z_OFFSET_UI_PANEL, style.topBgColor, style.bottomBgColor);
+                hotbarVertexCount += 6;
+
+                // Draw slot border if needed
+                if (style.borderWidth > 0) {
+                    addQuadToUiColoredBuffer(hotbarVertexDataBuffer,
+                            currentSlotDrawX - style.borderWidth,
+                            hotbarY - style.borderWidth,
+                            slotSize + (2 * style.borderWidth),
+                            slotSize + (2 * style.borderWidth),
+                            Z_OFFSET_UI_BORDER, style.borderColor);
+                    hotbarVertexCount += 6;
+                }
+
+                // Add icon border for items with textures
+                if (slot != null && !slot.isEmpty() && slot.getItem().hasIconTexture()) {
+                    float iconVisualX = currentSlotDrawX + itemOffset;
+                    float iconVisualY = hotbarY + itemOffset;
+                    float iconBorderSize = 1.0f;
+                    float[] iconBorderColor = {1.0f, 1.0f, 1.0f, 0.8f};
+
+                    addQuadToUiColoredBuffer(hotbarVertexDataBuffer,
+                            iconVisualX - iconBorderSize,
+                            iconVisualY - iconBorderSize,
+                            itemRenderSize + (2 * iconBorderSize),
+                            itemRenderSize + (2 * iconBorderSize),
+                            Z_OFFSET_UI_ELEMENT - 0.002f, iconBorderColor);
+                    hotbarVertexCount += 6;
+                }
+            }
+
+            hotbarVertexDataBuffer.flip();
+            glBufferSubData(GL_ARRAY_BUFFER, 0, hotbarVertexDataBuffer);
+            hotbarDirty = false;
+            updateLastSelectedSlot(currentlySelectedHotbarSlot);
+        }
+
+        // Draw all colored quads at once
+        if (hotbarVertexCount > 0) {
+            glDrawArrays(GL_TRIANGLES, 0, hotbarVertexCount);
+        }
+
+        // --- Part 2: Draw Item Icons ---
+// This new logic will sort icons by texture before drawing.
+
+// 1. Group icons by their texture atlas
+        java.util.Map<Texture, List<IconRenderData>> iconBatchMap = new HashMap<>();
+
+        for (int i = 0; i < hotbarSlotsToDisplay; i++) {
+            InventorySlot slot = (i < playerInventorySlots.size()) ? playerInventorySlots.get(i) : null;
+            if (slot != null && !slot.isEmpty() && slot.getItem().hasIconTexture()) {
+                Item item = slot.getItem();
+                Texture itemTexture = getTextureByName(item.getAtlasName());
+
+                if (itemTexture != null) {
+                    // If this texture isn't in our map yet, add it as a new batch
+                    iconBatchMap.computeIfAbsent(itemTexture, k -> new ArrayList<>());
+
+                    // Calculate position and create render data
+                    float currentSlotDrawX = hotbarX + i * (slotSize + slotMargin);
+                    float iconX = currentSlotDrawX + itemOffset;
+                    float iconY = hotbarY + itemOffset;
+                    float iconZ = Z_OFFSET_UI_ELEMENT;
+
+                    iconBatchMap.get(itemTexture).add(new IconRenderData(iconX, iconY, iconZ, itemRenderSize, item));
+                }
+            }
+        }
+
+// 2. Render the batches
+        defaultShader.setUniform("uHasTexture", 1);
+        defaultShader.setUniform("uIsSimpleUiElement", 0);
+        defaultShader.setUniform("uTextureSampler", 0);
+
+        glBindVertexArray(spriteVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+
+// Loop through each texture batch (e.g., one for tileAtlasTexture, one for treeTexture)
+        for (java.util.Map.Entry<Texture, List<IconRenderData>> entry : iconBatchMap.entrySet()) {
+            Texture batchTexture = entry.getKey();
+            List<IconRenderData> iconsToRender = entry.getValue();
+
+            // Bind the texture for this entire batch
+            glActiveTexture(GL_TEXTURE0);
+            batchTexture.bind();
+
+            spriteVertexBuffer.clear();
+            int verticesInBatch = 0;
+
+            // Add all icons for this texture to the buffer
+            for (IconRenderData iconData : iconsToRender) {
+                addIconQuad(spriteVertexBuffer, iconData.x, iconData.y, iconData.z, iconData.size, iconData.item);
+                verticesInBatch += 6;
+            }
+
+            // Upload the buffer and draw everything in this batch at once
+            if (verticesInBatch > 0) {
+                spriteVertexBuffer.flip();
+                glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+                glDrawArrays(GL_TRIANGLES, 0, verticesInBatch);
+            }
+            // The texture remains bound until the next batch needs a different one
+        }
+
+        // --- Part 3: Draw Quantity Text ---
+        renderQuantityText(playerInventorySlots, currentUiFont, hotbarX, hotbarY,
+                slotSize, slotMargin, hotbarSlotsToDisplay);
+
+        // Cleanup
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        defaultShader.unbind();
+    }
+
+
+    public Texture getTextureByName(String atlasName) {
+        if (atlasName == null || atlasName.isEmpty()) {
+            return null;
+        }
+        // This maps the string from your JSON to the loaded Texture object
+        switch (atlasName) {
+            case "tileAtlasTexture":
+                return this.tileAtlasTexture;
+            case "treeTexture":
+                return this.treeTexture;
+            case "playerTexture":
+                return this.playerTexture;
+            default:
+                System.err.println("Warning: Tried to get unknown texture atlas named: " + atlasName);
+                return null;
         }
     }
-    // Add a flag to toggle debug drawin
-// ... inside your main render() method, AFTER renderMapBaseGeometry() and AFTER
-// the main loop for rendering sortableItems, but BEFORE renderUI():
-// Or, more effectively, modify renderMapBaseGeometry to also draw these debug outlines.
 
+    // In Renderer.java
+
+    private static class IconRenderData {
+        final float x, y, z, size;
+        final Item item;
+
+        IconRenderData(float x, float y, float z, float size, Item item) {
+            this.x = x; this.y = y; this.z = z; this.size = size;
+            this.item = item;
+        }
+    }
+
+    // Helper method to determine slot styling
+    private SlotStyle getSlotStyle(boolean isSelected, boolean isEmpty) {
+        SlotStyle style = new SlotStyle();
+
+        if (isSelected) {
+            style.topBgColor = new float[]{0.9f, 0.9f, 0.3f, 0.75f};
+            style.bottomBgColor = new float[]{0.8f, 0.8f, 0.2f, 0.75f};
+            style.borderColor = new float[]{1.0f, 0.6f, 0.0f, 0.85f};
+            style.borderWidth = 2.5f;
+        } else if (!isEmpty) {
+            style.topBgColor = new float[]{0.8f, 0.8f, 0.4f, 0.65f};
+            style.bottomBgColor = new float[]{0.7f, 0.7f, 0.3f, 0.65f};
+            style.borderColor = new float[]{0.9f, 0.5f, 0.1f, 0.75f};
+            style.borderWidth = 1.5f;
+        } else {
+            style.topBgColor = new float[]{0.7f, 0.7f, 0.5f, 0.55f};
+            style.bottomBgColor = new float[]{0.6f, 0.6f, 0.4f, 0.55f};
+            style.borderColor = new float[]{0.8f, 0.4f, 0.0f, 0.65f};
+            style.borderWidth = 1.0f;
+        }
+
+        return style;
+    }
+
+    // In Renderer.java
+    public static class TorchData {
+        public float mapCol, mapRow;
+        public int elevation;
+        public TorchData(float tc, float tr, int te) {
+            this.mapCol = tc; this.mapRow = tr; this.elevation = te;
+        }
+    }
+
+
+    // Helper method to add icon quad vertices
+    private void addIconQuad(FloatBuffer buffer, float x, float y, float z,
+                             float size, Item item) {
+        float[] tint = WHITE_TINT;
+
+        // Triangle 1
+        buffer.put(x).put(y).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU0()).put(item.getIconV0()).put(1.0f);
+
+        buffer.put(x).put(y + size).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU0()).put(item.getIconV1()).put(1.0f);
+
+        buffer.put(x + size).put(y + size).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU1()).put(item.getIconV1()).put(1.0f);
+
+        // Triangle 2
+        buffer.put(x).put(y).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU0()).put(item.getIconV0()).put(1.0f);
+
+        buffer.put(x + size).put(y + size).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU1()).put(item.getIconV1()).put(1.0f);
+
+        buffer.put(x + size).put(y).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU1()).put(item.getIconV0()).put(1.0f);
+    }
+
+    // Helper method for quantity text rendering
+    private void renderQuantityText(List<InventorySlot> slots, Font font,
+                                    float hotbarX, float hotbarY, float slotSize,
+                                    float slotMargin, int slotsToDisplay) {
+        final float textPaddingFromEdge = 4f;
+
+        for (int i = 0; i < slotsToDisplay; i++) {
+            InventorySlot slot = (i < slots.size()) ? slots.get(i) : null;
+
+            if (slot != null && !slot.isEmpty() && slot.getQuantity() > 1) {
+                String quantityStr = String.valueOf(slot.getQuantity());
+                float currentSlotDrawX = hotbarX + i * (slotSize + slotMargin);
+                float qtyTextWidth = font.getTextWidthScaled(quantityStr, 1.0f);
+                float qtyTextX = currentSlotDrawX + slotSize - qtyTextWidth - textPaddingFromEdge;
+                float qtyTextY = hotbarY + slotSize - textPaddingFromEdge;
+
+                font.drawText(qtyTextX, qtyTextY, quantityStr, 1f, 1f, 1f);
+            }
+        }
+    }
+
+    // Helper class for slot styling
+    private static class SlotStyle {
+        float[] topBgColor;
+        float[] bottomBgColor;
+        float[] borderColor;
+        float borderWidth;
+    }
+
+    // Selection tracking methods
+    private int lastSelectedSlot = -1;
+
+    private boolean hasSelectionChanged(int currentSlot) {
+        return lastSelectedSlot != currentSlot;
+    }
+
+    private void updateLastSelectedSlot(int slot) {
+        lastSelectedSlot = slot;
+    }
+
+    private void addQuadToUiBuffer(FloatBuffer buffer, float x, float y, float w, float h, float z, float[] color) {
+        buffer.put(x).put(y).put(z).put(color[0]).put(color[1]).put(color[2]).put(color[3]);
+        buffer.put(x).put(y + h).put(z).put(color[0]).put(color[1]).put(color[2]).put(color[3]);
+        buffer.put(x + w).put(y).put(z).put(color[0]).put(color[1]).put(color[2]).put(color[3]);
+        buffer.put(x + w).put(y).put(z).put(color[0]).put(color[1]).put(color[2]).put(color[3]);
+        buffer.put(x).put(y + h).put(z).put(color[0]).put(color[1]).put(color[2]).put(color[3]);
+        buffer.put(x + w).put(y + h).put(z).put(color[0]).put(color[1]).put(color[2]).put(color[3]);
+    }
+
+    private void addGradientQuadToUiBuffer(FloatBuffer buffer, float x, float y, float w, float h, float z, float[] topColor, float[] bottomColor) {
+        buffer.put(x).put(y).put(z).put(topColor[0]).put(topColor[1]).put(topColor[2]).put(topColor[3]);
+        buffer.put(x).put(y + h).put(z).put(bottomColor[0]).put(bottomColor[1]).put(bottomColor[2]).put(bottomColor[3]);
+        buffer.put(x + w).put(y).put(z).put(topColor[0]).put(topColor[1]).put(topColor[2]).put(topColor[3]);
+        buffer.put(x + w).put(y).put(z).put(topColor[0]).put(topColor[1]).put(topColor[2]).put(topColor[3]);
+        buffer.put(x).put(y + h).put(z).put(bottomColor[0]).put(bottomColor[1]).put(bottomColor[2]).put(bottomColor[3]);
+        buffer.put(x + w).put(y + h).put(z).put(bottomColor[0]).put(bottomColor[1]).put(bottomColor[2]).put(bottomColor[3]);
+    }
+
+    public void renderInventoryAndCraftingUI(PlayerModel playerForInventory) {
+        Font currentUiFont = getUiFont();
+        Font titleFont = getTitleFont();
+        if (currentUiFont == null || !currentUiFont.isInitialized() ||
+                titleFont == null || !titleFont.isInitialized() ||
+                playerForInventory == null || camera == null ||
+                defaultShader == null || uiColoredVaoId == 0) {
+            return;
+        }
+
+        Game game = (this.inputHandler != null) ? this.inputHandler.getGameInstance() : null;
+        if (game == null) return;
+
+        // --- 1. LAYOUT CALCULATIONS ---
+        final float slotSize = 50f;
+        final float slotMargin = 10f;
+        final float panelMarginX = 30f;
+        final float topMarginY = 40f;
+        final float marginBetweenPanels = 20f;
+
+        // Inventory Panel (Top-Right)
+        final int invSlotsPerRow = 5;
+        List<InventorySlot> slots = playerForInventory.getInventorySlots();
+        final int invNumRows = slots.isEmpty() ? 1 : (int) Math.ceil((double) slots.size() / invSlotsPerRow);
+        final float invPanelWidth = (invSlotsPerRow * slotSize) + ((invSlotsPerRow + 1) * slotMargin);
+        final float invPanelHeight = (invNumRows * slotSize) + ((invNumRows + 1) * slotMargin);
+        final float invPanelX = camera.getScreenWidth() - invPanelWidth - panelMarginX;
+        final float invPanelY = topMarginY;
+
+        // Crafting Panel (Below Inventory)
+        List<org.isogame.crafting.CraftingRecipe> allRecipes = org.isogame.crafting.RecipeRegistry.getAllRecipes();
+        final float recipeRowHeight = 50f;
+        final float craftPanelWidth = invPanelWidth;
+        final float craftPanelHeight = (allRecipes.size() * recipeRowHeight) + (slotMargin * 2) + 30f;
+        final float craftPanelX = invPanelX;
+        final float craftPanelY = invPanelY + invPanelHeight + marginBetweenPanels;
+
+        // --- 2. RENDER PANEL BACKGROUNDS ---
+        defaultShader.bind();
+        defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
+        defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
+        defaultShader.setUniform("uIsFont", 0);
+        defaultShader.setUniform("uHasTexture", 0);
+        defaultShader.setUniform("uIsSimpleUiElement", 1);
+
+        glBindVertexArray(uiColoredVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, uiColoredVboId);
+        uiColoredVertexBuffer.clear();
+
+        // Panel backgrounds with more visible colors
+        float[] invPanelColor = {0.15f, 0.15f, 0.2f, 0.95f}; // Darker, more opaque
+        float[] craftPanelColor = {0.1f, 0.1f, 0.15f, 0.95f}; // Even darker for contrast
+
+        addQuadToUiColoredBuffer(uiColoredVertexBuffer, invPanelX, invPanelY,
+                invPanelWidth, invPanelHeight, Z_OFFSET_UI_PANEL, invPanelColor);
+        addQuadToUiColoredBuffer(uiColoredVertexBuffer, craftPanelX, craftPanelY,
+                craftPanelWidth, craftPanelHeight, Z_OFFSET_UI_PANEL, craftPanelColor);
+
+        int backgroundVertexCount = 12; // 2 panels * 6 vertices each
+
+        // --- 3. RENDER INVENTORY SLOTS ---
+        float currentSlotX = invPanelX + slotMargin;
+        float currentSlotY = invPanelY + slotMargin;
+        int colCount = 0;
+        int slotVertexCount = 0;
+
+        for (int i = 0; i < slots.size(); i++) {
+            InventorySlot slot = slots.get(i);
+            boolean isSelected = (i == game.getSelectedHotbarSlotIndex() && i < HOTBAR_SIZE);
+            boolean hasItem = (slot != null && !slot.isEmpty());
+
+            // More visible slot colors
+            float[] slotColor;
+            if (isSelected) {
+                slotColor = new float[]{0.9f, 0.8f, 0.2f, 0.9f}; // Bright yellow for selected
+            } else if (hasItem) {
+                slotColor = new float[]{0.5f, 0.5f, 0.6f, 0.8f}; // Light grey for items
+            } else {
+                slotColor = new float[]{0.3f, 0.3f, 0.35f, 0.7f}; // Medium grey for empty
+            }
+
+            addQuadToUiColoredBuffer(uiColoredVertexBuffer, currentSlotX, currentSlotY,
+                    slotSize, slotSize, Z_OFFSET_UI_ELEMENT, slotColor);
+            slotVertexCount += 6;
+
+            // Add slot border for better visibility
+            float borderWidth = isSelected ? 2.0f : 1.0f;
+            float[] borderColor = isSelected ?
+                    new float[]{1.0f, 0.9f, 0.0f, 1.0f} : // Gold border for selected
+                    new float[]{0.6f, 0.6f, 0.6f, 0.8f};  // Grey border for others
+
+            addQuadBorderToUiColoredBuffer(uiColoredVertexBuffer, currentSlotX, currentSlotY,
+                    slotSize, slotSize, borderWidth,
+                    Z_OFFSET_UI_ELEMENT + 0.001f, borderColor);
+            slotVertexCount += 24; // 4 border quads * 6 vertices each
+
+            currentSlotX += slotSize + slotMargin;
+            colCount++;
+            if (colCount >= invSlotsPerRow) {
+                colCount = 0;
+                currentSlotX = invPanelX + slotMargin;
+                currentSlotY += slotSize + slotMargin;
+            }
+        }
+
+        // --- 4. RENDER CRAFT BUTTONS ---
+        float currentRecipeY = craftPanelY + slotMargin + 30f;
+        int buttonVertexCount = 0;
+
+        for (org.isogame.crafting.CraftingRecipe recipe : allRecipes) {
+            if (game.canCraft(recipe)) {
+                float craftButtonWidth = 70f;
+                float craftButtonHeight = 25f;
+                float craftButtonX = craftPanelX + craftPanelWidth - craftButtonWidth - slotMargin;
+                float craftButtonY = currentRecipeY + (recipeRowHeight - craftButtonHeight) / 2f - 2f;
+
+                float[] buttonColor = {0.2f, 0.6f, 0.2f, 0.9f}; // Brighter green
+                addQuadToUiColoredBuffer(uiColoredVertexBuffer, craftButtonX, craftButtonY,
+                        craftButtonWidth, craftButtonHeight,
+                        Z_OFFSET_UI_BORDER, buttonColor);
+                buttonVertexCount += 6;
+            }
+            currentRecipeY += recipeRowHeight;
+        }
+
+        // Draw all colored elements
+        int totalColoredVertices = backgroundVertexCount + slotVertexCount + buttonVertexCount;
+        if (totalColoredVertices > 0) {
+            uiColoredVertexBuffer.flip();
+            glBufferSubData(GL_ARRAY_BUFFER, 0, uiColoredVertexBuffer);
+            glDrawArrays(GL_TRIANGLES, 0, totalColoredVertices);
+        }
+
+        // --- 5. RENDER ITEM ICONS ---
+// This new logic will sort all UI icons by texture before drawing.
+
+// 1. Group all icons by their texture atlas
+        java.util.Map<Texture, List<IconRenderData>> iconBatchMap = new HashMap<>();
+        final float itemRenderSize = slotSize * 0.8f;
+        final float itemOffset = (slotSize - itemRenderSize) / 2f;
+
+// --- Gather inventory icons ---
+        currentSlotX = invPanelX + slotMargin;
+        currentSlotY = invPanelY + slotMargin;
+        colCount = 0;
+        for (int i = 0; i < slots.size(); i++) {
+            InventorySlot slot = slots.get(i);
+            if (slot != null && !slot.isEmpty() && slot.getItem().hasIconTexture()) {
+                Item item = slot.getItem();
+                Texture itemTexture = getTextureByName(item.getAtlasName());
+                if (itemTexture != null) {
+                    iconBatchMap.computeIfAbsent(itemTexture, k -> new ArrayList<>());
+                    iconBatchMap.get(itemTexture).add(new IconRenderData(
+                            currentSlotX + itemOffset,
+                            currentSlotY + itemOffset,
+                            Z_OFFSET_UI_ELEMENT + 0.002f,
+                            itemRenderSize,
+                            item));
+                }
+            }
+            currentSlotX += slotSize + slotMargin;
+            colCount++;
+            if (colCount >= invSlotsPerRow) {
+                colCount = 0;
+                currentSlotX = invPanelX + slotMargin;
+                currentSlotY += slotSize + slotMargin;
+            }
+        }
+
+// --- Gather recipe icons ---
+        final float recipeIconSize = 32f;
+        currentRecipeY = craftPanelY + slotMargin + 30f; // Reset Y position for recipes
+        for (org.isogame.crafting.CraftingRecipe recipe : allRecipes) {
+            Item item = recipe.getOutputItem();
+            Texture itemTexture = getTextureByName(item.getAtlasName());
+            if (itemTexture != null) {
+                iconBatchMap.computeIfAbsent(itemTexture, k -> new ArrayList<>());
+                iconBatchMap.get(itemTexture).add(new IconRenderData(
+                        craftPanelX + slotMargin,
+                        currentRecipeY + (recipeRowHeight - recipeIconSize) / 2f - 2f,
+                        Z_OFFSET_UI_ELEMENT + 0.002f,
+                        recipeIconSize,
+                        item));
+            }
+            currentRecipeY += recipeRowHeight;
+        }
+
+// 2. Render all batches
+        defaultShader.setUniform("uHasTexture", 1);
+        defaultShader.setUniform("uIsSimpleUiElement", 0);
+        defaultShader.setUniform("uTextureSampler", 0);
+
+        glBindVertexArray(spriteVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+
+        for (java.util.Map.Entry<Texture, List<IconRenderData>> entry : iconBatchMap.entrySet()) {
+            Texture batchTexture = entry.getKey();
+            List<IconRenderData> iconsToRender = entry.getValue();
+
+            glActiveTexture(GL_TEXTURE0);
+            batchTexture.bind();
+
+            spriteVertexBuffer.clear();
+            int verticesInBatch = 0;
+
+            for (IconRenderData iconData : iconsToRender) {
+                addIconQuad(spriteVertexBuffer, iconData.x, iconData.y, iconData.z, iconData.size, iconData.item);
+                verticesInBatch += 6;
+            }
+
+            if (verticesInBatch > 0) {
+                spriteVertexBuffer.flip();
+                glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+                glDrawArrays(GL_TRIANGLES, 0, verticesInBatch);
+            }
+        }
+
+
+        // --- 6. RENDER TEXT ---
+        renderInventoryText(slots, currentUiFont, invPanelX, invPanelY,
+                slotSize, slotMargin, invSlotsPerRow);
+        renderCraftingText(allRecipes, game, currentUiFont, titleFont,
+                craftPanelX, craftPanelY, craftPanelWidth, recipeRowHeight);
+
+        // --- 7. RENDER DRAGGED ITEM ---
+        if (game.isDraggingItem() && game.getDraggedItemStack() != null) {
+            renderDraggedItem(game, currentUiFont);
+        }
+
+        // --- 8. RENDER TOOLTIP ---
+        if (!game.isDraggingItem()) {
+            double[] xpos = new double[1];
+            double[] ypos = new double[1];
+            glfwGetCursorPos(game.getWindowHandle(), xpos, ypos);
+            renderCraftingTooltip(game.getHoveredRecipe(), (float)xpos[0], (float)ypos[0]);
+        }
+
+        // Cleanup
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        defaultShader.unbind();
+    }
+
+    // Helper method to add quad borders
+    private void addQuadBorderToUiColoredBuffer(FloatBuffer buffer, float x, float y,
+                                                float width, float height, float borderWidth,
+                                                float z, float[] color) {
+        // Top border
+        addQuadToUiColoredBuffer(buffer, x - borderWidth, y - borderWidth,
+                width + 2 * borderWidth, borderWidth, z, color);
+        // Bottom border
+        addQuadToUiColoredBuffer(buffer, x - borderWidth, y + height,
+                width + 2 * borderWidth, borderWidth, z, color);
+        // Left border
+        addQuadToUiColoredBuffer(buffer, x - borderWidth, y,
+                borderWidth, height, z, color);
+        // Right border
+        addQuadToUiColoredBuffer(buffer, x + width, y,
+                borderWidth, height, z, color);
+    }
+
+    // Optimized text rendering methods
+    private void renderInventoryText(List<InventorySlot> slots, Font font,
+                                     float panelX, float panelY, float slotSize,
+                                     float slotMargin, int slotsPerRow) {
+        float currentSlotX = panelX + slotMargin;
+        float currentSlotY = panelY + slotMargin;
+        int colCount = 0;
+        final float textPadding = 4f;
+
+        for (int i = 0; i < slots.size(); i++) {
+            InventorySlot slot = slots.get(i);
+            if (slot != null && !slot.isEmpty() && slot.getQuantity() > 1) {
+                String quantityStr = String.valueOf(slot.getQuantity());
+                float textWidth = font.getTextWidth(quantityStr);
+                float textX = currentSlotX + slotSize - textWidth - textPadding;
+                float textY = currentSlotY + slotSize - textPadding;
+
+                // Add text shadow for better visibility
+                font.drawText(textX + 1, textY + 1, quantityStr, 0f, 0f, 0f); // Shadow
+                font.drawText(textX, textY, quantityStr, 1f, 1f, 1f); // Main text
+            }
+
+            currentSlotX += slotSize + slotMargin;
+            colCount++;
+            if (colCount >= slotsPerRow) {
+                colCount = 0;
+                currentSlotX = panelX + slotMargin;
+                currentSlotY += slotSize + slotMargin;
+            }
+        }
+    }
+
+    private void renderCraftingText(List<org.isogame.crafting.CraftingRecipe> recipes,
+                                    Game game, Font font, Font titleFont,
+                                    float panelX, float panelY, float panelWidth,
+                                    float rowHeight) {
+        // Title
+        String title = "Crafting";
+        float titleWidth = titleFont.getTextWidthScaled(title, 0.5f);
+        titleFont.drawTextWithSpacing(panelX + (panelWidth - titleWidth) / 2f,
+                panelY + 5f, title, 0.5f, -15.0f, 1f, 1f, 1f);
+
+        // Recipe text
+        float currentRecipeY = panelY + 40f; // Start below title
+        final float recipeIconSize = 32f;
+
+        for (org.isogame.crafting.CraftingRecipe recipe : recipes) {
+            boolean canCraft = game.canCraft(recipe);
+            float[] textColor = canCraft ?
+                    new float[]{1f, 1f, 1f} :
+                    new float[]{0.6f, 0.6f, 0.6f}; // Less grey, more visible
+
+            font.drawText(panelX + 10f + recipeIconSize + 8f,
+                    currentRecipeY + 20f,
+                    recipe.getOutputItem().getDisplayName(),
+                    textColor[0], textColor[1], textColor[2]);
+
+            if (canCraft) {
+                float craftButtonWidth = 70f;
+                String craftText = "CRAFT";
+                float craftTextWidth = font.getTextWidth(craftText);
+                float craftTextX = panelX + panelWidth - craftButtonWidth +
+                        (craftButtonWidth - craftTextWidth) / 2f - 10f;
+
+                font.drawText(craftTextX, currentRecipeY + 22f, craftText,
+                        0.9f, 1f, 0.9f);
+            }
+
+            currentRecipeY += rowHeight;
+        }
+    }
+
+
+
+    private void renderDraggedItem(Game game, Font font) {
+        double[] xpos = new double[1];
+        double[] ypos = new double[1];
+        glfwGetCursorPos(game.getWindowHandle(), xpos, ypos);
+
+        // Convert cursor position to framebuffer coordinates
+        int[] fbW = new int[1], fbH = new int[1], winW = new int[1], winH = new int[1];
+        glfwGetFramebufferSize(game.getWindowHandle(), fbW, fbH);
+        glfwGetWindowSize(game.getWindowHandle(), winW, winH);
+
+        double scaleX = (fbW[0] > 0 && winW[0] > 0) ? (double)fbW[0] / winW[0] : 1.0;
+        double scaleY = (fbH[0] > 0 && winH[0] > 0) ? (double)fbH[0] / winH[0] : 1.0;
+
+        float mouseX = (float)(xpos[0] * scaleX);
+        float mouseY = (float)(ypos[0] * scaleY);
+
+        InventorySlot draggedSlot = game.getDraggedItemStack();
+        Item draggedItem = draggedSlot.getItem();
+        final float itemRenderSize = 50f;
+        final float iconX = mouseX - (itemRenderSize / 2f);
+        final float iconY = mouseY - (itemRenderSize / 2f);
+
+        if (draggedItem.hasIconTexture() && treeTexture != null && treeTexture.getId() != 0) {
+            defaultShader.bind();
+            defaultShader.setUniform("uHasTexture", 1);
+            defaultShader.setUniform("uIsSimpleUiElement", 0);
+
+            glActiveTexture(GL_TEXTURE0);
+            treeTexture.bind();
+            glBindVertexArray(spriteVaoId);
+            glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+            spriteVertexBuffer.clear();
+
+            addIconToSpriteBuffer(spriteVertexBuffer, iconX, iconY, itemRenderSize,
+                    draggedItem, Z_OFFSET_UI_ELEMENT + 0.01f);
+            spriteVertexBuffer.flip();
+            glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+
+            treeTexture.unbind();
+        }
+
+        // Quantity text for dragged item
+        if (draggedSlot.getQuantity() > 1) {
+            String quantityStr = String.valueOf(draggedSlot.getQuantity());
+            float textWidth = font.getTextWidth(quantityStr);
+            float textX = iconX + itemRenderSize - textWidth - 4f;
+            float textY = iconY + itemRenderSize - 4f;
+
+            // Add shadow for visibility
+            font.drawText(textX + 1, textY + 1, quantityStr, 0f, 0f, 0f);
+            font.drawText(textX, textY, quantityStr, 1f, 1f, 1f);
+        }
+    }
+
+    // Fixed icon rendering method
+    private void addIconToSpriteBuffer(FloatBuffer buffer, float x, float y,
+                                       float size, Item item, float z) {
+        float[] tint = WHITE_TINT;
+
+        // Triangle 1
+        buffer.put(x).put(y).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU0()).put(item.getIconV0()).put(1.0f);
+
+        buffer.put(x).put(y + size).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU0()).put(item.getIconV1()).put(1.0f);
+
+        buffer.put(x + size).put(y + size).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU1()).put(item.getIconV1()).put(1.0f);
+
+        // Triangle 2
+        buffer.put(x).put(y).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU0()).put(item.getIconV0()).put(1.0f);
+
+        buffer.put(x + size).put(y + size).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU1()).put(item.getIconV1()).put(1.0f);
+
+        buffer.put(x + size).put(y).put(z);
+        buffer.put(tint);
+        buffer.put(item.getIconU1()).put(item.getIconV0()).put(1.0f);
+    }
+
+    private void renderCraftingTooltip(org.isogame.crafting.CraftingRecipe recipe,
+                                       float mouseX, float mouseY) {
+        if (recipe == null) return;
+
+        Font font = getUiFont();
+        Game game = (this.inputHandler != null) ? this.inputHandler.getGameInstance() : null;
+        if (font == null || game == null || player == null) return;
+
+        // Calculate tooltip size and position
+        int ingredientCount = recipe.getRequiredItems().size();
+        final float tooltipWidth = 200f;
+        final float tooltipHeight = 25f + (ingredientCount * 20f);
+        final float tooltipX = mouseX - tooltipWidth - 15f;
+        final float tooltipY = mouseY;
+
+        // Draw tooltip background
+        defaultShader.bind();
+        defaultShader.setUniform("uHasTexture", 0);
+        defaultShader.setUniform("uIsSimpleUiElement", 1);
+
+        glBindVertexArray(uiColoredVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, uiColoredVboId);
+        uiColoredVertexBuffer.clear();
+
+        float[] tooltipBg = {0.05f, 0.05f, 0.05f, 0.95f}; // Very dark background
+        addQuadToUiColoredBuffer(uiColoredVertexBuffer, tooltipX, tooltipY,
+                tooltipWidth, tooltipHeight,
+                Z_OFFSET_UI_BORDER + 0.01f, tooltipBg);
+
+        uiColoredVertexBuffer.flip();
+        glBufferSubData(GL_ARRAY_BUFFER, 0, uiColoredVertexBuffer);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        // Draw tooltip text
+        float textY = tooltipY + 20f;
+        font.drawText(tooltipX + 10f, textY, "Requires:", 1f, 1f, 1f);
+        textY += 20f;
+
+        for (java.util.Map.Entry<Item, Integer> entry : recipe.getRequiredItems().entrySet()) {
+            Item requiredItem = entry.getKey();
+            int requiredAmount = entry.getValue();
+            int playerAmount = player.getInventoryItemCount(requiredItem);
+
+            String text = requiredItem.getDisplayName() + ": " + playerAmount + " / " + requiredAmount;
+            float[] textColor = (playerAmount >= requiredAmount) ?
+                    new float[]{0.6f, 1f, 0.6f} :
+                    new float[]{1f, 0.6f, 0.6f};
+
+            font.drawText(tooltipX + 15f, textY, text, textColor[0], textColor[1], textColor[2]);
+            textY += 20f;
+        }
+    }
+
+
+    public Shader getDefaultShader() { return this.defaultShader; }
+
+    public void renderDebugOverlay(float panelX, float panelY, float panelWidth, float panelHeight, List<String> lines) {
+        Font currentUiFont = getUiFont();
+        if (currentUiFont == null || !currentUiFont.isInitialized() || defaultShader == null || uiColoredVaoId == 0 || camera == null) {
+            return;
+        }
+
+        defaultShader.bind();
+        defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
+        defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
+        defaultShader.setUniform("uHasTexture", 0);
+        defaultShader.setUniform("uIsFont", 0);
+        defaultShader.setUniform("uIsSimpleUiElement", 1);
+
+        glBindVertexArray(uiColoredVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, uiColoredVboId);
+        uiColoredVertexBuffer.clear();
+
+        float[] bgColor = {0.1f, 0.1f, 0.1f, 0.8f};
+        addQuadToUiColoredBuffer(uiColoredVertexBuffer, panelX, panelY, panelWidth, panelHeight, Z_OFFSET_UI_PANEL + 0.1f, bgColor);
+
+        uiColoredVertexBuffer.flip();
+        glBufferSubData(GL_ARRAY_BUFFER, 0, uiColoredVertexBuffer);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        glBindVertexArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        defaultShader.setUniform("uIsSimpleUiElement", 0);
+
+        float textX = panelX + 5f;
+        float textY = panelY + 5f;
+        if (currentUiFont.getAscent() > 0) {
+            textY += currentUiFont.getAscent();
+        }
+
+        for (String line : lines) {
+            currentUiFont.drawText(textX, textY, line, 0.9f, 0.9f, 0.9f);
+            textY += 18f;
+        }
+    }
+
+
+    public void renderMainMenuBackground() {
+        if (mainMenuBackgroundTexture == null || mainMenuBackgroundTexture.getId() == 0 || defaultShader == null || camera == null || spriteVaoId == 0) {
+            return;
+        }
+
+        defaultShader.bind();
+        defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
+        defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
+        defaultShader.setUniform("uHasTexture", 1);
+        defaultShader.setUniform("uIsFont", 0);
+        defaultShader.setUniform("uIsSimpleUiElement", 0);
+        defaultShader.setUniform("uTextureSampler", 0);
+
+        glActiveTexture(GL_TEXTURE0);
+        mainMenuBackgroundTexture.bind();
+
+        glBindVertexArray(spriteVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+        spriteVertexBuffer.clear();
+
+        float screenWidth = camera.getScreenWidth();
+        float screenHeight = camera.getScreenHeight();
+
+        addVertexToSpriteBuffer(spriteVertexBuffer, 0, 0, Z_OFFSET_UI_BACKGROUND, WHITE_TINT, 0f, 0f, 1f);
+        addVertexToSpriteBuffer(spriteVertexBuffer, 0, screenHeight, Z_OFFSET_UI_BACKGROUND, WHITE_TINT, 0f, 1f, 1f);
+        addVertexToSpriteBuffer(spriteVertexBuffer, screenWidth, 0, Z_OFFSET_UI_BACKGROUND, WHITE_TINT, 1f, 0f, 1f);
+        addVertexToSpriteBuffer(spriteVertexBuffer, screenWidth, 0, Z_OFFSET_UI_BACKGROUND, WHITE_TINT, 1f, 0f, 1f);
+        addVertexToSpriteBuffer(spriteVertexBuffer, 0, screenHeight, Z_OFFSET_UI_BACKGROUND, WHITE_TINT, 0f, 1f, 1f);
+        addVertexToSpriteBuffer(spriteVertexBuffer, screenWidth, screenHeight, Z_OFFSET_UI_BACKGROUND, WHITE_TINT, 1f, 1f, 1f);
+
+        spriteVertexBuffer.flip();
+        glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        mainMenuBackgroundTexture.unbind();
+        glBindVertexArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    }
+
+    private int addSlimeVerticesToBuffer_WorldSpace(Slime slime, FloatBuffer buffer) {
+        if (playerTexture == null || camera == null || map == null) return 0;
+
+        float sR = slime.getVisualRow();
+        float sC = slime.getVisualCol();
+        Tile tile = map.getTile(slime.getTileRow(), slime.getTileCol());
+        int elev = (tile != null) ? tile.getElevation() : 0;
+        float lightVal = (tile != null) ? tile.getFinalLightLevel() / (float) MAX_LIGHT_LEVEL : 1.0f;
+        lightVal = Math.max(0.1f, lightVal);
+
+        float sIsoX = (sC - sR) * this.tileHalfWidth;
+        float sIsoY = (sC + sR) * this.tileHalfHeight - (elev * TILE_THICKNESS);
+        float slimeWorldZ = (sR + sC) * DEPTH_SORT_FACTOR + (elev * 0.005f) + Z_OFFSET_SPRITE_ANIMAL; // Same layer as animal
+
+        // Adjust render size as needed
+        float renderWidth = slime.getFrameWidth() * 0.7f;
+        float renderHeight = slime.getFrameHeight() * 0.7f;
+        float halfRenderWidth = renderWidth / 2.0f;
+
+        float xL = sIsoX - halfRenderWidth;
+        float xR = sIsoX + halfRenderWidth;
+        float yT = sIsoY - renderHeight;
+        float yB = sIsoY;
+
+        int animCol = slime.getVisualFrameIndex();
+        int animRow = slime.getAnimationRow();
+
+        // UVs are calculated based on the playerTexture sheet
+        float u0 = (float) (animCol * slime.getFrameWidth()) / playerTexture.getWidth();
+        float v0 = (float) (animRow * slime.getFrameHeight()) / playerTexture.getHeight();
+        float u1 = (float) ((animCol + 1) * slime.getFrameWidth()) / playerTexture.getWidth();
+        float v1 = (float) ((animRow + 1) * slime.getFrameHeight()) / playerTexture.getHeight();
+
+        float[] tint = slime.getHealthTint();
+
+        addVertexToSpriteBuffer(buffer, xL, yT, slimeWorldZ, tint, u0, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yB, slimeWorldZ, tint, u0, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yB, slimeWorldZ, tint, u1, v1, lightVal);
+
+        addVertexToSpriteBuffer(buffer, xR, yB, slimeWorldZ, tint, u1, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yT, slimeWorldZ, tint, u1, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yT, slimeWorldZ, tint, u0, v0, lightVal);
+        return 6;
+    }
+
+
+    public void renderMenuButton(MenuItemButton button) {
+        Font currentUiFont = getUiFont();
+        if (currentUiFont == null || !currentUiFont.isInitialized() || defaultShader == null || camera == null) {
+            return;
+        }
+
+        defaultShader.bind();
+        defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
+        defaultShader.setUniform("uModelViewMatrix", new Matrix4f().identity());
+        defaultShader.setUniform("uIsFont", 0);
+
+
+        if (button.borderWidth > 0 && button.borderColor != null) {
+            defaultShader.setUniform("uHasTexture", 0);
+            defaultShader.setUniform("uIsSimpleUiElement", 1);
+            glBindVertexArray(uiColoredVaoId);
+            glBindBuffer(GL_ARRAY_BUFFER, uiColoredVboId);
+            uiColoredVertexBuffer.clear();
+            float bx = button.x - button.borderWidth;
+            float by = button.y - button.borderWidth;
+            float bWidth = button.width + (2 * button.borderWidth);
+            float bHeight = button.height + (2 * button.borderWidth);
+            addQuadToUiColoredBuffer(uiColoredVertexBuffer, bx, by, bWidth, bHeight, Z_OFFSET_UI_BORDER, button.borderColor);
+            uiColoredVertexBuffer.flip();
+            glBufferSubData(GL_ARRAY_BUFFER, 0, uiColoredVertexBuffer);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
+
+
+        if (button.useTexture && tileAtlasTexture != null && tileAtlasTexture.getId() != 0) {
+            defaultShader.setUniform("uHasTexture", 1);
+            defaultShader.setUniform("uIsSimpleUiElement", 0);
+            defaultShader.setUniform("uTextureSampler", 0);
+            glActiveTexture(GL_TEXTURE0);
+            tileAtlasTexture.bind();
+            glBindVertexArray(spriteVaoId);
+            glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+            spriteVertexBuffer.clear();
+
+            float[] tintToUse = button.isHovered ? new float[]{1.1f, 1.1f, 1.05f, 1.0f} : WHITE_TINT;
+
+            addVertexToSpriteBuffer(spriteVertexBuffer, button.x, button.y, Z_OFFSET_UI_ELEMENT, tintToUse, button.u0, button.v0, 1f);
+            addVertexToSpriteBuffer(spriteVertexBuffer, button.x, button.y + button.height, Z_OFFSET_UI_ELEMENT, tintToUse, button.u0, button.v1, 1f);
+            addVertexToSpriteBuffer(spriteVertexBuffer, button.x + button.width, button.y, Z_OFFSET_UI_ELEMENT, tintToUse, button.u1, button.v0, 1f);
+
+            addVertexToSpriteBuffer(spriteVertexBuffer, button.x + button.width, button.y, Z_OFFSET_UI_ELEMENT, tintToUse, button.u1, button.v0, 1f);
+            addVertexToSpriteBuffer(spriteVertexBuffer, button.x, button.y + button.height, Z_OFFSET_UI_ELEMENT, tintToUse, button.u0, button.v1, 1f);
+            addVertexToSpriteBuffer(spriteVertexBuffer, button.x + button.width, button.y + button.height, Z_OFFSET_UI_ELEMENT, tintToUse, button.u1, button.v1, 1f);
+
+            spriteVertexBuffer.flip();
+            glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+            tileAtlasTexture.unbind();
+        } else {
+            defaultShader.setUniform("uHasTexture", 0);
+            defaultShader.setUniform("uIsSimpleUiElement", 1);
+            glBindVertexArray(uiColoredVaoId);
+            glBindBuffer(GL_ARRAY_BUFFER, uiColoredVboId);
+            uiColoredVertexBuffer.clear();
+            float[] topQuadColor = button.isHovered ? button.hoverBackgroundColor : button.baseBackgroundColor;
+            float gradientFactor = 0.15f;
+            float[] bottomQuadColor = new float[]{
+                    Math.max(0f, topQuadColor[0] - gradientFactor),
+                    Math.max(0f, topQuadColor[1] - gradientFactor),
+                    Math.max(0f, topQuadColor[2] - gradientFactor),
+                    topQuadColor[3] };
+            addGradientQuadToUiColoredBuffer(uiColoredVertexBuffer, button.x, button.y, button.width, button.height, Z_OFFSET_UI_ELEMENT, topQuadColor, bottomQuadColor);
+            uiColoredVertexBuffer.flip();
+            glBufferSubData(GL_ARRAY_BUFFER, 0, uiColoredVertexBuffer);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
+
+        glBindVertexArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        defaultShader.setUniform("uIsSimpleUiElement", 0);
+
+        float[] currentTextColor = button.isHovered ? button.hoverTextColor : button.baseTextColor;
+        float textWidth = currentUiFont.getTextWidthScaled(button.text, 1.0f);
+        float textX = button.x + (button.width - textWidth) / 2f;
+        float textY = button.y + button.height / 2f + currentUiFont.getAscent() / 2f -2f;
+        if (currentUiFont.isInitialized()) {
+            currentUiFont.drawText(textX, textY, button.text, currentTextColor[0], currentTextColor[1], currentTextColor[2]);
+        }
+    }
+    private void addQuadToUiColoredBuffer(FloatBuffer buffer, float x, float y, float w, float h, float z, float[] color) {
+        buffer.put(x).put(y).put(z).put(color[0]).put(color[1]).put(color[2]).put(color[3]);
+        buffer.put(x).put(y + h).put(z).put(color[0]).put(color[1]).put(color[2]).put(color[3]);
+        buffer.put(x + w).put(y).put(z).put(color[0]).put(color[1]).put(color[2]).put(color[3]);
+        buffer.put(x + w).put(y).put(z).put(color[0]).put(color[1]).put(color[2]).put(color[3]);
+        buffer.put(x).put(y + h).put(z).put(color[0]).put(color[1]).put(color[2]).put(color[3]);
+        buffer.put(x + w).put(y + h).put(z).put(color[0]).put(color[1]).put(color[2]).put(color[3]);
+    }
+
+    private void addGradientQuadToUiColoredBuffer(FloatBuffer buffer, float x, float y, float w, float h, float z, float[] topColor, float[] bottomColor) {
+        buffer.put(x).put(y).put(z).put(topColor[0]).put(topColor[1]).put(topColor[2]).put(topColor[3]);
+        buffer.put(x).put(y + h).put(z).put(bottomColor[0]).put(bottomColor[1]).put(bottomColor[2]).put(bottomColor[3]);
+        buffer.put(x + w).put(y).put(z).put(topColor[0]).put(topColor[1]).put(topColor[2]).put(topColor[3]);
+        buffer.put(x + w).put(y).put(z).put(topColor[0]).put(topColor[1]).put(topColor[2]).put(topColor[3]);
+        buffer.put(x).put(y + h).put(z).put(bottomColor[0]).put(bottomColor[1]).put(bottomColor[2]).put(bottomColor[3]);
+        buffer.put(x + w).put(y + h).put(z).put(bottomColor[0]).put(bottomColor[1]).put(bottomColor[2]).put(bottomColor[3]);
+    }
 
     public void cleanup() {
-        if(playerTexture!=null)playerTexture.delete();
-        if(treeTexture!=null)treeTexture.delete();
-        if(uiFont!=null)uiFont.cleanup();
+        System.out.println("Renderer: Cleaning up resources...");
+        if(playerTexture!=null) playerTexture.delete(); playerTexture = null;
+        if(treeTexture!=null) treeTexture.delete(); treeTexture = null;
+        if(tileAtlasTexture!=null) tileAtlasTexture.delete(); tileAtlasTexture = null;
+        if(mainMenuBackgroundTexture != null) mainMenuBackgroundTexture.delete(); mainMenuBackgroundTexture = null;
+
+        if(uiFont!=null) uiFont.cleanup(); uiFont = null;
+        if (titleFont != null) titleFont.cleanup(); titleFont = null;
+
+        if(defaultShader!=null) defaultShader.cleanup(); defaultShader = null;
+
+        if(activeMapChunks!=null) {
+            for(Chunk ch : activeMapChunks.values()) ch.cleanup();
+            activeMapChunks.clear();
+        }
+        if(spriteVaoId!=0) { glDeleteVertexArrays(spriteVaoId); spriteVaoId=0; }
+        if(spriteVboId!=0) { glDeleteBuffers(spriteVboId); spriteVboId=0; }
+        if(spriteVertexBuffer!=null) { MemoryUtil.memFree(spriteVertexBuffer); spriteVertexBuffer=null; }
+
+        if(hotbarVaoId!=0) { glDeleteVertexArrays(hotbarVaoId); hotbarVaoId=0; }
+        if(hotbarVboId!=0) { glDeleteBuffers(hotbarVboId); hotbarVboId=0; }
+        if(hotbarVertexDataBuffer!=null) { MemoryUtil.memFree(hotbarVertexDataBuffer); hotbarVertexDataBuffer=null; }
+
+        if(uiColoredVaoId!=0) { glDeleteVertexArrays(uiColoredVaoId); uiColoredVaoId=0; }
+        if(uiColoredVboId!=0) { glDeleteBuffers(uiColoredVboId); uiColoredVboId=0; }
+        if(uiColoredVertexBuffer!=null) { MemoryUtil.memFree(uiColoredVertexBuffer); uiColoredVertexBuffer=null; }
+        System.out.println("Renderer: Cleanup complete.");
     }
+
+
+
+    // Getters for Game.java to check context
+    public Map getMap() { return this.map; }
+    public PlayerModel getPlayer() { return this.player; }
+    public InputHandler getInputHandler() { return this.inputHandler; }
 }

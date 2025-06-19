@@ -1,0 +1,13 @@
+{
+  "id": "wood_wall",
+  "displayName": "Wood Wall",
+  "description": "A sturdy wooden wall section. Connects automatically.",
+  "type": "RESOURCE",
+  "texture": {
+    "atlas": "treeTexture",
+    "x": 400,
+    "y": 1550,
+    "w": 50,
+    "h": 50
+  }
+}

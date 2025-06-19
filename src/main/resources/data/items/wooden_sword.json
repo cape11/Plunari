@@ -1,0 +1,21 @@
+{
+  "id": "wooden_sword",
+  "displayName": "Wooden Sword",
+  "description": "A basic but reliable sword.",
+  "type": "TOOL",
+  "useStyle": "SWING",
+  "toolType": "AXE",
+  "texture": {
+    "atlas": "treeTexture",
+    "x": 256,
+    "y": 1664,
+    "w": 64,
+    "h": 64
+  },
+  "stats": {
+    "damage": 6,
+    "useTime": 20,
+    "useAnimation": 20,
+    "knockback": 3.0
+  }
+}

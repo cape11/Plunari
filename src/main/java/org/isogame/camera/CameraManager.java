@@ -1,9 +1,14 @@
 package org.isogame.camera;
 
+import org.isogame.render.Chunk;
+import org.joml.Matrix4f;
+import static org.isogame.constants.Constants.*;
 import org.isogame.map.Map;
 import org.isogame.tile.Tile;
+import org.joml.FrustumIntersection;
 
-import static org.isogame.constants.Constants.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class CameraManager {
     private float cameraX;
@@ -14,226 +19,264 @@ public class CameraManager {
     private float zoom = 1.0f;
     private float targetZoom = 1.0f;
 
-    private int screenWidth;
-    private int screenHeight;
+    private int screenWidthPx;
+    private int screenHeightPx;
 
-    // private final int mapTileWidth; // Not strictly needed if map object is passed around
-    // private final int mapTileHeight;
+    private final Matrix4f viewMatrix;
+    private boolean viewMatrixDirty = true;
 
-    public CameraManager(int initialScreenWidth, int initialScreenHeight, int mapTileWidth, int mapTileHeight) {
-        this.screenWidth = initialScreenWidth;
-        this.screenHeight = initialScreenHeight;
-        // this.mapTileWidth = mapTileWidth; // Store if needed for clamping camera, etc.
-        // this.mapTileHeight = mapTileHeight;
+    private boolean isManuallyPanning = false;
 
-        this.cameraX = mapTileWidth / 2.0f;
-        this.cameraY = mapTileHeight / 2.0f;
-        this.targetX = cameraX;
-        this.targetY = cameraY;
+    private final Matrix4f projectionMatrixForCulling = new Matrix4f();
+    private final FrustumIntersection frustumIntersection = new FrustumIntersection();
+
+    public CameraManager(int initialScreenWidthPx, int initialScreenHeightPx, int mapTotalWidthTiles, int mapTotalHeightTiles) {
+        this.screenWidthPx = initialScreenWidthPx;
+        this.screenHeightPx = initialScreenHeightPx;
+        this.cameraX = 0;
+        this.cameraY = 0;
+        this.targetX = this.cameraX;
+        this.targetY = this.cameraY;
+        this.viewMatrix = new Matrix4f();
+        forceUpdateViewMatrix();
     }
 
     public void update(double deltaTime) {
-        cameraX += (targetX - cameraX) * CAMERA_SMOOTH_FACTOR;
-        cameraY += (targetY - cameraY) * CAMERA_SMOOTH_FACTOR;
-        zoom += (targetZoom - zoom) * CAMERA_SMOOTH_FACTOR;
+        boolean needsViewMatrixUpdate = false;
+        float smoothFactor = (float) (CAMERA_SMOOTH_FACTOR * deltaTime * 60.0);
+        smoothFactor = Math.min(1.0f, Math.max(0.0f, smoothFactor));
 
-        if (Math.abs(targetX - cameraX) < 0.01f) cameraX = targetX;
-        if (Math.abs(targetY - cameraY) < 0.01f) cameraY = targetY;
-        if (Math.abs(targetZoom - zoom) < 0.01f) zoom = targetZoom;
-    }
-
-    /**
-     * Converts map tile coordinates (col, row) and elevation to screen pixel coordinates.
-     * This is your existing method for converting a specific map point to screen.
-     */
-    public int[] mapToScreenCoords(float mapCol, float mapRow, int elevation) {
-        float effTileScreenWidth = TILE_WIDTH * zoom;
-        float effTileScreenHeight = TILE_HEIGHT * zoom;
-        float effTileThicknessPerElevationUnit = TILE_THICKNESS * zoom;
-
-        float worldRelCol = mapCol - this.cameraX;
-        float worldRelRow = mapRow - this.cameraY;
-
-        float screenIsoX = (worldRelCol - worldRelRow) * (effTileScreenWidth / 2.0f);
-        float screenIsoY = (worldRelCol + worldRelRow) * (effTileScreenHeight / 2.0f);
-
-        float elevationScreenOffset = elevation * effTileThicknessPerElevationUnit;
-
-        int finalScreenX = this.screenWidth / 2 + (int) screenIsoX;
-        int finalScreenY = this.screenHeight / 2 + (int) screenIsoY - (int) elevationScreenOffset;
-
-        return new int[]{finalScreenX, finalScreenY};
-    }
-
-    /**
-     * Converts screen pixel coordinates to approximate map tile coordinates (col, row)
-     * on the base plane (elevation 0). Does NOT consider actual map tile elevations.
-     * Used for an initial guess in accurate picking.
-     */
-    public float[] screenToMapCoords_BasePlaneOnly(int pickScreenX, int pickScreenY) {
-        float effTileScreenWidth = TILE_WIDTH * zoom;
-        float effTileScreenHeight = TILE_HEIGHT * zoom;
-
-        float screenRelativeX = pickScreenX - (this.screenWidth / 2.0f);
-        float screenRelativeY = pickScreenY - (this.screenHeight / 2.0f);
-
-        float isoTileHalfWidthOnScreen = effTileScreenWidth / 2.0f;
-        float isoTileHalfHeightOnScreen = effTileScreenHeight / 2.0f;
-
-        float termX = screenRelativeX / isoTileHalfWidthOnScreen;
-        float termY = screenRelativeY / isoTileHalfHeightOnScreen;
-
-        float relativeMapCol = (termX + termY) / 2.0f;
-        float relativeMapRow = (termY - termX) / 2.0f;
-
-        float finalMapCol = this.cameraX + relativeMapCol;
-        float finalMapRow = this.cameraY + relativeMapRow;
-
-        return new float[]{finalMapCol, finalMapRow}; // Returns {mapCol, mapRow}
-    }
-
-
-    /**
-     * Iteratively finds the most likely tile under the mouse cursor, considering elevation.
-     * This is the method your Input/MouseHandler should call for accurate picking.
-     */
-    public int[] screenToAccurateMapTile(int mouseScreenX, int mouseScreenY, Map gameMap) {
-        System.out.printf("--- ACCURATE PICK (Drawing Order, Last Hit) --- Mouse Screen (X:%d, Y:%d)%n", mouseScreenX, mouseScreenY);
-
-        int effTileWidth = getEffectiveTileWidth();
-        int effTileHeight = getEffectiveTileHeight();
-        int mapW = gameMap.getWidth();
-        int mapH = gameMap.getHeight();
-
-        int pickedC = -1;
-        int pickedR = -1;
-        int pickedElevation = -Integer.MIN_VALUE; // For logging the picked tile's elevation
-
-        // Iterate in your standard map drawing order (back-most to front-most)
-        // Your drawing order is for (sum = 0 to MAX_SUM), then for (r = 0 to sum), c = sum - r.
-        for (int sum = 0; sum <= mapW + mapH - 2; sum++) {
-            for (int r = 0; r <= sum; r++) {
-                int c = sum - r;
-
-                if (!gameMap.isValid(r, c)) {
-                    continue;
-                }
-
-                Tile tile = gameMap.getTile(r, c);
-                if (tile == null) {
-                    continue;
-                }
-                // Optional: Skip certain unselectable tiles
-                // if (tile.getType() == Tile.TileType.WATER && tile.getElevation() < NIVEL_MAR) continue;
-
-                int elevation = tile.getElevation();
-                int[] tileScreenCoords = this.mapToScreenCoords((float)c, (float)r, elevation);
-                float topX = tileScreenCoords[0];
-                float topY = tileScreenCoords[1];
-
-            /*
-            // Optional Debug: Print info for tiles being checked
-            if (Math.abs(topX - mouseScreenX) < effTileWidth * 1.5 && Math.abs(topY + effTileHeight/2.0f - mouseScreenY) < effTileHeight * 1.5) {
-                 System.out.printf("    Checking Tile (C:%d, R:%d, E:%d) -> ScreenTop(X:%.0f, Y:%.0f)%n", c, r, elevation, topX, topY);
-            }
-            */
-
-                if (isPointInDiamond((float)mouseScreenX, (float)mouseScreenY,
-                        topX, topY,
-                        effTileWidth, effTileHeight)) {
-                    // This tile's diamond contains the mouse. Since we iterate in drawing order,
-                    // this one is potentially "on top" of previous hits.
-                    // The last one that satisfies this condition will be the topmost.
-                    // System.out.printf("    >>>> HIT DIAMOND for Tile (C:%d, R:%d, E:%d) <<<<%n", c, r, elevation);
-                    pickedC = c;
-                    pickedR = r;
-                    pickedElevation = elevation; // Store for logging
-                }
-            }
+        if (Math.abs(targetX - cameraX) > 0.01f) {
+            cameraX += (targetX - cameraX) * smoothFactor;
+            if (Math.abs(targetX - cameraX) < 0.01f) cameraX = targetX;
+            needsViewMatrixUpdate = true;
         }
-
-        if (pickedR != -1) { // Check if any tile was picked
-            System.out.printf("--- ACCURATE PICK END --- Selected (Col:%d, Row:%d, Elev:%d) by drawing order/last hit%n", pickedC, pickedR, pickedElevation);
-            return new int[]{pickedC, pickedR};
-        } else {
-            // If still no tile selected, try the base plane guess as a last resort if you want
-            // For debugging, it's better to see when this happens.
-            float[] baseGuess = screenToMapCoords_BasePlaneOnly(mouseScreenX, mouseScreenY);
-            System.out.printf("--- ACCURATE PICK END --- No tile selected (iterated all). Base guess was (C:%.0f, R:%.0f)%n", baseGuess[0], baseGuess[1]);
-            return null;
+        if (Math.abs(targetY - cameraY) > 0.01f) {
+            cameraY += (targetY - cameraY) * smoothFactor;
+            if (Math.abs(targetY - cameraY) < 0.01f) cameraY = targetY;
+            needsViewMatrixUpdate = true;
+        }
+        if (Math.abs(targetZoom - zoom) > 0.001f) {
+            zoom += (targetZoom - zoom) * smoothFactor;
+            if (Math.abs(targetZoom - zoom) < 0.001f) zoom = targetZoom;
+            zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.zoom));
+            needsViewMatrixUpdate = true;
+        }
+        if (needsViewMatrixUpdate) {
+            viewMatrixDirty = true;
         }
     }
 
-    // The isPointInDiamond, mapToScreenCoords, screenToMapCoords_BasePlaneOnly methods
-// remain the same as in the previous "best method" attempt.
-// Ensure they are present and correct.
-// For example:
-    // In CameraManager.java
-
-    // THIS METHOD IS THE ONE TO CHANGE FOR PICKING LOGIC
-    private boolean isPointInDiamond(float px, float py,
-                                     float diamondAnchorX_from_mapToScreenCoords, // This is the X from mapToScreenCoords
-                                     float diamondAnchorY_from_mapToScreenCoords, // This is the Y from mapToScreenCoords
-                                     int tileDiamondScreenWidth,
-                                     int tileDiamondScreenHeight) {
-
-        float diamondCenterX = diamondAnchorX_from_mapToScreenCoords; // Assume anchor X is center X
-        // HYPOTHESIS: Assume diamondAnchorY_from_mapToScreenCoords IS THE CENTER Y
-        float diamondCenterY = diamondAnchorY_from_mapToScreenCoords;
-        // OLD (if diamondAnchorY was top tip): float diamondCenterY = diamondAnchorY_from_mapToScreenCoords + (tileDiamondScreenHeight / 2.0f);
-
-
-        float diamondHalfWidth = tileDiamondScreenWidth / 2.0f;
-        float diamondHalfHeight = tileDiamondScreenHeight / 2.0f;
-
-        if (diamondHalfWidth <= 0 || diamondHalfHeight <= 0) return false;
-
-        float normalizedMouseX = Math.abs((px - diamondCenterX) / diamondHalfWidth);
-        float normalizedMouseY = Math.abs((py - diamondCenterY) / diamondHalfHeight);
-
-        boolean hit = normalizedMouseX + normalizedMouseY <= 1.0f;
-
-        // Optional: Add a temporary debug print here to see what's happening
-        // if (Math.abs(px - 691) < 5 && Math.abs(py - 182) < 5) { // Example: mouse around your previous test click
-        //     System.out.printf("isPointInDiamond check: mouse(%.0f,%.0f) vs diamondCenter(%.0f,%.0f) halfW:%.0f halfH:%.0f -> Hit: %b%n",
-        //                       px, py, diamondCenterX, diamondCenterY, diamondHalfWidth, diamondHalfHeight, hit);
-        // }
-
-        return hit;
-    }
-// And ensure mapToScreenCoords and screenToMapCoords_BasePlaneOnly are correctly defined
-// as per previous discussions.
-
-
-    private double calculateVisualDepth(int c, int r, int elevation) {
-        return elevation * 1000.0 + (r + c);
+    private void updateViewMatrix() {
+        viewMatrix.identity();
+        viewMatrix.translate(screenWidthPx / 2.0f, screenHeightPx / 2.0f, 0);
+        viewMatrix.scale(this.zoom);
+        float camVisualX = (this.cameraX - this.cameraY) * (TILE_WIDTH / 2.0f);
+        float camVisualY = (this.cameraX + this.cameraY) * (TILE_HEIGHT / 2.0f);
+        viewMatrix.translate(-camVisualX, -camVisualY, 0);
+        viewMatrixDirty = false;
     }
 
+    public void forceUpdateViewMatrix() {
+        viewMatrixDirty = true;
+        getViewMatrix();
+    }
 
+    public Matrix4f getViewMatrix() {
+        if (viewMatrixDirty) {
+            updateViewMatrix();
+        }
+        return this.viewMatrix;
+    }
 
-    // Getters
+    public void startManualPan() { this.isManuallyPanning = true; }
+    public void stopManualPan() { this.isManuallyPanning = false; }
+    public boolean isManuallyPanning() { return this.isManuallyPanning; }
+
     public float getCameraX() { return cameraX; }
     public float getCameraY() { return cameraY; }
     public float getZoom() { return zoom; }
-    public int getScreenWidth() { return screenWidth; }
-    public int getScreenHeight() { return screenHeight; }
-    public int getEffectiveTileWidth() { return (int) (TILE_WIDTH * zoom); }
-    public int getEffectiveTileHeight() { return (int) (TILE_HEIGHT * zoom); }
-    public int getEffectiveTileThickness() { return (int) (TILE_THICKNESS * zoom); }
-    public int getEffectiveBaseThickness() { return (int) (BASE_THICKNESS * zoom); }
+    public int getScreenWidth() { return screenWidthPx; }
+    public int getScreenHeight() { return screenHeightPx; }
 
-    public void setTargetPositionInstantly(float mapX, float mapY) { this.targetX = mapX; this.targetY = mapY; this.cameraX = mapX; this.cameraY = mapY; }
-    public void setTargetPosition(float mapX, float mapY) { this.targetX = mapX; this.targetY = mapY; }
-    public void moveTargetPosition(float dMapX, float dMapY) { this.targetX += dMapX; this.targetY += dMapY; }
-    public void adjustZoom(float amount) { this.targetZoom += amount; this.targetZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.targetZoom));}
-    public void setZoom(float zoomLevel) { this.targetZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel));}
-    public void updateScreenSize(int width, int height) { this.screenWidth = width; this.screenHeight = height; }
+    public void setTargetPositionInstantly(float mapTileX, float mapTileY) {
+        this.targetX = mapTileX;
+        this.targetY = mapTileY;
+        this.cameraX = mapTileX;
+        this.cameraY = mapTileY;
+        this.isManuallyPanning = false;
+        viewMatrixDirty = true;
+    }
+
+    public void setTargetPosition(float mapTileX, float mapTileY) {
+        if (!this.isManuallyPanning) {
+            this.targetX = mapTileX;
+            this.targetY = mapTileY;
+        }
+    }
+
+    public void moveTargetPosition(float deltaMapTileX, float deltaMapTileY) {
+        this.targetX += deltaMapTileX;
+        this.targetY += deltaMapTileY;
+    }
+
+    public void adjustZoom(float amount) {
+        this.targetZoom += amount;
+        this.targetZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.targetZoom));
+    }
+
+    public void updateScreenSize(int newWidthPx, int newHeightPx) {
+        if (this.screenWidthPx != newWidthPx || this.screenHeightPx != newHeightPx) {
+            this.screenWidthPx = newWidthPx;
+            this.screenHeightPx = newHeightPx;
+            viewMatrixDirty = true;
+        }
+    }
+
+    public int[] mapToScreenCoordsForPicking(float mapCol, float mapRow, int elevation) {
+        float worldX = (mapCol - mapRow) * (TILE_WIDTH / 2.0f);
+        float worldY = (mapCol + mapRow) * (TILE_HEIGHT / 2.0f) - elevation * TILE_THICKNESS;
+        org.joml.Vector4f tileScreenPos = new org.joml.Vector4f(worldX, worldY, 0, 1.0f);
+        getViewMatrix().transform(tileScreenPos);
+        return new int[]{(int)Math.round(tileScreenPos.x), (int)Math.round(tileScreenPos.y)};
+    }
+
+    private boolean isPointInDiamond(float px, float py,
+                                     float diamondCenterX, float diamondCenterY,
+                                     float tileDiamondRenderedWidth, float tileDiamondRenderedHeight) {
+        float diamondHalfWidth = tileDiamondRenderedWidth / 2.0f;
+        float diamondHalfHeight = tileDiamondRenderedHeight / 2.0f;
+        if (diamondHalfWidth <= 0.001f || diamondHalfHeight <= 0.001f) return false;
+        float localX = px - diamondCenterX;
+        float localY = py - diamondCenterY;
+        return (Math.abs(localX) / diamondHalfWidth) + (Math.abs(localY) / diamondHalfHeight) <= 1.001f;
+    }
+
+    // vvvvvvvvvvvvvvvv  START OF NEW/CORRECTED CODE  vvvvvvvvvvvvvvvv
+
+    /**
+     * NEW HELPER METHOD
+     * Converts mouse screen coordinates to the game's "world" coordinates,
+     * accounting for camera panning and zoom. This is the inverse of the view matrix.
+     */
+    private float[] screenToWorldCoords(float mouseScreenX, float mouseScreenY) {
+        // Inverse of the view matrix transformation
+        // 1. Un-translate from screen center
+        float worldX = mouseScreenX - (this.screenWidthPx / 2.0f);
+        float worldY = mouseScreenY - (this.screenHeightPx / 2.0f);
+
+        // 2. Un-scale by zoom
+        worldX /= this.zoom;
+        worldY /= this.zoom;
+
+        // 3. Un-translate by camera's visual position
+        float camVisualX = (this.cameraX - this.cameraY) * (TILE_WIDTH / 2.0f);
+        float camVisualY = (this.cameraX + this.cameraY) * (TILE_HEIGHT / 2.0f);
+        worldX += camVisualX;
+        worldY += camVisualY;
+
+        return new float[]{worldX, worldY};
+    }
+
+    /**
+     * NEW HELPER METHOD
+     * Converts "world" coordinates into fractional map tile coordinates (col, row).
+     * This is the inverse of the isometric projection.
+     */
+    private float[] worldToMapCoords(float worldX, float worldY) {
+        float tileHalfWidth = TILE_WIDTH / 2.0f;
+        float tileHalfHeight = TILE_HEIGHT / 2.0f;
+
+        // The inverse formula for isometric projection
+        float mapCol = (worldX / tileHalfWidth + worldY / tileHalfHeight) / 2.0f;
+        float mapRow = (worldY / tileHalfHeight - worldX / tileHalfWidth) / 2.0f;
+
+        return new float[]{mapCol, mapRow};
+    }
+
+    /**
+     * REPLACEMENT METHOD - The new pixel-perfect selection logic.
+     */
+    public int[] screenToAccurateMapTile(int mouseScreenX, int mouseScreenY, Map gameMap) {
+        // Step 1: Directly calculate the map coordinate on the ground plane (elevation 0)
+        float[] worldCoords = screenToWorldCoords(mouseScreenX, mouseScreenY);
+        float[] mapCoords = worldToMapCoords(worldCoords[0], worldCoords[1]);
+
+        int baseCol = Math.round(mapCoords[0]);
+        int baseRow = Math.round(mapCoords[1]);
+
+        // Step 2: Because of elevation, the actual tile could be near the calculated base tile.
+        // We now perform a small, targeted search around this accurate point to check for higher tiles.
+        int searchRadius = 15; // Increased radius to ensure it finds tiles at high/low elevation
+        List<int[]> candidates = new ArrayList<>();
+
+        for (int r = baseRow - searchRadius; r <= baseRow + searchRadius; r++) {
+            for (int c = baseCol - searchRadius; c <= baseCol + searchRadius; c++) {
+                Tile tile = gameMap.getTile(r, c);
+                if (tile == null || tile.getType() == Tile.TileType.AIR) continue;
+
+                // Check if the mouse is inside this tile's diamond, considering its elevation
+                int[] tileScreenCenter = mapToScreenCoordsForPicking((float) c, (float) r, tile.getElevation());
+
+                if (isPointInDiamond(mouseScreenX, mouseScreenY,
+                        tileScreenCenter[0], tileScreenCenter[1],
+                        TILE_WIDTH * this.zoom, TILE_HEIGHT * this.zoom)) {
+                    candidates.add(new int[]{c, r, tile.getElevation()});
+                }
+            }
+        }
+
+        // Step 3: Sort the candidates to find the one that is truly on top
+        if (!candidates.isEmpty()) {
+            candidates.sort((tileA, tileB) -> {
+                // Primary sort: Higher elevation comes first
+                int elevationDiff = Integer.compare(tileB[2], tileA[2]);
+                if (elevationDiff != 0) {
+                    return elevationDiff;
+                }
+                // Secondary sort: "Closer" tiles (higher depth value) come first
+                int depthA = tileA[1] + tileA[0]; // row + col
+                int depthB = tileB[1] + tileB[0];
+                return Integer.compare(depthB, depthA);
+            });
+            // The best candidate is the first one in the sorted list
+            int[] bestCandidate = candidates.get(0);
+            return new int[]{bestCandidate[0], bestCandidate[1]};
+        }
+
+        return null; // No tile found
+    }
+
+    // ^^^^^^^^^^^^^^^^  END OF NEW/CORRECTED CODE  ^^^^^^^^^^^^^^^^
 
     public float[] screenVectorToMapVector(float screenDX, float screenDY) {
-        float effTileWidth = TILE_WIDTH * zoom;
-        float effTileHeight = TILE_HEIGHT * zoom;
-        float mapDX = (screenDX / (effTileWidth / 2.0f) + screenDY / (effTileHeight / 2.0f)) / 2.0f;
-        float mapDY = (screenDY / (effTileHeight / 2.0f) - screenDX / (effTileWidth / 2.0f)) / 2.0f;
-        return new float[]{mapDX, mapDY};
+        float currentZoom = this.zoom;
+        if (Math.abs(currentZoom) < 0.0001f) return new float[]{0,0};
+
+        float term1 = screenDX / ( (TILE_WIDTH / 2.0f) * currentZoom );
+        float term2 = screenDY / ( (TILE_HEIGHT / 2.0f) * currentZoom );
+
+        float dMapCol = (term1 + term2) / 2.0f;
+        float dMapRow = (term2 - term1) / 2.0f;
+
+        return new float[]{dMapCol, dMapRow};
+    }
+
+    public void setProjectionMatrixForCulling(Matrix4f projMatrix) {
+        this.projectionMatrixForCulling.set(projMatrix);
+    }
+
+    public boolean isAABBVisible(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
+        Matrix4f projViewMatrix = new Matrix4f(projectionMatrixForCulling).mul(getViewMatrix());
+        frustumIntersection.set(projViewMatrix);
+        return frustumIntersection.testAab(minX, minY, minZ, maxX, maxY, maxZ);
+    }
+
+    public boolean isChunkVisible(Chunk.BoundingBox chunkBounds) {
+        if (chunkBounds == null) return true;
+        float minWorldZ = -ALTURA_MAXIMA * TILE_THICKNESS - BASE_THICKNESS;
+        float maxWorldZ = TILE_HEIGHT;
+        return isAABBVisible(chunkBounds.minX, chunkBounds.minY, minWorldZ,
+                chunkBounds.maxX, chunkBounds.maxY, maxWorldZ);
     }
 }

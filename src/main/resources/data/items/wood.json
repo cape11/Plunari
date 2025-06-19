@@ -1,0 +1,7 @@
+  {
+  "id": "wood",
+  "displayName": "Wood Log",
+  "description": "A sturdy log of wood.",
+  "type": "RESOURCE",
+  "texture": { "atlas": "treeTexture", "x": 90, "y": 1674, "w": 64, "h": 32 }
+}

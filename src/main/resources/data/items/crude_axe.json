@@ -1,0 +1,21 @@
+{
+  "id": "crude_axe",
+  "displayName": "Crude Axe",
+  "description": "A simple axe.",
+  "type": "TOOL",
+  "useStyle": "SWING",
+  "toolType": "AXE",
+  "texture": {
+    "atlas": "treeTexture",
+    "x": 35,
+    "y": 1665,
+    "w": 49,
+    "h": 56
+  },
+  "stats": {
+    "damage": 10,
+    "useTime": 25,
+    "useAnimation": 25,
+    "knockback": 4.5
+  }
+}

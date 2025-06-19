@@ -1,0 +1,14 @@
+{
+  "id": "torch",
+  "displayName": "Torch",
+  "description": "A source of light. Can be placed on walls.",
+  "type": "TOOL",
+  "useStyle": "HOLD_OUT",
+  "texture": {
+    "atlas": "treeTexture",
+    "x": 0,
+    "y": 1728,
+    "w": 64,
+    "h": 64
+  }
+}

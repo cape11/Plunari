@@ -1,7 +1,13 @@
 package org.isogame.input;
 
 import org.isogame.camera.CameraManager;
-import org.isogame.entitiy.PlayerModel;
+import org.isogame.constants.Constants;
+import org.isogame.entity.Entity;
+import org.isogame.entity.PlayerModel;
+import org.isogame.game.Game;
+import org.isogame.item.Item;
+import org.isogame.item.ItemRegistry;
+import org.isogame.item.UseStyle;
 import org.isogame.map.Map;
 import org.isogame.tile.Tile;
 
@@ -15,111 +21,254 @@ public class InputHandler {
 
     private final long window;
     private final CameraManager cameraManager;
-    private final Map map;
-    private final PlayerModel player;
+    private Map map;
+    private PlayerModel player;
+    private final Game gameInstance;
 
     public int selectedRow = 0;
     public int selectedCol = 0;
     private final Set<Integer> keysDown = new HashSet<>();
 
-    public InputHandler(long window, CameraManager cameraManager, Map map, PlayerModel player) {
+    private static final float PLAYER_CAMERA_Y_SCREEN_OFFSET = -75.0f;
+
+    public InputHandler(long window, CameraManager cameraManager, Map map, PlayerModel player, Game gameInstance) {
         this.window = window;
         this.cameraManager = cameraManager;
         this.map = map;
         this.player = player;
-        this.selectedRow = player.getTileRow();
-        this.selectedCol = player.getTileCol();
+        this.gameInstance = gameInstance;
+        if (this.player != null && this.map != null) {
+            this.selectedRow = player.getTileRow();
+            this.selectedCol = player.getTileCol();
+        }
     }
 
-    public void registerCallbacks(Runnable onGenerateMap) {
+    public void updateGameReferences(Map map, PlayerModel player) {
+        this.map = map;
+        this.player = player;
+        if (this.player != null && this.map != null) {
+            this.selectedRow = player.getTileRow();
+            this.selectedCol = player.getTileCol();
+        } else {
+            this.selectedRow = 0;
+            this.selectedCol = 0;
+        }
+    }
+
+
+    public void registerCallbacks(Runnable requestFullMapRegenerationCallback) {
         glfwSetKeyCallback(window, (win, key, scancode, action, mods) -> {
-            if (key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE) {
-                glfwSetWindowShouldClose(window, true);
+            if (gameInstance == null) {
                 return;
             }
-            if (action == GLFW_PRESS) {
-                keysDown.add(key);
-                handleSingleKeyPress(key, onGenerateMap);
-            } else if (action == GLFW_RELEASE) {
-                keysDown.remove(key);
+
+            if (key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE) {
+                if (gameInstance.getCurrentGameState() == Game.GameState.IN_GAME) {
+                    gameInstance.setCurrentGameState(Game.GameState.MAIN_MENU);
+                } else if (gameInstance.getCurrentGameState() == Game.GameState.MAIN_MENU) {
+                    glfwSetWindowShouldClose(window, true);
+                }
+                return;
+            }
+
+            if (gameInstance.getCurrentGameState() == Game.GameState.IN_GAME) {
+                if (player == null || map == null) {
+                    return;
+                }
+                if (action == GLFW_PRESS) {
+                    keysDown.add(key);
+                    handleSingleKeyPressInGame(key, requestFullMapRegenerationCallback);
+                } else if (action == GLFW_RELEASE) {
+                    keysDown.remove(key);
+                    if ((key == GLFW_KEY_W || key == GLFW_KEY_S || key == GLFW_KEY_A || key == GLFW_KEY_D)) {
+                        boolean stillPressingMovementKey = keysDown.stream().anyMatch(k ->
+                                k == GLFW_KEY_W || k == GLFW_KEY_S || k == GLFW_KEY_A || k == GLFW_KEY_D);
+                        if (!stillPressingMovementKey) {
+                            player.setMovementInput(0f, 0f);
+                        }
+                    }
+                }
+            } else {
+                if (action == GLFW_PRESS) {
+                    keysDown.add(key);
+                } else if (action == GLFW_RELEASE) {
+                    keysDown.remove(key);
+                }
             }
         });
     }
 
-    private void handleSingleKeyPress(int key, Runnable onGenerateMap) {
+    private void handleSingleKeyPressInGame(int key, Runnable requestFullMapRegenerationCallback) {
         switch (key) {
-            case GLFW_KEY_G:
-                if (onGenerateMap != null) {
-                    onGenerateMap.run();
-                    player.setPosition(map.getCharacterSpawnRow(), map.getCharacterSpawnCol());
-                    player.setPath(null); // Clear path on map regeneration
-                    selectedRow = player.getTileRow(); selectedCol = player.getTileCol();
-                    cameraManager.setTargetPositionInstantly(player.getMapCol(), player.getMapRow());
+            case GLFW_KEY_J:
+                performPlayerActionOnCurrentlySelectedTile();
+                break;
+
+            // vvv ADD THIS NEW CASE vvv
+            case GLFW_KEY_F1: // R for "Redraw"
+                System.out.println("DEBUG: Forcing render update for player's current chunk.");
+                gameInstance.requestTileRenderUpdate(player.getTileRow(), player.getTileCol());
+                break;
+            // ^^^ END OF NEW CASE ^^^
+            case GLFW_KEY_C:
+                if (cameraManager != null) {
+                    cameraManager.stopManualPan();
+                    float[] focusPoint = calculateCameraFocusPoint(player.getMapCol(), player.getMapRow());
+                    cameraManager.setTargetPositionInstantly(focusPoint[0], focusPoint[1]);
                 }
                 break;
+            case GLFW_KEY_G: if (requestFullMapRegenerationCallback != null) requestFullMapRegenerationCallback.run(); break;
             case GLFW_KEY_F: player.toggleLevitate(); break;
-            case GLFW_KEY_C: cameraManager.setTargetPosition(player.getMapCol(), player.getMapRow()); break;
             case GLFW_KEY_Q: modifySelectedTileElevation(-1); break;
             case GLFW_KEY_E: modifySelectedTileElevation(1); break;
-            case GLFW_KEY_J: performDigAction(); break;
-        }
-    }
-
-    // Player movement is now handled by pathfinding triggered by MouseHandler.
-    // This method can be used for other continuous inputs, like camera panning with keys.
-    public void handleContinuousInput(double deltaTime) {
-        // Example: Camera Panning with arrow keys (if you want to keep this)
-        float camPanSpeed = CAMERA_PAN_SPEED * (float)deltaTime;
-
-        // Use the field name "cameraManager"
-        if (keysDown.contains(GLFW_KEY_UP)) {
-            cameraManager.moveTargetPosition(0, -camPanSpeed / cameraManager.getEffectiveTileHeight());
-        }
-        if (keysDown.contains(GLFW_KEY_DOWN)) {
-            cameraManager.moveTargetPosition(0, camPanSpeed / cameraManager.getEffectiveTileHeight());
-        }
-        if (keysDown.contains(GLFW_KEY_LEFT)) {
-            cameraManager.moveTargetPosition(-camPanSpeed / cameraManager.getEffectiveTileWidth(), 0);
-        }
-        if (keysDown.contains(GLFW_KEY_RIGHT)) {
-            cameraManager.moveTargetPosition(camPanSpeed / cameraManager.getEffectiveTileWidth(), 0);
-        }
-    }
-
-    private void performDigAction() {
-        int playerR = player.getTileRow();
-        int playerC = player.getTileCol();
-        PlayerModel.Direction facingDir = player.getCurrentDirection();
-        int targetR = playerR;
-        int targetC = playerC;
-
-        switch (facingDir) {
-            case NORTH: targetR -= MAX_INTERACTION_DISTANCE; break;
-            case SOUTH: targetR += MAX_INTERACTION_DISTANCE; break;
-            case WEST:  targetC -= MAX_INTERACTION_DISTANCE; break;
-            case EAST:  targetC += MAX_INTERACTION_DISTANCE; break;
-        }
-
-        if (map.isValid(targetR, targetC)) {
-            Tile targetTile = map.getTile(targetR, targetC);
-            if (targetTile != null && targetTile.getElevation() >= NIVEL_MAR) { // Can only dig land (not below NIVEL_MAR essentially)
-                Tile.TileType originalType = targetTile.getType();
-                int originalElevation = targetTile.getElevation();
-                int newElevation = originalElevation - 1;
-                if (newElevation < 0) newElevation = 0;
-
-                map.setTileElevation(targetR, targetC, newElevation);
-
-                switch (originalType) {
-                    case GRASS: player.addResource(RESOURCE_DIRT, 1); break;
-                    case SAND: player.addResource(RESOURCE_SAND, 1); break;
-                    case ROCK: player.addResource(RESOURCE_STONE, 1); break;
+            case GLFW_KEY_L: map.toggleTorch(selectedRow, selectedCol); break;
+            case GLFW_KEY_H: gameInstance.toggleHotbar(); break;
+            case GLFW_KEY_F5: gameInstance.toggleShowDebugOverlay(); break;
+            case GLFW_KEY_F6: gameInstance.decreaseRenderDistance(); break;
+            case GLFW_KEY_F7: gameInstance.increaseRenderDistance(); break;
+            case GLFW_KEY_F9:
+                String currentWorld = gameInstance.getCurrentWorldName();
+                if (currentWorld != null && !currentWorld.trim().isEmpty()) {
+                    gameInstance.saveGame(currentWorld);
                 }
+                break;
+            case GLFW_KEY_I: gameInstance.toggleInventory(); break;
+            case GLFW_KEY_1: gameInstance.setSelectedHotbarSlotIndex(0); break;
+            case GLFW_KEY_2: gameInstance.setSelectedHotbarSlotIndex(1); break;
+            case GLFW_KEY_3: gameInstance.setSelectedHotbarSlotIndex(2); break;
+            case GLFW_KEY_4: gameInstance.setSelectedHotbarSlotIndex(3); break;
+            case GLFW_KEY_5: gameInstance.setSelectedHotbarSlotIndex(4); break;
+        }
+    }
+
+    public float[] calculateCameraFocusPoint(float playerMapCol, float playerMapRow) {
+        if (player == null || cameraManager == null || map == null) {
+            return new float[]{playerMapCol, playerMapRow};
+        }
+
+        int playerElevation = 0;
+        Tile playerTile = map.getTile(player.getTileRow(), player.getTileCol());
+        if (playerTile != null) {
+            playerElevation = playerTile.getElevation();
+        }
+
+        float playerVisualCenterWorldYOffset = (-playerElevation * TILE_THICKNESS) - (PLAYER_WORLD_RENDER_HEIGHT / 2.0f);
+        float totalWorldYOffsetToCenterPlayerVisually = playerVisualCenterWorldYOffset - (PLAYER_CAMERA_Y_SCREEN_OFFSET / cameraManager.getZoom());
+        float deltaMapUnitsSumForCentering = totalWorldYOffsetToCenterPlayerVisually / (TILE_HEIGHT / 2.0f);
+        float targetFocusCol = playerMapCol + deltaMapUnitsSumForCentering / 2.0f;
+        float targetFocusRow = playerMapRow + deltaMapUnitsSumForCentering / 2.0f;
+
+        return new float[]{targetFocusCol, targetFocusRow};
+    }
+
+    public void handleContinuousInput(double deltaTime) {
+        if (gameInstance != null && gameInstance.getCurrentGameState() == Game.GameState.IN_GAME) {
+            if (player == null || cameraManager == null || map == null) {
+                return;
+            }
+
+            float dCol = 0f;
+            float dRow = 0f;
+            boolean isPlayerTryingToMove = false;
+
+            if (keysDown.contains(GLFW_KEY_W)) { dRow--; dCol--; isPlayerTryingToMove = true; }
+            if (keysDown.contains(GLFW_KEY_S)) { dRow++; dCol++; isPlayerTryingToMove = true; }
+            if (keysDown.contains(GLFW_KEY_A)) { dRow++; dCol--; isPlayerTryingToMove = true; }
+            if (keysDown.contains(GLFW_KEY_D)) { dRow--; dCol++; isPlayerTryingToMove = true; }
+
+            if (isPlayerTryingToMove) {
+                if (cameraManager.isManuallyPanning()) {
+                    cameraManager.stopManualPan();
+                }
+
+                if (dCol != 0f || dRow != 0f) {
+                    float length = (float)Math.sqrt(dCol * dCol + dRow * dRow);
+                    if (length != 0) {
+                        dCol /= length;
+                        dRow /= length;
+                    }
+                }
+                player.setMovementInput(dCol, dRow);
+
+                if (keysDown.contains(GLFW_KEY_W)) {
+                    if (keysDown.contains(GLFW_KEY_D)) player.setDirection(PlayerModel.Direction.EAST);
+                    else if (keysDown.contains(GLFW_KEY_A)) player.setDirection(PlayerModel.Direction.NORTH);
+                    else player.setDirection(PlayerModel.Direction.NORTH);
+                } else if (keysDown.contains(GLFW_KEY_S)) {
+                    if (keysDown.contains(GLFW_KEY_D)) player.setDirection(PlayerModel.Direction.SOUTH);
+                    else if (keysDown.contains(GLFW_KEY_A)) player.setDirection(PlayerModel.Direction.WEST);
+                    else player.setDirection(PlayerModel.Direction.SOUTH);
+                } else if (keysDown.contains(GLFW_KEY_D)) {
+                    player.setDirection(PlayerModel.Direction.EAST);
+                } else if (keysDown.contains(GLFW_KEY_A)) {
+                    player.setDirection(PlayerModel.Direction.WEST);
+                }
+            } else {
+                player.setMovementInput(0f, 0f);
+            }
+
+            if (!cameraManager.isManuallyPanning()) {
+                float[] focusPoint = calculateCameraFocusPoint(player.getMapCol(), player.getMapRow());
+                cameraManager.setTargetPosition(focusPoint[0], focusPoint[1]);
             }
         }
     }
 
+    public void performPlayerActionOnCurrentlySelectedTile() {
+        if (player == null || map == null || gameInstance == null) {
+            return;
+        }
+
+        int targetR = this.selectedRow;
+        int targetC = this.selectedCol;
+        Tile targetTile = map.getTile(targetR, targetC);
+
+        if (targetTile == null) return;
+
+        // Check interaction range
+        float distance = Math.abs(targetR - player.getMapRow()) + Math.abs(targetC - player.getMapCol());
+        if (distance > Constants.MAX_INTERACTION_DISTANCE) {
+            return;
+        }
+
+        // Set player direction to face the target.
+        float dColPlayerToTarget = targetC - player.getMapCol();
+        float dRowPlayerToTarget = targetR - player.getMapRow();
+        if (Math.abs(dColPlayerToTarget) > Math.abs(dRowPlayerToTarget)) {
+            player.setDirection(dColPlayerToTarget > 0 ? PlayerModel.Direction.EAST : PlayerModel.Direction.WEST);
+        } else {
+            player.setDirection(dRowPlayerToTarget > 0 ? PlayerModel.Direction.SOUTH : PlayerModel.Direction.NORTH);
+        }
+
+        // --- CORRECTED LOGIC ---
+        Item heldItem = player.getHeldItem();
+
+        if (heldItem != null) {
+            // If holding a tool, use the new data-driven system
+            heldItem.onUse(gameInstance, player, targetTile, targetR, targetC);
+        } else {
+            // If holding nothing, perform a bare-handed action.
+            player.setAction(Entity.Action.SWING); // Play the punch animation
+
+            // --- THIS LOGIC HAS BEEN RESTORED ---
+            // Add back the logic for interacting with the world with bare hands
+            if (targetTile.getLooseRockType() != Tile.LooseRockType.NONE) {
+                player.addItemToInventory(ItemRegistry.getItem("loose_rock"), 1);
+                targetTile.setLooseRockType(Tile.LooseRockType.NONE);
+                gameInstance.requestTileRenderUpdate(targetR, targetC);
+            } else if (targetTile.getTreeType() != Tile.TreeVisualType.NONE) {
+                // Punching a tree gives one stick and deals a tiny bit of damage
+                player.addItemToInventory(ItemRegistry.getItem("stick"), 1);
+                targetTile.takeDamage(1); // Deal 1 damage
+            }
+        }
+    }
+
+
     private void modifySelectedTileElevation(int amount) {
+        if (map == null || gameInstance == null) {
+            return;
+        }
         Tile tile = map.getTile(selectedRow, selectedCol);
         if (tile != null) {
             int currentElevation = tile.getElevation();
@@ -130,12 +279,41 @@ public class InputHandler {
         }
     }
 
-    public void setSelectedTile(int col, int row) { // Note: common to pass col, then row
-        if (map.isValid(row, col)) {
-            this.selectedRow = row;
-            this.selectedCol = col;
+    // In InputHandler.java
+
+    public void setSelectedTile(int col, int row) {
+        if (map == null) {
+            return;
+        }
+        // Prevent selection from changing if it's the same tile
+        if (this.selectedRow == row && this.selectedCol == col) {
+            return;
+        }
+
+        // Store the location of the previously selected tile
+        int oldSelectedRow = this.selectedRow;
+        int oldSelectedCol = this.selectedCol;
+
+        // Update to the new selection
+        this.selectedRow = row;
+        this.selectedCol = col;
+
+        if (gameInstance != null) {
+            // --- THIS IS THE IMPROVED LOGIC ---
+            // Request a redraw for the tile that is no longer selected
+            gameInstance.requestTileRenderUpdate(oldSelectedRow, oldSelectedCol);
+            // Request a redraw for the newly selected tile
+            gameInstance.requestTileRenderUpdate(this.selectedRow, this.selectedCol);
+
+            // Also request updates for neighbors to prevent visual artifacts
+            gameInstance.requestTileRenderUpdate(oldSelectedRow + 1, oldSelectedCol);
+            gameInstance.requestTileRenderUpdate(oldSelectedRow - 1, oldSelectedCol);
+            gameInstance.requestTileRenderUpdate(oldSelectedRow, oldSelectedCol + 1);
+            gameInstance.requestTileRenderUpdate(oldSelectedRow, oldSelectedCol - 1);
         }
     }
+
+    public Game getGameInstance() { return this.gameInstance; }
     public int getSelectedRow() { return selectedRow; }
     public int getSelectedCol() { return selectedCol; }
 }

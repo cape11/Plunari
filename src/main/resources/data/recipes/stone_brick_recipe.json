@@ -1,0 +1,10 @@
+{
+  "outputItemId": "stone_brick",
+  "outputQuantity": 4,
+  "ingredients": [
+    {
+      "itemId": "loose_rock",
+      "quantity": 2
+    }
+  ]
+}

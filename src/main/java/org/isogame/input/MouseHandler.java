@@ -1,213 +1,281 @@
 package org.isogame.input;
 
 import org.isogame.camera.CameraManager;
-import org.isogame.entitiy.PlayerModel;
+import org.isogame.constants.Constants;
+import org.isogame.entity.PlayerModel;
+import org.isogame.game.Game;
+import org.isogame.item.Item;
 import org.isogame.map.Map;
-import org.isogame.map.PathNode;
-import org.isogame.map.AStarPathfinder;
-import org.lwjgl.system.MemoryStack;
+import org.isogame.tile.Tile;
+import org.isogame.ui.MenuItemButton;
 
-import java.nio.DoubleBuffer;
 import java.util.List;
 
+import static org.isogame.constants.Constants.TORCH_LIGHT_LEVEL;
 import static org.lwjgl.glfw.GLFW.*;
-import static org.isogame.constants.Constants.*;
 
 public class MouseHandler {
     private final long window;
     private final CameraManager camera;
-    private final Map map;
-    private final InputHandler inputHandler;
-    private final PlayerModel player;
-    private final AStarPathfinder pathfinder;
+    private Map map;
+    private InputHandler inputHandlerRef;
+    private PlayerModel player;
+    private final Game gameInstance;
 
     private double lastMouseX, lastMouseY;
-    private boolean middleMousePressed = false;
+    private boolean isLeftDraggingForPan = false;
+    private boolean isLeftMousePressed = false;
+    private double pressMouseX, pressMouseY;
+    private boolean uiHandledLeftMousePress = false;
 
-    public MouseHandler(long window, CameraManager camera, Map map, InputHandler inputHandler, PlayerModel player) {
+    public MouseHandler(long window, CameraManager camera, Map map, InputHandler inputHandler, PlayerModel player, Game gameInstance) {
         this.window = window;
         this.camera = camera;
         this.map = map;
-        this.inputHandler = inputHandler;
+        this.inputHandlerRef = inputHandler;
         this.player = player;
-        this.pathfinder = new AStarPathfinder();
+        this.gameInstance = gameInstance;
         setupCallbacks();
     }
 
+    public void updateGameReferences(Map map, PlayerModel player, InputHandler inputHandler) {
+        this.map = map;
+        this.player = player;
+        this.inputHandlerRef = inputHandler;
+    }
+
+    public void resetLeftMouseDragFlags() {
+        isLeftMousePressed = false;
+        isLeftDraggingForPan = false;
+        uiHandledLeftMousePress = false;
+        if (camera != null && camera.isManuallyPanning()) {
+            camera.stopManualPan();
+        }
+    }
+
     private void setupCallbacks() {
+        // --- MOUSE MOVEMENT CALLBACK ---
         glfwSetCursorPosCallback(window, (win, xpos, ypos) -> {
-            lastMouseX = xpos; // These are logical screen coordinates
-            lastMouseY = ypos;
-        });
+            double currentX = xpos;
+            double currentY = ypos;
+            double dx = currentX - lastMouseX;
+            double dy = currentY - lastMouseY;
 
-        glfwSetMouseButtonCallback(window, (win, button, action, mods) -> {
-            // captureMousePosition(); // Already have lastMouseX/Y from cursorPosCallback
+            if (gameInstance == null || camera == null) return;
 
-            if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
-                // Get current window size (logical points) and framebuffer size (physical pixels)
-                // This is crucial for scaling mouse coordinates correctly.
-                int[] windowWidthPoints = new int[1];
-                int[] windowHeightPoints = new int[1];
-                glfwGetWindowSize(window, windowWidthPoints, windowHeightPoints);
+            // Calculate physical mouse coordinates once for all states
+            int[] fbWidth = new int[1]; int[] fbHeight = new int[1]; glfwGetFramebufferSize(window, fbWidth, fbHeight);
+            int[] winWidth = new int[1]; int[] winHeight = new int[1]; glfwGetWindowSize(window, winWidth, winHeight);
+            double cScaleX = (fbWidth[0] > 0 && winWidth[0] > 0) ? (double)fbWidth[0]/winWidth[0] : 1.0;
+            double cScaleY = (fbHeight[0] > 0 && winHeight[0] > 0) ? (double)fbHeight[0]/winHeight[0] : 1.0;
+            int physicalMouseX = (int)(xpos * cScaleX);
+            int physicalMouseY = (int)(ypos * cScaleY);
 
-                int[] fbWidthPixels = new int[1];
-                int[] fbHeightPixels = new int[1];
-                glfwGetFramebufferSize(window, fbWidthPixels, fbHeightPixels);
+            if (gameInstance.getCurrentGameState() == Game.GameState.IN_GAME) {
+                // World Tile Hover
+                if (map != null && inputHandlerRef != null && !gameInstance.isInventoryVisible()) {
+                    int[] hoveredCoords = camera.screenToAccurateMapTile(physicalMouseX, physicalMouseY, map);
+                    if (hoveredCoords != null) {
+                        inputHandlerRef.setSelectedTile(hoveredCoords[0], hoveredCoords[1]);
+                        if (gameInstance.getPlacementManager() != null && gameInstance.getPlacementManager().isPlacing()) {
+                            gameInstance.getPlacementManager().updatePlacement(hoveredCoords[0], hoveredCoords[1]);
+                        }
 
-                double mouseX_logical = lastMouseX;
-                double mouseY_logical = lastMouseY;
-
-                // Calculate scale factors
-                double scaleX = (double) fbWidthPixels[0] / windowWidthPoints[0];
-                double scaleY = (double) fbHeightPixels[0] / windowHeightPoints[0];
-                // On macOS Retina, scaleX and scaleY will typically be 2.0
-
-                // Scale mouse coordinates to framebuffer pixel space
-                int mouseX_physical = (int) (mouseX_logical * scaleX);
-                int mouseY_physical = (int) (mouseY_logical * scaleY);
-
-                System.out.printf("Mouse: Logical(%.0f,%.0f) -> Scaled Physical(X:%d, Y:%d) (ScaleX:%.1f, ScaleY:%.1f)%n",
-                        mouseX_logical, mouseY_logical, mouseX_physical, mouseY_physical, scaleX, scaleY);
-
-                // Use the SCALED physical coordinates for picking
-                int[] accurateCoordsPath = camera.screenToAccurateMapTile(mouseX_physical, mouseY_physical, map);
-
-                // ----- !!! CRUCIAL NULL CHECK !!! -----
-                if (accurateCoordsPath != null) {
-                    int targetColPath = accurateCoordsPath[0];
-                    int targetRowPath = accurateCoordsPath[1];
-
-                    inputHandler.setSelectedTile(targetColPath, targetRowPath);
-
-                    System.out.printf("Pathfinding request from (R:%d,C:%d) to (R:%d,C:%d)%n",
-                            player.getTileRow(), player.getTileCol(),
-                            targetRowPath, targetColPath);
-
-                    List<PathNode> path = pathfinder.findPath(
-                            player.getTileRow(), player.getTileCol(),
-                            targetRowPath, targetColPath,
-                            map
-                    );
-                    player.setPath(path);
-
-                } else {
-                    // screenToAccurateMapTile returned null
-                    System.out.println("Mouse click for pathfinding/selection DID NOT LAND on a valid map tile according to screenToAccurateMapTile.");
-                    // Optionally, clear selection or do nothing:
-                    // inputHandler.setSelectedTile(-1, -1); // Example: deselect if you want this behavior
+                    }
+                }
+                // Camera Panning
+                if (isLeftMousePressed && !isLeftDraggingForPan && !uiHandledLeftMousePress) {
+                    if ((Math.abs(dx) + Math.abs(dy)) > 5) {
+                        isLeftDraggingForPan = true;
+                        camera.startManualPan();
+                    }
+                }
+                if (isLeftDraggingForPan) {
+                    float[] mapDelta = camera.screenVectorToMapVector((float) -dx, (float) -dy);
+                    camera.moveTargetPosition(mapDelta[0], mapDelta[1]);
+                }
+            } else if (gameInstance.getCurrentGameState() == Game.GameState.MAIN_MENU) {
+                // Main menu button hover
+                List<MenuItemButton> menuButtons = gameInstance.getMainMenuButtons();
+                if (menuButtons != null) {
+                    for (MenuItemButton button : menuButtons) {
+                        button.isHovered = button.isVisible && button.isMouseOver(physicalMouseX, physicalMouseY);
+                    }
                 }
             }
+            lastMouseX = currentX;
+            lastMouseY = currentY;
         });
 
-        glfwSetCursorPosCallback(window, (win, xpos, ypos) -> {
-            if (middleMousePressed) {
-                double deltaX = xpos - lastMouseX;
-                double deltaY = ypos - lastMouseY;
-                float screenMoveScale = 1.0f / camera.getZoom();
-                float[] mapDelta = camera.screenVectorToMapVector((float) -deltaX * screenMoveScale, (float) -deltaY * screenMoveScale);
-                camera.moveTargetPosition(mapDelta[0], mapDelta[1]);
+        // --- MOUSE BUTTON CALLBACK (Corrected Structure) ---
+        glfwSetMouseButtonCallback(window, (win, buttonId, action, mods) -> {
+            if (gameInstance == null || camera == null) return;
+
+            int[] fbWidth = new int[1]; int[] fbHeight = new int[1]; glfwGetFramebufferSize(window, fbWidth, fbHeight);
+            int[] winWidth = new int[1]; int[] winHeight = new int[1]; glfwGetWindowSize(window, winWidth, winHeight);
+            double cScaleX = (fbWidth[0] > 0 && winWidth[0] > 0) ? (double)fbWidth[0]/winWidth[0] : 1.0;
+            double cScaleY = (fbHeight[0] > 0 && winHeight[0] > 0) ? (double)fbHeight[0]/winHeight[0] : 1.0;
+            int mouseX_physical = (int)(lastMouseX * cScaleX);
+            int mouseY_physical = (int)(lastMouseY * cScaleY);
+
+            switch (gameInstance.getCurrentGameState()) {
+                case MAIN_MENU:
+                    handleMenuMouseClick(buttonId, action, mouseX_physical, mouseY_physical);
+                    break;
+                case IN_GAME:
+                    handleGameMouseClick(buttonId, action, mouseX_physical, mouseY_physical);
+                    break;
             }
-            // Update the "hovered" tile for visual feedback (optional, done in InputHandler or Renderer)
-            // if (inputHandler != null) {
-            //    int[] hoveredCoords = camera.screenToAccurateMapTile((int) xpos, (int) ypos, map);
-            //    inputHandler.setHoveredTile(hoveredCoords[0], hoveredCoords[1]); // Would need this method in InputHandler
-            // }
-            lastMouseX = xpos;
-            lastMouseY = ypos;
         });
-// In MouseHandler.java -> setupCallbacks() -> glfwSetMouseButtonCallback for LEFT_PRESS
 
-// This call returns the coordinates for pathfinding
-        int[] accurateCoordsPath = camera.screenToAccurateMapTile((int) lastMouseX, (int) lastMouseY, map);
-
-        if (accurateCoordsPath != null) { // <<< ADD THIS NULL CHECK
-            int targetColPath = accurateCoordsPath[0]; // Column is usually index 0
-            int targetRowPath = accurateCoordsPath[1]; // Row is usually index 1
-
-            System.out.printf("Pathfinding request from (R:%d,C:%d) to (R:%d,C:%d)%n",
-                    player.getTileRow(), player.getTileCol(),
-                    targetRowPath, targetColPath);
-
-            List<PathNode> path = pathfinder.findPath(
-                    player.getTileRow(),    // startRow
-                    player.getTileCol(),    // startCol
-                    targetRowPath,          // endRow
-                    targetColPath,          // endCol
-                    map                     // <<< ADD THE 'map' INSTANCE HERE
-            );
-            player.setPath(path);
-
-        } else {
-            System.out.println("Mouse click for pathfinding did not land on a valid map tile.");
-            // Optionally, clear the player's path if they click off-map while trying to set a new path
-            // player.setPath(null);
-        }
-
-// This part is for setting the selected tile in InputHandler (visual selection)
-// You can reuse accurateCoordsPath if it was not null, or call again if you want to be super safe
-// or if the logic could diverge (though it shouldn't here).
-// For simplicity, let's assume if pathing target is valid, selection target is too.
-        if (accurateCoordsPath != null) {
-            inputHandler.setSelectedTile(accurateCoordsPath[0], accurateCoordsPath[1]); // col, row
-        } else {
-            // If no valid tile for pathfinding, maybe don't change selection or set to invalid
-            // inputHandler.setSelectedTile(-1, -1); // Example for invalid/no selection
-        }
-
+        // --- MOUSE SCROLL CALLBACK ---
         glfwSetScrollCallback(window, (win, xoffset, yoffset) -> {
-            if (yoffset > 0) {
-                camera.adjustZoom(CAMERA_ZOOM_SPEED);
-            } else if (yoffset < 0) {
-                camera.adjustZoom(-CAMERA_ZOOM_SPEED);
+            if (camera != null) {
+                camera.adjustZoom(yoffset > 0 ? Constants.CAMERA_ZOOM_SPEED : -Constants.CAMERA_ZOOM_SPEED);
             }
         });
     }
 
-    // Renamed parameters to reflect they are already map coordinates
-    private void handlePathfindingRequest(int targetCol, int targetRow) {
-        // targetCol and targetRow are now already accurately picked map coordinates
-
-        if (map.isValid(targetRow, targetCol)) {
-            if (player.getTileRow() == targetRow && player.getTileCol() == targetCol) {
-                System.out.println("Target is player's current tile. No path needed.");
-                player.setPath(null);
-                return;
+    // --- HELPER METHOD for Main Menu Clicks ---
+    private void handleMenuMouseClick(int buttonId, int action, int mouseX, int mouseY) {
+        if (buttonId == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+            List<MenuItemButton> menuButtons = gameInstance.getMainMenuButtons();
+            if (menuButtons != null) {
+                for (MenuItemButton btn : menuButtons) {
+                    if (btn.isVisible && btn.isMouseOver(mouseX, mouseY)) {
+                        switch (btn.actionCommand) {
+                            case "NEW_WORLD": gameInstance.createNewWorld(); break;
+                            case "LOAD_WORLD": gameInstance.loadGame(btn.associatedData); break;
+                            case "DELETE_WORLD": gameInstance.deleteWorld(btn.associatedData); break;
+                            case "EXIT_GAME": glfwSetWindowShouldClose(window, true); break;
+                        }
+                        return; // Important: Stop processing after a button click
+                    }
+                }
             }
-
-            System.out.println("Pathfinding request from (" + player.getTileRow() + "," + player.getTileCol() +
-                    ") to (" + targetRow + "," + targetCol + ")");
-
-            List<PathNode> path = pathfinder.findPath(
-                    player.getTileRow(), player.getTileCol(),
-                    targetRow, targetCol,
-                    map
-            );
-            player.setPath(path);
         }
     }
 
-    // These methods are no longer strictly needed if the logic is moved directly into the callbacks,
-    // but if InputHandler still uses them, they should use the accurate picking.
-    // Let's remove them for now to avoid confusion, as the callbacks now directly call screenToAccurateMapTile.
-    /*
-    private int getTileRowAtMouse(double screenX, double screenY) {
-        int[] accurateCoords = camera.screenToAccurateMapTile((int) screenX, (int) screenY, map);
-        return accurateCoords[1]; // row
-    }
+    // In MouseHandler.java
 
-    private int getTileColAtMouse(double screenX, double screenY) {
-        int[] accurateCoords = camera.screenToAccurateMapTile((int) screenX, (int) screenY, map);
-        return accurateCoords[0]; // col
-    }
-    */
+    private void handleGameMouseClick(int buttonId, int action, int mouseX, int mouseY) {
+        if (player == null || gameInstance.getPlacementManager() == null) return;
 
-    private void captureMousePosition() {
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            DoubleBuffer posX = stack.mallocDouble(1);
-            DoubleBuffer posY = stack.mallocDouble(1);
-            glfwGetCursorPos(window, posX, posY);
-            lastMouseX = posX.get(0);
-            lastMouseY = posY.get(0);
+        int[] hoveredCoords = camera.screenToAccurateMapTile(mouseX, mouseY, map);
+
+        // --- LEFT MOUSE BUTTON ---
+        if (buttonId == GLFW_MOUSE_BUTTON_LEFT) {
+            if (action == GLFW_PRESS) {
+                isLeftMousePressed = true;
+                uiHandledLeftMousePress = false;
+
+                if (gameInstance.isInventoryVisible()) {
+                    uiHandledLeftMousePress = checkInventoryClick(mouseX, mouseY) || checkCraftingClick(mouseX, mouseY);
+                }
+                if (!uiHandledLeftMousePress) {
+                    inputHandlerRef.performPlayerActionOnCurrentlySelectedTile();
+                }
+            } else if (action == GLFW_RELEASE) {
+                isLeftMousePressed = false;
+                if (gameInstance.isDraggingItem()) {
+                    int dropSlot = getInventorySlotAt(mouseX, mouseY);
+                    gameInstance.stopDraggingItem(dropSlot);
+                } else if (isLeftDraggingForPan) {
+                    camera.stopManualPan();
+                    isLeftDraggingForPan = false;
+                }
+            }
+        }
+        // --- RIGHT MOUSE BUTTON ---
+        else if (buttonId == GLFW_MOUSE_BUTTON_RIGHT) {
+            if (action == GLFW_PRESS) {
+                if (!gameInstance.isInventoryVisible() && hoveredCoords != null) {
+                    gameInstance.getPlacementManager().startPlacement(hoveredCoords[0], hoveredCoords[1]);
+                }
+            } else if (action == GLFW_RELEASE) {
+                if (gameInstance.getPlacementManager().isPlacing()) {
+                    gameInstance.getPlacementManager().finalizePlacement();
+                }
+            }
         }
     }
+
+    // --- HELPER METHOD to check for clicks on Inventory Slots ---
+    private boolean checkInventoryClick(int mouseX, int mouseY) {
+        int slotIndex = getInventorySlotAt(mouseX, mouseY);
+        if (slotIndex != -1) {
+            // If the click is on a valid slot, start dragging the item.
+            gameInstance.startDraggingItem(slotIndex);
+            return true; // Click was handled by the UI
+        }
+        return false; // Click was not on an inventory slot
+    }
+
+
+    // --- HELPER METHOD to check for clicks on Craft Buttons ---
+    private boolean checkCraftingClick(int mouseX, int mouseY) {
+        // Calculate crafting panel position (should match Renderer)
+        float slotSize = 50f, slotMargin = 10f;
+        float panelMarginX = 30f, topMarginY = 40f, marginBetweenPanels = 20f;
+        int invSlotsPerRow = 5;
+        float invPanelWidth = (invSlotsPerRow * slotSize) + ((invSlotsPerRow + 1) * slotMargin);
+        float invPanelX = camera.getScreenWidth() - invPanelWidth - panelMarginX;
+        float invPanelHeight = (float)(Math.ceil((double) player.getInventorySlots().size() / invSlotsPerRow) * (slotSize + slotMargin)) + slotMargin;
+        float invPanelY = topMarginY;
+        float craftPanelX = invPanelX;
+        float craftPanelY = invPanelY + invPanelHeight + marginBetweenPanels;
+
+        List<org.isogame.crafting.CraftingRecipe> recipes = org.isogame.crafting.RecipeRegistry.getAllRecipes();
+        float recipeRowHeight = 50f;
+        float craftButtonWidth = 70f, craftButtonHeight = 25f;
+        float craftButtonX = craftPanelX + invPanelWidth - craftButtonWidth - slotMargin;
+        float currentRecipeY = craftPanelY + slotMargin + 30f;
+
+        for (org.isogame.crafting.CraftingRecipe recipe : recipes) {
+            float craftButtonY = currentRecipeY + (recipeRowHeight - craftButtonHeight) / 2f - 2;
+            if (gameInstance.canCraft(recipe) && mouseX >= craftButtonX && mouseX <= craftButtonX + craftButtonWidth &&
+                    mouseY >= craftButtonY && mouseY <= craftButtonY + craftButtonHeight) {
+                gameInstance.doCraft(recipe);
+                return true; // Click was handled
+            }
+            currentRecipeY += recipeRowHeight;
+        }
+        return false;
+    }
+
+    // --- ROBUST HELPER to get slot index from mouse coordinates ---
+    // --- ROBUST HELPER to get slot index from mouse coordinates ---
+    private int getInventorySlotAt(int mouseX, int mouseY) {
+        float slotSize = 50f, slotMargin = 10f;
+        float panelMarginX = 30f, topMarginY = 40f;
+        int invSlotsPerRow = 5;
+        float invPanelWidth = (invSlotsPerRow * slotSize) + ((invSlotsPerRow + 1) * slotMargin);
+        float invPanelX = camera.getScreenWidth() - invPanelWidth - panelMarginX;
+        float invPanelY = topMarginY;
+
+        if (mouseX < invPanelX || mouseX > invPanelX + invPanelWidth ||
+                mouseY < invPanelY) {
+            return -1;
+        }
+
+        float startX = invPanelX + slotMargin;
+        float startY = invPanelY + slotMargin;
+
+        for (int i = 0; i < player.getInventorySlots().size(); i++) {
+            int row = i / invSlotsPerRow;
+            int col = i % invSlotsPerRow;
+            float currentSlotX = startX + col * (slotSize + slotMargin);
+            float currentSlotY = startY + row * (slotSize + slotMargin);
+            if (mouseX >= currentSlotX && mouseX <= currentSlotX + slotSize &&
+                    mouseY >= currentSlotY && mouseY <= currentSlotY + slotSize) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+
+
+
+
 }
