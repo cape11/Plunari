@@ -1,0 +1,36 @@
+{
+  "pseudoTimeOfDay": 0.006406194999999996,
+  "mapData": {
+    "worldSeed": -5134321885232095803,
+    "playerSpawnR": 8,
+    "playerSpawnC": 8,
+    "explicitlySavedChunks": [],
+    "entities": []
+  },
+  "playerData": {
+    "mapRow": 8.0,
+    "mapCol": 8.0,
+    "inventory": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  }
+}
