@@ -453,7 +453,6 @@ public class Map {
 
     // In Map.java - MAKE SURE THIS IS THE ONLY placeBlock METHOD
     // In Map.java
-
     public boolean placeBlock(int globalR, int globalC, Item itemToPlace, Game game) {
         if (itemToPlace == null) {
             System.err.println("PLACEMENT FAILED: Item to place was null.");
@@ -497,31 +496,62 @@ public class Map {
                 return false;
         }
 
-        // 1. Set the tile properties first.
+        // --- START OF TARGETED LOGIC ---
+
+        // Store the old light levels before changing the tile
+        byte oldSkyLight = targetTile.getSkyLightLevel();
+        byte oldBlockLight = targetTile.getBlockLightLevel();
+
+        // Update the tile's properties
         targetTile.setElevation(newElevation);
         targetTile.setType(newType);
         targetTile.setTreeType(Tile.TreeVisualType.NONE);
         targetTile.setLooseRockType(Tile.LooseRockType.NONE);
 
-        // 2. Mark the chunk as logically modified for saving purposes.
-        int chunkX = Math.floorDiv(globalC, CHUNK_SIZE_TILES);
-        int chunkY = Math.floorDiv(globalR, CHUNK_SIZE_TILES);
-        markChunkAsModified(chunkX, chunkY);
+        // A newly placed solid block has no light of its own and blocks the sky.
+        targetTile.setSkyLightLevel((byte) 0);
+        targetTile.setBlockLightLevel((byte) 0);
 
-        // 3. IMPORTANT: Queue up all the necessary lighting calculations for the affected area.
-        // This MUST be done BEFORE requesting the render update.
-        queueLightUpdateForArea(globalR, globalC, 2, this.lightManager);
+        // Mark the chunk as logically modified for saving
+        markChunkAsModified(Math.floorDiv(globalC, CHUNK_SIZE_TILES), Math.floorDiv(globalR, CHUNK_SIZE_TILES));
 
-        // 4. NOW, with the lighting work queued, request the render update.
-        if (game != null) {
-            System.out.println("PLACEMENT SUCCESSFUL. Requesting render update for chunk containing tile (" + globalR + "," + globalC + ").");
-            // This call will correctly mark the chunk as dirty in the LightManager.
-            this.lightManager.processAllQueuesToCompletion();
+        LightManager lm = this.lightManager;
+        if (lm == null) return true;
 
-            game.requestTileRenderUpdate(globalR, globalC);
+        // Queue the removal of the old light from the modified tile's location.
+        if (oldSkyLight > 0) {
+            lm.getSkyLightRemovalQueue_Direct().add(new LightManager.LightNode(globalR, globalC, oldSkyLight));
+        }
+        if (oldBlockLight > 0) {
+            lm.getBlockLightRemovalQueue_Direct().add(new LightManager.LightNode(globalR, globalC, oldBlockLight));
         }
 
-        // --- END OF CORRECTED LOGIC ---
+        // Now, queue the direct neighbors for updates.
+        int[] dr = {-1, 1, 0, 0};
+        int[] dc = {0, 0, -1, 1};
+        for (int i = 0; i < 4; i++) {
+            int nr = globalR + dr[i];
+            int nc = globalC + dc[i];
+            Tile neighbor = getTile(nr, nc);
+            if (neighbor != null) {
+                if (neighbor.getSkyLightLevel() > 0) {
+                    lm.getSkyLightPropagationQueue_Direct().add(new LightManager.LightNode(nr, nc, neighbor.getSkyLightLevel()));
+                }
+                if (neighbor.getBlockLightLevel() > 0) {
+                    lm.getBlockLightPropagationQueue_Direct().add(new LightManager.LightNode(nr, nc, neighbor.getBlockLightLevel()));
+                }
+            }
+        }
+
+        // Mark the central chunk and neighboring chunks as dirty for the renderer.
+        lm.markChunkDirty(globalR, globalC);
+        for (int i = 0; i < 4; i++) {
+            lm.markChunkDirty(globalR + dr[i], globalC + dc[i]);
+        }
+
+        // --- THIS IS THE LINE TO ADD FOR INSTANT UPDATES ---
+        // It forces all queued light calculations to finish right now.
+        lm.processAllQueuesToCompletion();
 
         return true;
     }

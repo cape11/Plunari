@@ -30,8 +30,7 @@ public class Chunk {
     private List<Renderer.TreeData> treesInChunk = new ArrayList<>();
     private List<Renderer.LooseRockData> looseRocksInChunk = new ArrayList<>(); // <-- ADD THIS LINE
 
-    private boolean vboInitialized = false;
-    private int vboCapacityFloats = 0; // Stores capacity in number of floats
+
 
     // Maximum vertices for a single tile column:
     private static final int MAX_VERTICES_PER_TILE_COLUMN =
@@ -208,18 +207,7 @@ public class Chunk {
             chunkDataBuffer.flip();
 
             glBindBuffer(GL_ARRAY_BUFFER, vboId);
-            int requiredFloatsCurrent = chunkDataBuffer.remaining();
-
-            if (!vboInitialized || requiredFloatsCurrent > vboCapacityFloats) {
-                glBufferData(GL_ARRAY_BUFFER, chunkDataBuffer, GL_DYNAMIC_DRAW);
-                vboCapacityFloats = chunkDataBuffer.capacity(); // Store capacity in floats
-                vboInitialized = true;
-            } else if (requiredFloatsCurrent > 0) {
-                glBufferSubData(GL_ARRAY_BUFFER, 0, chunkDataBuffer);
-            } else { // No data to upload (e.g., empty chunk)
-                glBufferData(GL_ARRAY_BUFFER, 0L, GL_DYNAMIC_DRAW); // Clear buffer
-                // vboCapacityFloats can remain as is, or be set to 0.
-            }
+            glBufferData(GL_ARRAY_BUFFER, chunkDataBuffer, GL_DYNAMIC_DRAW);
             glBindBuffer(GL_ARRAY_BUFFER, 0);
 
         } catch(Exception e) {
@@ -242,16 +230,20 @@ public class Chunk {
         }
     }
 
+    // In Chunk.java
+
     public void cleanup() {
         if (vaoId != 0) { glDeleteVertexArrays(vaoId); vaoId = 0; }
         if (vboId != 0) { glDeleteBuffers(vboId); vboId = 0; }
         vertexCount = 0;
-        vboInitialized = false;
-        vboCapacityFloats = 0;
+
+        // --- DELETE THE TWO LINES BELOW ---
+        // vboInitialized = false;
+        // vboCapacityFloats = 0;
+
         treesInChunk.clear();
         looseRocksInChunk.clear();
         torchesInChunk.clear(); // <-- Clear the torch list
-
     }
 
     public static class BoundingBox {

@@ -334,77 +334,52 @@ public class LightManager {
         }
     }
 
+    // In LightManager.java
+
+    // In LightManager.java
+
     private void processSingleBlockRemovalStep_Heightmap(LightNode nodeBeingRemoved) {
-        int r = nodeBeingRemoved.r; int c = nodeBeingRemoved.c;
+        int r = nodeBeingRemoved.r;
+        int c = nodeBeingRemoved.c;
         byte originalLightLevelOfSource = nodeBeingRemoved.lightLevel;
-        Tile sourceTile = map.getTile(r,c);
-        if (sourceTile == null) return;
 
-        // If the source tile still has its torch and its light is >= what was queued for removal,
-        // it means the torch is still active. Re-queue for propagation instead of removal.
-        if (sourceTile.hasTorch() && sourceTile.getBlockLightLevel() >= originalLightLevelOfSource) {
-            // To prevent infinite loops, check if it's already in propagation queue.
-            // This is a basic check; a more robust system might use a set for queue membership.
-            boolean alreadyInPropQueue = false;
-            for(LightNode propNode : blockLightPropagationQueue) {
-                if(propNode.r == r && propNode.c == c && propNode.lightLevel >= sourceTile.getBlockLightLevel()) {
-                    alreadyInPropQueue = true;
-                    break;
-                }
-            }
-            if (!alreadyInPropQueue) {
-                blockLightPropagationQueue.add(new LightNode(r, c, sourceTile.getBlockLightLevel()));
-            }
-            return; // Don't process removal for this source as it's still active
-        }
+        // The core idea is that we only need to update neighbors whose light level
+        // was dependent on the light source we are now removing.
 
-        // If the tile's current light is less than or equal to the light level being removed,
-        // it means this removal call is still valid or another stronger removal has already processed it.
-        // Set its light to 0.
-        if (sourceTile.getBlockLightLevel() <= originalLightLevelOfSource) {
-            sourceTile.setBlockLightLevel((byte) 0);
-        }
-        // If sourceTile.getBlockLightLevel() > originalLightLevelOfSource, it means another light source
-        // has already re-lit this tile to be brighter than the light we are trying to remove.
-        // In this case, we don't set it to 0, but we still need to tell neighbors to update based on the old `originalLightLevelOfSource`.
-
-
-        markChunkDirty(r,c);
-
-        int[] dr = {-1, 1, 0, 0}; int[] dc = {0, 0, -1, 1};
+        int[] dr = {-1, 1, 0, 0};
+        int[] dc = {0, 0, -1, 1};
         for (int i = 0; i < 4; i++) {
-            int nr = r + dr[i]; int nc = c + dc[i];
-            // No map.isValid needed
+            int nr = r + dr[i];
+            int nc = c + dc[i];
             Tile neighbor = map.getTile(nr, nc);
-            if (neighbor == null || neighbor.getType() == Tile.TileType.AIR) continue;
+
+            // Skip neighbors that have no light to remove.
+            if (neighbor == null || neighbor.getBlockLightLevel() == 0) continue;
 
             byte currentNeighborBlockLight = neighbor.getBlockLightLevel();
-            if (currentNeighborBlockLight == 0) continue;
 
-            int elevationDifference = Math.abs(neighbor.getElevation() - sourceTile.getElevation());
-            if (elevationDifference > MAX_ELEVATION_STEP_FOR_BLOCKLIGHT_PROPAGATION) continue;
-            int opacityCostOfNeighbor = getHorizontalPassOpacity(neighbor);
-            byte lightThatCameFromRemovedSourcePath = (byte) Math.max(0, originalLightLevelOfSource - LIGHT_PROPAGATION_COST - opacityCostOfNeighbor);
+            // Check if the neighbor has its own independent light source (a torch).
+            // If it does, we don't need to process removal for it, but we should
+            // re-queue it for propagation to ensure its light "heals" the new darkness.
+            if (neighbor.hasTorch()) {
+                blockLightPropagationQueue.add(new LightNode(nr, nc, currentNeighborBlockLight));
+                continue;
+            }
 
+            // Calculate how much light the neighbor could have possibly received from our source.
+            byte lightThatCameFromRemovedSourcePath = (byte) Math.max(0, originalLightLevelOfSource - LIGHT_PROPAGATION_COST - getHorizontalPassOpacity(neighbor));
+
+            // CRITICAL FIX: Only queue a neighbor for removal if its current light level
+            // is less than or equal to the light it received from our source. This means
+            // it was dependent on our source and now needs to go dark.
+            // We REMOVE the "else" block that was aggressively re-propagating other light,
+            // as that was the source of the queue explosion.
             if (currentNeighborBlockLight <= lightThatCameFromRemovedSourcePath) {
                 // This neighbor's light was dependent on the source we are removing.
                 // Set its light to 0 and queue it for further removal to its own neighbors.
                 neighbor.setBlockLightLevel((byte) 0);
                 blockLightRemovalQueue.add(new LightNode(nr, nc, currentNeighborBlockLight)); // Queue removal of its old light
                 markChunkDirty(nr, nc);
-            } else {
-                // Neighbor has other light sources, or was lit brighter than this path.
-                // It needs to re-propagate its current light.
-                boolean alreadyInPropQueue = false;
-                for(LightNode propNode : blockLightPropagationQueue) {
-                    if(propNode.r == nr && propNode.c == nc && propNode.lightLevel >= currentNeighborBlockLight) {
-                        alreadyInPropQueue = true;
-                        break;
-                    }
-                }
-                if (!alreadyInPropQueue) {
-                    blockLightPropagationQueue.add(new LightNode(nr, nc, currentNeighborBlockLight));
-                }
             }
         }
     }
@@ -419,6 +394,9 @@ public class LightManager {
     public int getSkyLightRemovalQueueSize() { return skyLightRemovalQueue.size(); }
     public int getBlockLightPropagationQueueSize() { return blockLightPropagationQueue.size(); }
     public int getBlockLightRemovalQueueSize() { return blockLightRemovalQueue.size(); }
+    public Queue<LightNode> getBlockLightRemovalQueue_Direct() { return blockLightRemovalQueue; }
+
+
 
     public Queue<LightNode> getSkyLightPropagationQueue_Direct() { return skyLightPropagationQueue; }
     public Queue<LightNode> getSkyLightRemovalQueue_Direct() { return skyLightRemovalQueue; }
