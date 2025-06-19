@@ -26,9 +26,8 @@ public abstract class Projectile extends Entity {
         // All projectiles have a limited lifespan.
         timeToLive--;
         if (timeToLive <= 0) {
-            // Mark for removal. A system in Game.java will need to clean up dead entities.
-            // For now, this is a conceptual placeholder.
-            game.getMap().getEntities().remove(this);
+            // --- FIX: Instead of removing itself, just mark as dead ---
+            this.isDead = true;
         }
     }
 

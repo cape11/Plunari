@@ -217,6 +217,7 @@ public class Renderer {
         }
     }
     private List<Object> worldEntities = new ArrayList<>();
+    private List<Particle> particleEntities = new ArrayList<>();
 
     public Renderer(CameraManager camera, Map map, PlayerModel player, InputHandler inputHandler) {
         this.camera = camera;
@@ -835,39 +836,7 @@ public class Renderer {
         chunkVisualBounds[3] = Math.max(chunkVisualBounds[3], tileMaxY);
     }
 
-    private void collectWorldEntities() {
-        worldEntities.clear();
-        if (map != null && map.getEntities() != null) {
-            worldEntities.addAll(map.getEntities());
-        }
 
-        // Add trees and rocks from visible chunks
-        if (activeMapChunks != null && !activeMapChunks.isEmpty() && camera != null) {
-            for (Chunk chunk : activeMapChunks.values()) {
-                if (camera.isChunkVisible(chunk.getBoundingBox())) {
-                    worldEntities.addAll(chunk.getTreesInChunk());
-                    worldEntities.addAll(chunk.getLooseRocksInChunk());
-                    worldEntities.addAll(chunk.getTorchesInChunk());
-
-                }
-            }
-        }
-
-        // Sort everything by a calculated Y-depth for correct draw order
-        worldEntities.sort(Comparator.comparingDouble(e -> {
-            if (e instanceof Entity) {
-                Entity entity = (Entity) e;
-                return entity.getVisualRow() + entity.getVisualCol();
-            } else if (e instanceof TreeData) {
-                TreeData tree = (TreeData) e;
-                return tree.mapRow + tree.mapCol;
-            } else if (e instanceof LooseRockData) {
-                LooseRockData rock = (LooseRockData) e;
-                return rock.mapRow + rock.mapCol;
-            }
-            return 0; // Default case
-        }));
-    }
 
 
 
@@ -1124,7 +1093,7 @@ public class Renderer {
         return 6;
     }
 
-    private int addTreeVerticesToBuffer_WorldSpace(TreeData tree, FloatBuffer buffer) {
+    private int addTreeVerticesToBuffer_WorldSpace(TreeData tree, FloatBuffer buffer, double deltaTime) {
         if (treeTexture == null || tree.treeVisualType == Tile.TreeVisualType.NONE || camera == null || map == null || treeTexture.getWidth() == 0) return 0;
 
         float tR = tree.mapRow;
@@ -1132,11 +1101,23 @@ public class Renderer {
         int elev = tree.elevation;
 
         Tile tile = map.getTile(Math.round(tR), Math.round(tC));
-        float lightVal = (tile != null) ? tile.getFinalLightLevel() / (float)MAX_LIGHT_LEVEL : 1.0f;
+        if (tile == null) return 0; // Don't render tree if its tile doesn't exist
+
+        float lightVal = tile.getFinalLightLevel() / (float)MAX_LIGHT_LEVEL;
         lightVal = Math.max(0.1f, lightVal);
 
         float tBaseIsoX = (tC - tR) * this.tileHalfWidth;
         float tBaseIsoY = (tC + tR) * this.tileHalfHeight - (elev * TILE_THICKNESS);
+
+        // --- NEW: Tree Shake Logic ---
+        if (tile.treeShakeTimer > 0) {
+            float shakeAmount = 2.5f; // Pixels of shake
+            tBaseIsoX += (tileDetailRandom.nextFloat() - 0.5f) * shakeAmount;
+
+            // Decrement the timer AFTER using it for this frame's shake.
+            tile.treeShakeTimer -= deltaTime;
+        }
+        // --- END NEW ---
 
         float tileLogicalZ = (tR + tC) * DEPTH_SORT_FACTOR + (elev * 0.005f);
         float treeWorldZ = tileLogicalZ + Z_OFFSET_SPRITE_TREE;
@@ -1187,7 +1168,7 @@ public class Renderer {
     }
 
 
-    public void render(double pseudoTimeOfDay) { // MODIFIED to accept time
+    public void render(double pseudoTimeOfDay, double deltaTime) {
         if (defaultShader == null || camera == null) {
             return;
         }
@@ -1197,10 +1178,9 @@ public class Renderer {
         defaultShader.setUniform("uModelViewMatrix", camera.getViewMatrix());
         defaultShader.setUniform("uIsFont", 0);
         defaultShader.setUniform("uIsSimpleUiElement", 0);
-        defaultShader.setUniform("uIsShadow", 0); // Default to not drawing a shadow
+        defaultShader.setUniform("uIsShadow", 0);
         defaultShader.setUniform("u_isSelectedIcon", 0);
 
-        // --- 1. RENDER WORLD TERRAIN ---
         if (map != null && tileAtlasTexture != null && tileAtlasTexture.getId() != 0) {
             glActiveTexture(GL_TEXTURE0);
             tileAtlasTexture.bind();
@@ -1214,21 +1194,123 @@ public class Renderer {
             tileAtlasTexture.unbind();
         }
 
-        // --- 2. NEW: RENDER SHADOWS ---
         if (map != null) {
-            // We need the entity list for shadows, so collect it once here.
-            collectWorldEntities();
-            renderShadows(pseudoTimeOfDay); // Pass time of day
+            collectWorldEntities(deltaTime);
+            renderShadows(pseudoTimeOfDay);
         }
 
-        // --- 3. RENDER ALL SPRITES (Player, Trees, Rocks, etc.) ---
         if (map != null) {
-            // `worldEntities` was already collected before shadow rendering.
-            renderWorldSprites();
+            renderWorldSprites(deltaTime);
+        }
+
+        if (map != null && !particleEntities.isEmpty()) {
+            renderParticles();
         }
     }
 
-    // In Renderer.java
+    // --- CHANGE: collectWorldEntities() now accepts and uses deltaTime ---
+    private void collectWorldEntities(double deltaTime) {
+        worldEntities.clear();
+        particleEntities.clear();
+        if (map != null && map.getEntities() != null) {
+            for (Entity e : map.getEntities()) {
+                if (e instanceof Particle) {
+                    particleEntities.add((Particle) e);
+                } else {
+                    worldEntities.add(e);
+                }
+            }
+        }
+
+        if (activeMapChunks != null && !activeMapChunks.isEmpty() && camera != null) {
+            for (Chunk chunk : activeMapChunks.values()) {
+                if (camera.isChunkVisible(chunk.getBoundingBox())) {
+                    for (TreeData tree : chunk.getTreesInChunk()) {
+                        worldEntities.add(tree);
+                    }
+                    worldEntities.addAll(chunk.getLooseRocksInChunk());
+                    worldEntities.addAll(chunk.getTorchesInChunk());
+                }
+            }
+        }
+
+        worldEntities.sort(Comparator.comparingDouble(e -> {
+            if (e instanceof Entity) return ((Entity) e).getVisualRow() + ((Entity) e).getVisualCol();
+            if (e instanceof TreeData) return ((TreeData) e).mapRow + ((TreeData) e).mapCol;
+            if (e instanceof LooseRockData) return ((LooseRockData) e).mapRow + ((LooseRockData) e).mapCol;
+            return 0;
+        }));
+    }
+
+    // --- CHANGE: renderWorldSprites() now accepts deltaTime ---
+    private void renderWorldSprites(double deltaTime) { // <-- FIX: Add deltaTime here
+        if (spriteVaoId == 0 || worldEntities.isEmpty()) return;
+
+        glBindVertexArray(spriteVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+        spriteVertexBuffer.clear();
+
+        int verticesInBatch = 0;
+        Texture currentBatchTexture = null;
+
+        defaultShader.setUniform("uHasTexture", 1);
+        defaultShader.setUniform("uTextureSampler", 0);
+
+        for (Object entityObj : worldEntities) {
+            Texture textureForThisEntity;
+            int verticesAdded = 0;
+            boolean isPlayer = entityObj instanceof PlayerModel;
+
+            if (entityObj instanceof Entity) textureForThisEntity = playerTexture;
+            else if (entityObj instanceof TreeData || entityObj instanceof LooseRockData) textureForThisEntity = treeTexture;
+            else if (entityObj instanceof TorchData) textureForThisEntity = playerTexture;
+            else continue;
+
+            if (currentBatchTexture != null && textureForThisEntity.getId() != currentBatchTexture.getId()) {
+                renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
+                spriteVertexBuffer.clear();
+                verticesInBatch = 0;
+            }
+            currentBatchTexture = textureForThisEntity;
+
+            if (entityObj instanceof Entity) verticesAdded = addGenericEntityVerticesToBuffer((Entity) entityObj, spriteVertexBuffer);
+                // --- CHANGE: Pass deltaTime to tree rendering ---
+            else if (entityObj instanceof TreeData) verticesAdded = addTreeVerticesToBuffer_WorldSpace((TreeData) entityObj, spriteVertexBuffer, deltaTime);
+            else if (entityObj instanceof LooseRockData) verticesAdded = addLooseRockVerticesToBuffer_WorldSpace((LooseRockData) entityObj, spriteVertexBuffer);
+            else if (entityObj instanceof TorchData) verticesAdded = addTorchVerticesToBuffer_WorldSpace((TorchData) entityObj, spriteVertexBuffer);
+
+            verticesInBatch += verticesAdded;
+
+            if (isPlayer) {
+                PlayerModel p = (PlayerModel) entityObj;
+                Item heldItem = p.getHeldItem();
+                PlayerModel.AnchorPoint anchor = p.getAnchorForCurrentFrame();
+
+                if (heldItem != null && anchor != null && treeTexture != null) {
+                    renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
+                    spriteVertexBuffer.clear();
+                    verticesInBatch = 0;
+
+                    float playerZ = (p.getVisualRow() + p.getVisualCol()) * DEPTH_SORT_FACTOR + (map.getTile(p.getTileRow(), p.getTileCol()).getElevation() * 0.005f) + Z_OFFSET_SPRITE_PLAYER;
+                    float lightVal = map.getTile(p.getTileRow(), p.getTileCol()).getFinalLightLevel() / (float) MAX_LIGHT_LEVEL;
+                    float itemZ = anchor.drawBehind ? playerZ + 0.001f : playerZ - 0.001f;
+
+                    int itemVerts = addHeldItemVerticesToBuffer(p, heldItem, anchor, spriteVertexBuffer, itemZ, lightVal);
+                    renderSpriteBatch(spriteVertexBuffer, itemVerts, treeTexture);
+                    spriteVertexBuffer.clear();
+                    currentBatchTexture = playerTexture;
+                }
+            }
+        }
+
+        if (verticesInBatch > 0) {
+            renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
+        }
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
+
 
     // --- NEW HELPER METHOD TO DRAW AND RESIZE ---
     private void flushAndResizeShadowBatch() {
@@ -1376,99 +1458,48 @@ public class Renderer {
         buffer.put(x4).put(y4).put(z).put(SHADOW_COLOR);
     }
 
-    private void renderWorldSprites() {
-        if (spriteVaoId == 0 || worldEntities.isEmpty()) return;
 
+
+    private void renderParticles() {
+        if (spriteVaoId == 0 || particleEntities.isEmpty()) return;
+
+        // 1. Set the shader to "un-textured" mode.
+        defaultShader.setUniform("uHasTexture", 0);
+
+        // 2. Bind the sprite buffers.
         glBindVertexArray(spriteVaoId);
         glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
         spriteVertexBuffer.clear();
 
         int verticesInBatch = 0;
-        Texture currentBatchTexture = null;
-
-        defaultShader.setUniform("uHasTexture", 1);
-        defaultShader.setUniform("uTextureSampler", 0);
-
-        for (Object entityObj : worldEntities) {
-            Texture textureForThisEntity;
-            int verticesAdded = 0;
-            boolean isPlayer = entityObj instanceof PlayerModel;
-
-            // Determine texture for the entity itself
-            if (entityObj instanceof Particle) {
-                // Particles don't use a texture, so we set the texture to null.
-                // This will force a batch break, which is what we want.
-                textureForThisEntity = null;
-            } else if (entityObj instanceof Entity) {
-                textureForThisEntity = playerTexture;
-            } else if (entityObj instanceof TreeData || entityObj instanceof LooseRockData) {
-                textureForThisEntity = treeTexture;
-            } else if (entityObj instanceof TorchData) { // <-- ADD THIS CASE
-                textureForThisEntity = playerTexture; // Assuming torch sprite is on player sheet
-            } else {
-                continue;
-            }
-
-            // --- BATCH BREAKING LOGIC ---
-            // If texture changes, draw the previous batch
-            if (currentBatchTexture != null && (textureForThisEntity == null || textureForThisEntity.getId() != currentBatchTexture.getId())) {
-                renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
-                spriteVertexBuffer.clear();
-                verticesInBatch = 0;
-            }
-            currentBatchTexture = textureForThisEntity;
-
-            // --- ADD VERTICES TO BUFFER ---
-            if (entityObj instanceof Particle) {
-                verticesAdded = addParticleVerticesToBuffer((Particle) entityObj, spriteVertexBuffer);
-            } else if (entityObj instanceof Entity) {
-                verticesAdded = addGenericEntityVerticesToBuffer((Entity) entityObj, spriteVertexBuffer);
-            } else if (entityObj instanceof TreeData) {
-                verticesAdded = addTreeVerticesToBuffer_WorldSpace((TreeData) entityObj, spriteVertexBuffer);
-            } else if (entityObj instanceof LooseRockData) {
-                verticesAdded = addLooseRockVerticesToBuffer_WorldSpace((LooseRockData) entityObj, spriteVertexBuffer);
-            } else if (entityObj instanceof TorchData) { // <-- ADD THIS CASE
-                verticesAdded = addTorchVerticesToBuffer_WorldSpace((TorchData) entityObj, spriteVertexBuffer);
-            }
-            verticesInBatch += verticesAdded;
-
-            // --- NEW: SPECIAL HANDLING FOR PLAYER'S WEAPON ---
-            if (isPlayer) {
-                PlayerModel p = (PlayerModel) entityObj;
-                Item heldItem = p.getHeldItem();
-                PlayerModel.AnchorPoint anchor = p.getAnchorForCurrentFrame();
-
-                // Check if holding an item that needs the *other* texture sheet
-                if (heldItem != null && anchor != null && treeTexture != null) {
-                    // The item needs drawing. First, draw everything we've batched so far (including the player model).
-                    renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
+        // 3. Loop through ONLY particles and add them to a single batch.
+        for (Particle particle : particleEntities) {
+            // Ensure buffer has space. If not, draw and clear.
+            if (spriteVertexBuffer.remaining() < 6 * FLOATS_PER_VERTEX_SPRITE_TEXTURED) {
+                if (verticesInBatch > 0) {
+                    spriteVertexBuffer.flip();
+                    glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+                    glDrawArrays(GL_TRIANGLES, 0, verticesInBatch);
                     spriteVertexBuffer.clear();
                     verticesInBatch = 0;
-
-                    // Now, add the item's vertices to the empty buffer
-                    float playerZ = (p.getVisualRow() + p.getVisualCol()) * DEPTH_SORT_FACTOR + (map.getTile(p.getTileRow(), p.getTileCol()).getElevation() * 0.005f) + Z_OFFSET_SPRITE_PLAYER;
-                    float lightVal = map.getTile(p.getTileRow(), p.getTileCol()).getFinalLightLevel() / (float) MAX_LIGHT_LEVEL;
-                    float itemZ = anchor.drawBehind ? playerZ + 0.001f : playerZ - 0.001f;
-
-                    int itemVerts = addHeldItemVerticesToBuffer(p, heldItem, anchor, spriteVertexBuffer, itemZ, lightVal);
-
-                    // Draw the item immediately in its own batch, using the correct texture (treeTexture)
-                    renderSpriteBatch(spriteVertexBuffer, itemVerts, treeTexture);
-                    spriteVertexBuffer.clear();
-
-                    // Set the current texture back to the player texture for the next entities in the loop
-                    currentBatchTexture = playerTexture;
                 }
             }
+            verticesInBatch += addParticleVerticesToBuffer(particle, spriteVertexBuffer);
         }
 
-        // Render any remaining vertices after the loop finishes
+        // 4. Draw all the particles in the final batch.
         if (verticesInBatch > 0) {
-            renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
+            spriteVertexBuffer.flip();
+            glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+            glDrawArrays(GL_TRIANGLES, 0, verticesInBatch);
         }
 
+        // 5. Unbind buffers.
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
+
+        // IMPORTANT: Reset the shader state for the next frame.
+        defaultShader.setUniform("uHasTexture", 1);
     }
 
     private int addTorchVerticesToBuffer_WorldSpace(TorchData torch, FloatBuffer buffer) {
@@ -1526,43 +1557,48 @@ public class Renderer {
         texture.unbind(); // Good practice to unbind
     }
 
+    // In Renderer.java
+    // In Renderer.java
+    // In Renderer.java
     private int addParticleVerticesToBuffer(Particle particle, FloatBuffer buffer) {
         if (map == null) return 0;
 
-        // Get particle's base position
         float pR = particle.getVisualRow();
         float pC = particle.getVisualCol();
 
-        // Calculate isometric screen position
-        float pIsoX = (pC - pR) * tileHalfWidth;
-        float pIsoY = (pC + pR) * tileHalfHeight - particle.getZ(); // Use the particle's own Z
+        // Calculate the base X/Y on the ground plane
+        float pIsoX = (pC - pR) * (Constants.TILE_WIDTH / 2.0f);
+        float pIsoY = (pC + pR) * (Constants.TILE_HEIGHT / 2.0f);
 
-        // Use a high Z-depth value to ensure particles draw in front of most things
-        float particleWorldZ = (pR + pC) * DEPTH_SORT_FACTOR - 0.1f;
+        // The particle's "Z" is its height off the ground. Subtract this from the Y position.
+        pIsoY -= particle.getZ();
 
-        // Define the quad size based on the particle's size property
+        // Use a high Z-depth value to ensure particles draw in front
+        float particleWorldZ = (pR + pC) * Constants.DEPTH_SORT_FACTOR - 0.1f;
+
         float halfSize = particle.size / 2.0f;
         float xL = pIsoX - halfSize;
         float xR = pIsoX + halfSize;
         float yT = pIsoY - halfSize;
         float yB = pIsoY + halfSize;
 
-        // Use the particle's color
+        // --- The two incorrect lines that flipped the Y-axis have been removed. ---
+        // This makes the particle coordinates consistent with all other objects.
+
         float[] tint = particle.color;
 
-        // Fade the particle out as it nears the end of its life
-        // We can use the lightValue attribute for this, re-purposing it as an alpha multiplier
-        float alpha_fade = 1.0f; // You could calculate this based on particle.life
+        // Calculate alpha fade based on the particle's remaining life
+        float lifeRatio = (float)particle.getLife() / (float)particle.getMaxLife();
+        float alphaFade = Math.min(1.0f, lifeRatio * 2.0f);
 
-        // Add vertices. Since it's a simple colored square, texture coordinates (u,v) are irrelevant (0,0).
-        // We pass the alpha fade in the 'light' attribute slot.
-        addVertexToSpriteBuffer(buffer, xL, yT, particleWorldZ, tint, 0, 0, alpha_fade);
-        addVertexToSpriteBuffer(buffer, xL, yB, particleWorldZ, tint, 0, 0, alpha_fade);
-        addVertexToSpriteBuffer(buffer, xR, yB, particleWorldZ, tint, 0, 0, alpha_fade);
+        // Pass the calculated alpha into the "light" attribute of the vertex.
+        addVertexToSpriteBuffer(buffer, xL, yT, particleWorldZ, tint, 0, 0, alphaFade);
+        addVertexToSpriteBuffer(buffer, xL, yB, particleWorldZ, tint, 0, 0, alphaFade);
+        addVertexToSpriteBuffer(buffer, xR, yB, particleWorldZ, tint, 0, 0, alphaFade);
 
-        addVertexToSpriteBuffer(buffer, xR, yB, particleWorldZ, tint, 0, 0, alpha_fade);
-        addVertexToSpriteBuffer(buffer, xR, yT, particleWorldZ, tint, 0, 0, alpha_fade);
-        addVertexToSpriteBuffer(buffer, xL, yT, particleWorldZ, tint, 0, 0, alpha_fade);
+        addVertexToSpriteBuffer(buffer, xR, yB, particleWorldZ, tint, 0, 0, alphaFade);
+        addVertexToSpriteBuffer(buffer, xR, yT, particleWorldZ, tint, 0, 0, alphaFade);
+        addVertexToSpriteBuffer(buffer, xL, yT, particleWorldZ, tint, 0, 0, alphaFade);
 
         return 6;
     }

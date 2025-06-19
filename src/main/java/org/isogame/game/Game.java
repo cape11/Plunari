@@ -520,10 +520,23 @@ public class Game {
 
         List<Entity> currentEntities = new ArrayList<>(map.getEntities());
         for (Entity entity : currentEntities) {
-            entity.update(deltaTime, this);
-            // Call updateVisualEffects to tick down the damage flash timer
-            entity.updateVisualEffects(deltaTime);
+            if (!entity.isDead()) { // Only update entities that are alive
+                entity.update(deltaTime, this);
+                entity.updateVisualEffects(deltaTime);
+            }
         }
+
+        // 2. After all updates are done, iterate over the original list and
+        //    safely remove any entity that is marked as dead.
+        Iterator<Entity> iterator = map.getEntities().iterator();
+        while (iterator.hasNext()) {
+            Entity entity = iterator.next();
+            if (entity.isDead()) {
+                iterator.remove();
+            }
+        }
+
+        // --- End of Corrected Logic ---
 
         inputHandler.handleContinuousInput(deltaTime);
         cameraManager.update(deltaTime);
@@ -754,7 +767,7 @@ public class Game {
                     break;
                 case IN_GAME:
                     updateGameLogic(deltaTime);
-                    renderGame();
+                    renderGame(deltaTime);
                     break;
             }
             glfwSwapBuffers(window);
@@ -1004,7 +1017,7 @@ public class Game {
             }
         }
 
-    private void renderGame() {
+    private void renderGame(double deltaTime) { // <-- CHANGE: Added deltaTime parameter
         if (renderer == null || lightManager == null || map == null || player == null || cameraManager == null) {
             System.err.println("Game.renderGame: Critical component is null. Skipping render. CurrentState: " + currentGameState);
             glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
@@ -1029,9 +1042,10 @@ public class Game {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glEnable(GL_DEPTH_TEST);
+        renderer.render(pseudoTimeOfDay, deltaTime);
 
         // --- MODIFICATION: Pass time of day to the renderer ---
-        renderer.render(pseudoTimeOfDay);
+        renderer.render(pseudoTimeOfDay, deltaTime);
 
         // --- Render UI Elements (Unchanged) ---
         glDisable(GL_DEPTH_TEST);

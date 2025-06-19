@@ -8,6 +8,7 @@ import org.isogame.item.ItemRegistry;
 import org.isogame.item.UseStyle;
 import org.isogame.savegame.InventorySlotSaveData;
 import org.isogame.savegame.PlayerSaveData;
+import org.isogame.item.ToolItem; // <-- Ensure this is imported
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -180,12 +181,10 @@ public class PlayerModel extends Entity {
 
     @Override
     public void update(double deltaTime, Game game) {
-        // --- 1. UPDATE TIMERS & COOLDOWNS ---
         if (itemUseTime > 0) {
             itemUseTime--;
         }
         if (itemUseTime == 0) {
-            // If we were holding an item, return to idle
             if (currentAction == Action.HOLD) {
                 setAction(Action.IDLE);
             }
@@ -196,10 +195,8 @@ public class PlayerModel extends Entity {
             levitateTimer += (float) deltaTime * 5.0f;
         }
 
-        // --- 2. HANDLE MOVEMENT LOGIC ---
         boolean isTryingToMoveByInput = Math.abs(movementInputColNormalized) > 0.00001f || Math.abs(movementInputRowNormalized) > 0.00001f;
 
-        // Only allow movement input to change the action if not currently swinging.
         if (currentAction != Action.SWING) {
             if (isTryingToMoveByInput) {
                 setAction(Action.WALK);
@@ -208,14 +205,12 @@ public class PlayerModel extends Entity {
             }
         }
 
-        // Actually move the player if they are in the WALK state.
         if (currentAction == Action.WALK) {
             float moveAmountThisFrame = Constants.PLAYER_MAP_GRID_SPEED * (float) deltaTime;
             this.mapCol += movementInputColNormalized * moveAmountThisFrame;
             this.mapRow += movementInputRowNormalized * moveAmountThisFrame;
         }
 
-        // --- 3. HANDLE ANIMATION PROGRESSION ---
         animationTimer += deltaTime;
         double currentAnimFrameDuration = (currentAction == Action.SWING) ? hitFrameDuration : frameDuration;
         int maxFrames = 1;
@@ -225,16 +220,12 @@ public class PlayerModel extends Entity {
         else if (currentAction == Action.IDLE) maxFrames = FRAMES_PER_IDLE_CYCLE;
 
         if (animationTimer >= currentAnimFrameDuration) {
-
             animationTimer -= currentAnimFrameDuration;
-
             int oldFrame = currentFrameIndex;
             currentFrameIndex = (currentFrameIndex + 1);
 
-            // --- SPAWN PROJECTILE ON IMPACT FRAME ---
             if (currentAction == Action.SWING && currentFrameIndex == IMPACT_FRAME && oldFrame != IMPACT_FRAME) {
                 if (currentItemBeingUsed != null) {
-                    // Determine the target tile based on player direction
                     int targetR = getTileRow();
                     int targetC = getTileCol();
                     switch(currentDirection) {
@@ -243,7 +234,16 @@ public class PlayerModel extends Entity {
                         case WEST:  targetC--; break;
                         case EAST:  targetC++; break;
                     }
-                    SwingArcProjectile projectile = new SwingArcProjectile(this, targetR, targetC, currentItemBeingUsed.damage, currentItemBeingUsed.knockback);
+
+                    // --- THIS IS THE FIX ---
+                    // Check if the used item is a ToolItem and get its type.
+                    ToolItem.ToolType typeOfTool = null;
+                    if (currentItemBeingUsed instanceof ToolItem) {
+                        typeOfTool = ((ToolItem) currentItemBeingUsed).getToolType();
+                    }
+
+                    // Pass the tool type (which can be null) to the projectile.
+                    SwingArcProjectile projectile = new SwingArcProjectile(this, targetR, targetC, currentItemBeingUsed.damage, currentItemBeingUsed.knockback, typeOfTool);
                     game.getMap().getEntities().add(projectile);
                 }
             }
@@ -251,14 +251,12 @@ public class PlayerModel extends Entity {
             if (currentFrameIndex >= maxFrames) {
                 currentFrameIndex = 0;
                 if (currentAction == Action.SWING) {
-                    // After swinging, return to idle or walking based on input
                     setAction(isTryingToMoveByInput ? Action.WALK : Action.IDLE);
                     currentItemBeingUsed = null;
                 }
             }
         }
 
-        // --- 4. UPDATE VISUAL POSITION (SMOOTHING) ---
         visualCol += (this.mapCol - visualCol) * VISUAL_SMOOTH_FACTOR;
         visualRow += (this.mapRow - visualRow) * VISUAL_SMOOTH_FACTOR;
     }

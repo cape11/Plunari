@@ -1,34 +1,33 @@
 package org.isogame.entity;
 
 import org.isogame.game.Game;
-import java.util.Random; // <-- Make sure this import is present
+import java.util.Random;
 
 public class Particle extends Entity {
 
-    private float dx, dy, dz; // Velocity
-    private int life;        // How long the particle exists
+    private float dx, dy, dz;    // Velocity
+    private int life;            // How long the particle exists
+    private final int maxLife;
+    private float z;             // ✅ FIX: Dedicated float for Z-position
 
-    // ✅ FIX: Declare the missing fields
     public float[] color;
     public float size;
     private static final Random random = new Random();
-
 
     public Particle(float startRow, float startCol, float startZ, float dx, float dy, float dz, int life) {
         this.setPosition(startRow, startCol);
         this.visualRow = startRow;
         this.visualCol = startCol;
-        this.health = (int) startZ; // Using health for Z
+        this.z = startZ; // ✅ FIX: Initialize the new z variable
+
         this.dx = dx;
         this.dy = dy;
         this.dz = dz;
         this.life = life;
+        this.maxLife = life;
 
-        // Give particles a random brownish-grey color (like wood/dirt)
         float baseGrey = 0.4f + random.nextFloat() * 0.2f;
         this.color = new float[] { baseGrey, baseGrey * 0.8f, baseGrey * 0.6f, 1.0f };
-
-        // Give particles a random size
         this.size = 2.0f + random.nextFloat() * 3.0f;
     }
 
@@ -42,7 +41,7 @@ public class Particle extends Entity {
         // Apply velocity
         this.mapRow += dy * deltaTime;
         this.mapCol += dx * deltaTime;
-        this.health += dz * deltaTime; // Z position update
+        this.z += dz * deltaTime; // ✅ FIX: Update the float z variable
 
         // Apply gravity
         this.dz -= 0.5f;
@@ -51,11 +50,14 @@ public class Particle extends Entity {
         this.visualCol = mapCol;
     }
 
-    public int getZ() { return health; }
+    // ✅ FIX: getZ now returns the float z
+    public float getZ() { return z; }
 
-    // Abstract methods required by Entity
-    @Override public int getAnimationRow() { return -1; } // Not animated
+    @Override public int getAnimationRow() { return -1; }
     @Override public String getDisplayName() { return "Particle"; }
-    @Override public int getFrameWidth() { return 1; } // Non-zero to avoid division errors
+    @Override public int getFrameWidth() { return 1; }
     @Override public int getFrameHeight() { return 1; }
+
+    public int getLife() { return life; }
+    public int getMaxLife() { return maxLife; }
 }

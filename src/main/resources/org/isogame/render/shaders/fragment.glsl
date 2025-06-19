@@ -3,52 +3,60 @@
 // INPUTS from the Vertex Shader
 in vec4 fColor;          // Interpolated vertex color (used for tinting or direct color)
 in vec2 fTexCoord;       // Interpolated texture coordinates
-in float fLightValue;   // Interpolated normalized light value (0.0 to 1.0)
+in float fLightValue;   // For terrain/sprites, this is light. For particles, this is ALPHA.
 
 // UNIFORMS (Global variables from Java)
-uniform sampler2D uTextureSampler; // The texture atlas
-uniform int uHasTexture;           // Boolean (0 or 1) if we should sample from the texture
-uniform int uIsFont;               // Boolean (0 or 1) for special font rendering
-uniform int uIsSimpleUiElement;    // Boolean (0 or 1) for UI that ignores lighting
-uniform int uIsShadow;             // NEW: Boolean (0 or 1) for rendering a shadow
+uniform sampler2D uTextureSampler;
+uniform int uHasTexture;
+uniform int uIsFont;
+uniform int uIsSimpleUiElement;
+uniform int uIsShadow;
 
 // OUTPUT to the screen
 out vec4 FragColor;
 
 // CONSTANTS
-const float MIN_AMBIENT = 0.2; // Minimum ambient light for world objects to be visible in darkness
+const float MIN_AMBIENT = 0.2;
 
 void main() {
-    // --- Path 1: Shadow Rendering ---
-    // This is the highest priority. If it's a shadow, just use its vertex color.
+    // Path 1: Shadow Rendering (No change)
     if (uIsShadow == 1) {
-        FragColor = fColor; // The color (e.g., black with 0.4 alpha) is sent from Java.
+        FragColor = fColor;
 
-    // --- Path 2: Font Rendering ---
+    // Path 2: Font Rendering (No change)
     } else if (uIsFont == 1) {
         float alpha = texture(uTextureSampler, fTexCoord).r;
         FragColor = vec4(fColor.rgb, fColor.a * alpha);
 
-    // --- Path 3: Simple UI Element Rendering ---
+    // Path 3: Simple UI Element Rendering (No change)
     } else if (uIsSimpleUiElement == 1) {
         FragColor = fColor;
 
-    // --- Path 4: World Object Rendering ---
+    // --- Path 4: Main World Object Rendering ---
     } else {
         vec4 materialColor;
 
         if (uHasTexture == 1) {
+            // This is for textured objects like the player, tiles, and trees.
             vec4 texColor = texture(uTextureSampler, fTexCoord);
-            materialColor = texColor * fColor;
-        } else {
-            materialColor = fColor;
-        }
+            materialColor = texColor * fColor; // Apply tint
 
-        float lightIntensity = MIN_AMBIENT + (1.0 - MIN_AMBIENT) * fLightValue;
-        FragColor = vec4(materialColor.rgb * lightIntensity, materialColor.a);
+            // Apply world lighting
+            float lightIntensity = MIN_AMBIENT + (1.0 - MIN_AMBIENT) * fLightValue;
+            FragColor = vec4(materialColor.rgb * lightIntensity, materialColor.a);
+
+        } else {
+            // --- THIS IS THE CORRECTED LOGIC FOR PARTICLES ---
+            // This is for un-textured objects like particles.
+            materialColor = fColor;
+
+            // The particle's color is used directly, and the fLightValue,
+            // which contains the calculated alpha, is used for the transparency.
+            FragColor = vec4(materialColor.rgb, materialColor.a * fLightValue);
+        }
     }
 
-    // Discard fully transparent pixels.
+    // Discard fully transparent pixels. This is important for performance.
     if (FragColor.a < 0.01) {
         discard;
     }

@@ -18,19 +18,22 @@ public class ToolItem extends Item {
                     boolean hasIconTexture, String atlasName, float pixelX, float pixelY, float pixelW, float pixelH,
                     ToolType toolType) {
 
-        // Call the parent constructor
         super(itemId, displayName, description, ItemType.TOOL, 1, new float[]{0.6f, 0.65f, 0.7f, 1.0f},
                 hasIconTexture, atlasName, pixelX, pixelY, pixelW, pixelH);
 
         this.toolType = toolType;
 
-        // --- CORE CHANGE: Set the data properties for this tool ---
-        this.useStyle = UseStyle.SWING; // This is a swinging tool.
-        this.useTime = 25;              // A slightly slower swing speed for a tool.
+        this.useStyle = UseStyle.SWING;
+        this.useTime = 25;
         this.useAnimation = 25;
-        this.damage = 4;                // Has a base damage value.
+        this.damage = 4;
     }
 
-    // The onUse method is now inherited from Item.java and works for all tools.
-    // We no longer need a custom onUse or a useAxe() method here!
+    /**
+     * --- THIS IS THE FIX ---
+     * Adds a public getter for the tool type.
+     */
+    public ToolType getToolType() {
+        return this.toolType;
+    }
 }
