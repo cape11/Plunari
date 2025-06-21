@@ -1,4 +1,4 @@
-Welcome to PLUNARI! This is a 2.5D isometric game being developed in Java using the Lightweight Java Game Library (LWJGL). The game features a block-based world, crafting, and entities.
+<b>Welcome to PLUNARI! This is a 2.5D isometric game being developed in Java using the Lightweight Java Game Library (LWJGL). The game features a block-based world, crafting, and entities.</b>
 
 Features
 PLUNARI 2.5D World: Explore a vibrant, tile-based isometric world.
@@ -22,7 +22,7 @@ Installation
 Clone the repo
 Bash
 
-git clone https://github.com/your_username/your_repository.git
+git clone https://github.com/cape11/JavaGameLWJGL/
 Build the project Navigate to the project's root directory and run the following command to build the project and download the dependencies:
 Bash
 
