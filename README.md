@@ -1,77 +1,48 @@
-Plunari - A 2D Isometric Survival Game
+Welcome to PLUNARI! This is a 2.5D isometric game being developed in Java using the Lightweight Java Game Library (LWJGL). The game features a block-based world, crafting, and entities.
 
-
-About The Project
-Plunari is a 2D isometric survival and crafting game built from the ground up using Java and the LWJGL 3 library. Inspired by classics like Minecraft and Terraria, this project is an exploration of procedural world generation, dynamic lighting, and inventory and crafting systems, all rendered in a custom isometric engine.
-
-The world is infinite, generated on the fly using Simplex Noise, and features a full day/night cycle that affects a dynamic 2D lighting engine. Players can explore, gather resources, and build structures in a persistent world that can be saved and loaded.
-
-Key Features
-Procedural Infinite World: The world is generated using Simplex Noise, creating unique terrain with different biomes based on elevation, such as grasslands, deserts, and snowy peaks.
-
-Dynamic Day/Night Cycle & Lighting: Features a running clock that affects the global sky light level. The custom lighting engine supports both ambient skylight and block-based light sources (like torches) that propagate realistically.
-
-Block Placement & World Modification: Players can place and destroy blocks, dynamically altering the world geometry and lighting in real-time.
-
-Inventory & Hotbar System: A complete inventory and hotbar system allows players to manage items they've collected. The UI supports item dragging, dropping, and stacking.
-
-Crafting System: Players can craft new items and tools from raw resources using a recipe-based crafting system.
-
-Entities & Animation: The world is populated with entities like the player, animals, and slimes, each with their own state and animation cycles.
-
-Save/Load System: The entire game state, including the modified world and player inventory, can be saved to a file and loaded back later.
-
-Built With
-This project is built with a modern Java toolchain:
-
-Java (JDK 21)
-
-LWJGL 3 - Lightweight Java Game Library, used for its bindings to:
-
-OpenGL for rendering
-
-GLFW for windowing and input management
-
-JOML - A Java OpenGL Math Library for vector and matrix calculations.
-
-Gson - For serializing and deserializing game data for saving/loading.
-
-Maven - For dependency management and building the project.
-
+Features
+PLUNARI 2.5D World: Explore a vibrant, tile-based isometric world.
+Crafting System: Gather resources and craft new items and tools using a JSON-based recipe system.
+Dynamic Lighting: The world is lit by dynamic light sources.
+Entity System: The world is populated with entities, including animals and monsters.
+Save/Load System: Your progress is saved and can be loaded, so you can continue your adventure later.
+Technologies Used
+Java: The core programming language for the game.
+LWJGL 3: A low-level Java library for creating games and multimedia applications.
+Maven: A build automation tool for managing the project's build, reporting, and documentation.
+JOML: A Java library for 3D mathematics, used for handling vectors and matrices.
+Gson: A Java library for serializing and deserializing Java objects to and from JSON.
 Getting Started
 To get a local copy up and running, follow these simple steps.
 
 Prerequisites
-Java Development Kit (JDK) 21 or higher.
+Java 17 or later. You can download it from Oracle or use an open-source distribution like OpenJDK.
+Maven. You can download it from the Apache Maven Project.
+Installation
+Clone the repo
+Bash
 
-Apache Maven installed and configured on your system.
+git clone https://github.com/your_username/your_repository.git
+Build the project Navigate to the project's root directory and run the following command to build the project and download the dependencies:
+Bash
 
-Running the Game
-Clone the repository:
+mvn install
+Run the game After a successful build, you can run the game with the following command:
+Bash
 
-git clone https://github.com/cape11/JavaGameLWJGL.git
+mvn exec:java -Dexec.mainClass="org.isogame.Main"
+Project Structure
+The project is organized into several packages, each with a specific responsibility:
 
-Navigate to the project directory:
-
-cd JavaGameLWJGL
-  
-Compile and Run using Maven:
-The recommended way to run the project is directly through your IDE (like IntelliJ IDEA) by running the Main class. However, you can also run it using the Maven exec plugin:
-
-mvn compile exec:java
-
-How to Play
-Movement: W, A, S, D keys.
-
-Toggle Inventory/Crafting: E key.
-
-Use Item / Break Block: Left Mouse Button.
-
-Place Block: Right Mouse Button.
-
-Zoom Camera: Mouse Scroll Wheel.
-
-Select Hotbar Slot: 1 through 9 keys.
-
-Project Status
-This project is in active development. The core engine is functional, and new features are continuously being added and refined.
+org.isogame.camera: Handles the game's camera and view projection.
+org.isogame.crafting: Manages the crafting system and recipes.
+org.isogame.entity: Contains the classes for all in-game entities (player, animals, monsters).
+org.isogame.game: The core game logic, including the main game loop.
+org.isogame.gamedata: Defines the structure of game data, such as item definitions.
+org.isogame.input: Handles user input from the mouse and keyboard.
+org.isogame.item: Manages items and the player's inventory.
+org.isogame.map: Everything related to the game map, including generation, pathfinding, and lighting.
+org.isogame.render: Handles the rendering of the game world, entities, and UI.
+org.isogame.savegame: Manages saving and loading the game state.
+org.isogame.ui: Contains the UI elements of the game.
+org.isogame.window: Manages the game window.
