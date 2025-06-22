@@ -1,115 +1,115 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
+    <?xml version="1.0" encoding="UTF-8"?>
+    <project xmlns="http://maven.apache.org/POM/4.0.0"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+        <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.isogame</groupId>
-    <artifactId>isogame-lwjgl</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-    <name>Isometric LWJGL Game</name>
+        <groupId>org.isogame</groupId>
+        <artifactId>isogame-lwjgl</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <name>Isometric LWJGL Game</name>
 
-    <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.release>17</maven.compiler.release>
-        <lwjgl.version>3.3.3</lwjgl.version>
-        <joml.version>1.10.5</joml.version>
-        <gson.version>2.10.1</gson.version>
-        <kotlin.version>1.9.22</kotlin.version>
-        <main.class>org.isogame.Main</main.class>
-    </properties>
+        <properties>
+            <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+            <maven.compiler.release>17</maven.compiler.release>
+            <lwjgl.version>3.3.3</lwjgl.version>
+            <joml.version>1.10.5</joml.version>
+            <gson.version>2.10.1</gson.version>
+            <kotlin.version>1.9.22</kotlin.version>
+            <main.class>org.isogame.Main</main.class>
+        </properties>
 
-    <dependencyManagement>
+        <dependencyManagement>
+            <dependencies>
+                <dependency>
+                    <groupId>org.lwjgl</groupId>
+                    <artifactId>lwjgl-bom</artifactId>
+                    <version>${lwjgl.version}</version>
+                    <scope>import</scope>
+                    <type>pom</type>
+                </dependency>
+            </dependencies>
+        </dependencyManagement>
+
         <dependencies>
-            <dependency>
-                <groupId>org.lwjgl</groupId>
-                <artifactId>lwjgl-bom</artifactId>
-                <version>${lwjgl.version}</version>
-                <scope>import</scope>
-                <type>pom</type>
-            </dependency>
+            <!-- LWJGL Core -->
+            <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl</artifactId></dependency>
+            <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-glfw</artifactId></dependency>
+            <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-opengl</artifactId></dependency>
+            <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-stb</artifactId></dependency>
+
+            <!-- LWJGL Natives -->
+            <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl</artifactId><classifier>${lwjgl.natives}</classifier><scope>runtime</scope></dependency>
+            <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-glfw</artifactId><classifier>${lwjgl.natives}</classifier><scope>runtime</scope></dependency>
+            <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-opengl</artifactId><classifier>${lwjgl.natives}</classifier><scope>runtime</scope></dependency>
+            <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-stb</artifactId><classifier>${lwjgl.natives}</classifier><scope>runtime</scope></dependency>
+
+            <!-- JOML for Math -->
+            <dependency><groupId>org.joml</groupId><artifactId>joml</artifactId><version>${joml.version}</version></dependency>
+
+            <!-- Gson for JSON -->
+            <dependency><groupId>com.google.code.gson</groupId><artifactId>gson</artifactId><version>${gson.version}</version></dependency>
+
+            <!-- Kotlin Standard Library (Required by Environment) -->
+            <dependency><groupId>org.jetbrains.kotlin</groupId><artifactId>kotlin-stdlib</artifactId><version>${kotlin.version}</version></dependency>
         </dependencies>
-    </dependencyManagement>
 
-    <dependencies>
-        <!-- LWJGL Core -->
-        <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl</artifactId></dependency>
-        <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-glfw</artifactId></dependency>
-        <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-opengl</artifactId></dependency>
-        <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-stb</artifactId></dependency>
+        <!-- Profiles for OS-specific natives -->
+        <profiles>
+            <profile>
+                <id>windows-amd64</id>
+                <activation><os><family>windows</family><arch>amd64</arch></os></activation>
+                <properties><lwjgl.natives>natives-windows</lwjgl.natives></properties>
+            </profile>
+            <profile>
+                <id>linux-amd64</id>
+                <activation><os><family>linux</family><arch>amd64</arch></os></activation>
+                <properties><lwjgl.natives>natives-linux</lwjgl.natives></properties>
+            </profile>
+            <profile>
+                <id>macos-aarch64</id>
+                <activation><os><family>mac</family><arch>aarch64</arch></os></activation>
+                <properties><lwjgl.natives>natives-macos-arm64</lwjgl.natives></properties>
+            </profile>
+            <profile>
+                <id>macos-x86_64</id>
+                <activation><os><family>mac</family><arch>x86_64</arch></os></activation>
+                <properties><lwjgl.natives>natives-macos</lwjgl.natives></properties>
+            </profile>
+        </profiles>
 
-        <!-- LWJGL Natives -->
-        <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl</artifactId><classifier>${lwjgl.natives}</classifier><scope>runtime</scope></dependency>
-        <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-glfw</artifactId><classifier>${lwjgl.natives}</classifier><scope>runtime</scope></dependency>
-        <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-opengl</artifactId><classifier>${lwjgl.natives}</classifier><scope>runtime</scope></dependency>
-        <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-stb</artifactId><classifier>${lwjgl.natives}</classifier><scope>runtime</scope></dependency>
-
-        <!-- JOML for Math -->
-        <dependency><groupId>org.joml</groupId><artifactId>joml</artifactId><version>${joml.version}</version></dependency>
-
-        <!-- Gson for JSON -->
-        <dependency><groupId>com.google.code.gson</groupId><artifactId>gson</artifactId><version>${gson.version}</version></dependency>
-
-        <!-- Kotlin Standard Library (Required by Environment) -->
-        <dependency><groupId>org.jetbrains.kotlin</groupId><artifactId>kotlin-stdlib</artifactId><version>${kotlin.version}</version></dependency>
-    </dependencies>
-
-    <!-- Profiles for OS-specific natives -->
-    <profiles>
-        <profile>
-            <id>windows-amd64</id>
-            <activation><os><family>windows</family><arch>amd64</arch></os></activation>
-            <properties><lwjgl.natives>natives-windows</lwjgl.natives></properties>
-        </profile>
-        <profile>
-            <id>linux-amd64</id>
-            <activation><os><family>linux</family><arch>amd64</arch></os></activation>
-            <properties><lwjgl.natives>natives-linux</lwjgl.natives></properties>
-        </profile>
-        <profile>
-            <id>macos-aarch64</id>
-            <activation><os><family>mac</family><arch>aarch64</arch></os></activation>
-            <properties><lwjgl.natives>natives-macos-arm64</lwjgl.natives></properties>
-        </profile>
-        <profile>
-            <id>macos-x86_64</id>
-            <activation><os><family>mac</family><arch>x86_64</arch></os></activation>
-            <properties><lwjgl.natives>natives-macos</lwjgl.natives></properties>
-        </profile>
-    </profiles>
-
-    <build>
-        <resources>
-            <resource>
-                <directory>src/main/resources</directory>
-            </resource>
-        </resources>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.11.0</version>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-                <version>3.5.1</version>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                        <configuration>
-                            <transformers>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>${main.class}</mainClass>
-                                </transformer>
-                            </transformers>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
-</project>
+        <build>
+            <resources>
+                <resource>
+                    <directory>src/main/resources</directory>
+                </resource>
+            </resources>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.11.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-shade-plugin</artifactId>
+                    <version>3.5.1</version>
+                    <executions>
+                        <execution>
+                            <phase>package</phase>
+                            <goals>
+                                <goal>shade</goal>
+                            </goals>
+                            <configuration>
+                                <transformers>
+                                    <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                        <mainClass>${main.class}</mainClass>
+                                    </transformer>
+                                </transformers>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </build>
+    </project>

@@ -1,0 +1,27 @@
+{
+  "textureAtlas": "playerTexture",
+  "frameWidth": 64,
+  "frameHeight": 64,
+  "animations": {
+    "walk_south": {
+      "row": 0,
+      "frames": 3,
+      "frameDuration": 0.25
+    },
+    "walk_east": {
+      "row": 1,
+      "frames": 3,
+      "frameDuration": 0.25
+    },
+    "walk_north": {
+      "row": 2,
+      "frames": 3,
+      "frameDuration": 0.25
+    },
+    "walk_west": {
+      "row": 3,
+      "frames": 3,
+      "frameDuration": 0.25
+    }
+  }
+}

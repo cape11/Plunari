@@ -1,9 +1,14 @@
 package org.isogame.entity;
 
+import com.google.gson.Gson;
+import org.isogame.gamedata.AnimationDefinition; // <-- IMPORTANT IMPORT
 import org.isogame.game.Game;
 import org.isogame.map.PathNode;
 import org.isogame.savegame.EntitySaveData;
 
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.util.List;
 
 public abstract class Entity {
@@ -13,9 +18,9 @@ public abstract class Entity {
     public int health = 20;
     protected boolean isDead = false;
 
-    // --- Health Visualization ---
+    // Health Visualization
     protected double damageFlashTimer = 0.0;
-    protected static final double DAMAGE_FLASH_DURATION = 0.4; // How long the flash lasts
+    protected static final double DAMAGE_FLASH_DURATION = 0.4;
 
     // Core Position & State
     protected float mapRow;
@@ -34,17 +39,34 @@ public abstract class Entity {
     protected int currentFrameIndex = 0;
     protected double animationTimer = 0.0;
     protected double frameDuration = 0.15;
+    protected AnimationDefinition animDef; // <-- NEW FIELD
+    protected String currentAnimationName = "idle"; // <-- NEW FIELD
 
     // Pathfinding
     protected List<PathNode> currentPath;
     protected int currentPathIndex;
 
-    /**
-     * Reduces the entity's health and handles the visual feedback and death.
-     * @param amount The amount of damage to deal.
-     */
+    protected Entity owner;
+
+    // This is the single, correct method for loading animation data
+    protected void loadAnimationDefinition(String jsonPath) {
+        try (InputStream is = getClass().getResourceAsStream(jsonPath)) {
+            if (is == null) {
+                System.err.println("CRITICAL: Cannot find animation definition file: " + jsonPath);
+                return;
+            }
+            try (Reader reader = new InputStreamReader(is)) {
+                this.animDef = new Gson().fromJson(reader, AnimationDefinition.class);
+                System.out.println("Successfully loaded animation definition for: " + getClass().getSimpleName());
+            }
+        } catch (Exception e) {
+            System.err.println("ERROR: Exception while loading animation definition " + jsonPath);
+            e.printStackTrace();
+        }
+    }
+
     public void takeDamage(int amount, Entity source) {
-        if (isDead || currentAction == Action.DEATH) return; // Don't   take damage while dying
+        if (isDead || currentAction == Action.DEATH) return;
 
         this.owner = source;
         this.health -= amount;
@@ -52,17 +74,11 @@ public abstract class Entity {
 
         if (this.health <= 0) {
             this.health = 0;
-            // --- FIX: We no longer set isDead = true here. ---
-            // Instead, we call onDeath(), which will trigger the animation.
             onDeath();
         }
     }
 
-
-
-    // --- NEW METHOD FOR SAVING ---
     public void populateSaveData(EntitySaveData data) {
-        // This is a generic method. Subclasses will provide the specific type.
         data.mapRow = this.mapRow;
         data.mapCol = this.mapCol;
         data.health = this.health;
@@ -90,10 +106,6 @@ public abstract class Entity {
         }
     }
 
-    /**
-     * Called by the main game loop to tick down timers for visual effects.
-     * @param deltaTime The time since the last frame.
-     */
     public void updateVisualEffects(double deltaTime) {
         if (damageFlashTimer > 0) {
             damageFlashTimer -= deltaTime;
@@ -103,28 +115,17 @@ public abstract class Entity {
         }
     }
 
-    /**
-     * Gets the color tint for the entity based on its current health state.
-     * This will be used by the renderer.
-     * @return An array of {R, G, B, A} float values for the tint.
-     */
     public float[] getHealthTint() {
         if (damageFlashTimer > 0) {
-            // Flash bright red when damaged
             return new float[] {1.0f, 0.4f, 0.4f, 1.0f};
         }
-        // No special tint if not damaged
         return new float[] {1.0f, 1.0f, 1.0f, 1.0f};
     }
-
-    protected Entity owner; // Add this field to track who created/attacked this entity
 
     public boolean isSavable() {
         return true;
     }
-    /**
-     * A hook for subclasses to define what happens on death (e.g., dropping loot).
-     */
+
     protected void onDeath() {
         // Base implementation does nothing.
     }
@@ -132,7 +133,6 @@ public abstract class Entity {
     public int getHealth() { return health; }
     public int getMaxHealth() { return maxHealth; }
     public boolean isDead() { return isDead; }
-
 
     public abstract void update(double deltaTime, Game game);
     public abstract int getAnimationRow();

@@ -1,12 +1,18 @@
 package org.isogame.entity;
 
+import com.google.gson.Gson;
+import org.isogame.gamedata.AnimationDefinition;
 import org.isogame.game.Game;
 import org.isogame.item.ItemRegistry;
 import org.isogame.map.AStarPathfinder;
 import org.isogame.map.Map;
 import org.isogame.map.PathNode;
+import org.isogame.savegame.EntitySaveData;
 import org.isogame.tile.Tile;
 
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.util.List;
 import java.util.Random;
 
@@ -15,7 +21,6 @@ public class Slime extends Entity {
     private final Random random = new Random();
     private final AStarPathfinder pathfinder = new AStarPathfinder();
 
-    // --- AI and Behavior Constants ---
     private static final float WANDER_SPEED = 0.8f;
     private static final float CHASE_SPEED = 2.0f;
     private static final int WANDER_RADIUS = 5;
@@ -25,77 +30,72 @@ public class Slime extends Entity {
     private static final double ATTACK_COOLDOWN = 1.8;
     private static final int ATTACK_DAMAGE = 2;
 
-    // AI State Machine
     private enum AiState { WANDERING, CHASING, ATTACKING }
     private AiState currentState = AiState.WANDERING;
     private double aiTimer = 0.0;
     private double attackCooldownTimer = 0.0;
 
-    // ---!!! THIS IS THE SECTION TO EDIT !!!---
-
-    // Step 1: The top-left starting pixel of your slime animation block.
-    public static final int SPRITESHEET_START_X_PIXEL = 576;
-    public static final int SPRITESHEET_START_Y_PIXEL = 1664;
-
-    // Step 2: The size of a single frame for the slime.
-    public static final int FRAME_WIDTH = 64;
-    public static final int FRAME_HEIGHT = 64;
-
-    // The code will automatically calculate the starting frame column and row.
-    private static final int STARTING_FRAME_COL = SPRITESHEET_START_X_PIXEL / FRAME_WIDTH; // Result: 9
-    private static final int STARTING_FRAME_ROW = SPRITESHEET_START_Y_PIXEL / FRAME_HEIGHT; // Result: 26
-
-    // Step 3: The local row for each animation *within the slime block*.
-    public static final int ROW_OFFSET_IDLE = 0;   // The top row of your slime sprites
-    public static final int ROW_OFFSET_ATTACK = 1; // The second row of your slime sprites
-    public static final int ROW_OFFSET_DEATH = 2; // <-- NEW: The row for the death animation
-
-    // Step 4: The number of frames in one full animation cycle.
-    public static final int FRAMES_PER_IDLE_CYCLE = 4;
-    public static final int FRAMES_PER_ATTACK_CYCLE = 4;
-    public static final int FRAMES_PER_DEATH_CYCLE = 4; // <-- NEW: Number of frames in death animation
+    // --- NEW: These constants will hold the *absolute* starting position from the JSON ---
+    private int STARTING_FRAME_COL = 0;
+    private int STARTING_FRAME_ROW = 0;
 
     public Slime(float startRow, float startCol) {
         super();
         this.maxHealth = 10;
         this.health = 10;
         this.setPosition(startRow, startCol);
-        this.frameDuration = 0.25;
+        loadAnimationDefinition("/data/animations/slime_animations.json");
+        if (this.animDef != null) {
+            this.frameDuration = animDef.animations.get("idle").frameDuration;
+            // --- NEW: Calculate the starting positions after loading ---
+            // These values are hardcoded in the provided instructions, but could also be in the JSON
+            this.STARTING_FRAME_COL = 576 / getFrameWidth();  // 576 is SPRITESHEET_START_X_PIXEL
+            this.STARTING_FRAME_ROW = 1664 / getFrameHeight(); // 1664 is SPRITESHEET_START_Y_PIXEL
+        }
     }
 
-    // ... (The update() method and AI logic remain the same)
+    @Override
+    public void populateSaveData(EntitySaveData data) {
+        super.populateSaveData(data);
+        data.entityType = "SLIME";
+    }
 
-    /**
-     * This method now returns the ABSOLUTE row on the spritesheet by adding
-     * the starting row offset to the direction-specific offset.
-     */
     @Override
     public int getAnimationRow() {
-        int relativeRow;
+        if (animDef == null || animDef.animations == null) return 0;
+
+        String animKey;
         switch (currentAction) {
-            case SWING:
-                relativeRow = ROW_OFFSET_ATTACK;
-                break;
-            case DEATH:
-                relativeRow = ROW_OFFSET_DEATH;
-                break;
-            default: // IDLE, WALK
-                relativeRow = ROW_OFFSET_IDLE;
-                break;
+            case SWING: animKey = "attack"; break;
+            case DEATH: animKey = "death"; break;
+            default:    animKey = "idle"; break;
         }
-        return STARTING_FRAME_ROW + relativeRow;
+
+        AnimationDefinition.AnimationTrack track = animDef.animations.get(animKey);
+        // The "row" in the JSON is now treated as a local offset
+        return STARTING_FRAME_ROW + ((track != null) ? track.row : 0);
     }
 
-
-
-    /**
-     * This method now returns the ABSOLUTE column on the spritesheet by adding
-     * the starting column offset to the current animation frame.
-     */
     @Override
     public int getVisualFrameIndex() {
-        int maxFrames = (currentAction == Action.SWING) ? FRAMES_PER_ATTACK_CYCLE : FRAMES_PER_IDLE_CYCLE;
+        if (animDef == null || animDef.animations == null) return 0;
+
+        AnimationDefinition.AnimationTrack track = animDef.animations.get(currentAnimationName);
+        int maxFrames = (track != null) ? track.frames : 1;
+
         return STARTING_FRAME_COL + (currentFrameIndex % maxFrames);
+    }
+
+    // ... (rest of the Slime class is identical to the previous version) ...
+
+    @Override
+    public int getFrameWidth() {
+        return (animDef != null) ? animDef.frameWidth : 64;
+    }
+
+    @Override
+    public int getFrameHeight() {
+        return (animDef != null) ? animDef.frameHeight : 64;
     }
 
     @Override
@@ -118,11 +118,16 @@ public class Slime extends Entity {
         if (currentState != AiState.ATTACKING && distanceToPlayer <= ATTACK_RADIUS && attackCooldownTimer <= 0) {
             currentState = AiState.ATTACKING;
             this.setAction(Action.SWING);
+            this.currentAnimationName = "attack";
         } else if (currentState != AiState.CHASING && distanceToPlayer <= AGGRO_RADIUS && distanceToPlayer > ATTACK_RADIUS) {
             currentState = AiState.CHASING;
+            this.setAction(Action.WALK);
+            this.currentAnimationName = "idle";
         } else if (distanceToPlayer > AGGRO_RADIUS && currentState != AiState.WANDERING) {
             currentState = AiState.WANDERING;
             this.currentPath = null;
+            this.setAction(Action.IDLE);
+            this.currentAnimationName = "idle";
         }
 
         switch (currentState) {
@@ -143,7 +148,6 @@ public class Slime extends Entity {
     }
 
     private void wander(double deltaTime, Map map) {
-        setAction(Action.WALK);
         if (aiTimer > THINK_INTERVAL) {
             aiTimer = 0;
             if (currentPath == null || currentPath.isEmpty()) {
@@ -162,7 +166,6 @@ public class Slime extends Entity {
     }
 
     private void chase(double deltaTime, PlayerModel player, Map map) {
-        setAction(Action.WALK);
         if (aiTimer > 1.0) {
             aiTimer = 0;
             this.currentPath = pathfinder.findPath(getTileRow(), getTileCol(), player.getTileRow(), player.getTileCol(), map);
@@ -176,7 +179,7 @@ public class Slime extends Entity {
     private void attack(double deltaTime, PlayerModel player) {
         currentPath = null; // Stop moving
         if (currentFrameIndex == 3 && attackCooldownTimer <= 0) {
-            player.takeDamage(ATTACK_DAMAGE, this); // <-- Pass 'this' as the attacker
+            player.takeDamage(ATTACK_DAMAGE, this);
             attackCooldownTimer = ATTACK_COOLDOWN;
         }
     }
@@ -209,10 +212,10 @@ public class Slime extends Entity {
     protected void onDeath() {
         if (currentAction != Action.DEATH) {
             System.out.println("A slime has been defeated!");
-            setAction(Action.DEATH); // Set the action to DEATH
-            this.currentPath = null; // Stop any current movement
+            setAction(Action.DEATH);
+            this.currentAnimationName = "death";
+            this.currentPath = null;
 
-            // Drop loot at the moment of death
             if (this.owner instanceof PlayerModel) {
                 PlayerModel player = (PlayerModel) this.owner;
                 int lootAmount = 1 + random.nextInt(3);
@@ -222,52 +225,38 @@ public class Slime extends Entity {
     }
 
     private void updateAnimation(double deltaTime) {
-        // --- FIX: Use a slower frame duration specifically for the death animation ---
-        double currentFrameDuration = (currentAction == Action.DEATH) ? 0.35 : this.frameDuration;
+        if (animDef == null || animDef.animations == null) return;
+
+        AnimationDefinition.AnimationTrack track = animDef.animations.get(currentAnimationName);
+        if (track == null) track = animDef.animations.get("idle"); // Fallback
+        if (track == null) return;
 
         animationTimer += deltaTime;
-        if (animationTimer >= currentFrameDuration) {
-            animationTimer -= currentFrameDuration;
+        if (animationTimer >= track.frameDuration) {
+            animationTimer -= track.frameDuration;
 
-            int maxFrames;
-            if (currentAction == Action.SWING) {
-                maxFrames = FRAMES_PER_ATTACK_CYCLE;
-            } else if (currentAction == Action.DEATH) {
-                maxFrames = FRAMES_PER_DEATH_CYCLE;
-            } else {
-                maxFrames = FRAMES_PER_IDLE_CYCLE;
-            }
-
-            // --- FIX: Simplified and corrected animation loop logic ---
-
-            // Don't advance the frame if the death animation is already on its last frame
-            if (currentAction == Action.DEATH && currentFrameIndex >= maxFrames - 1) {
+            if (currentAction == Action.DEATH && currentFrameIndex >= track.frames - 1) {
                 // Stay on the last frame
             } else {
-                currentFrameIndex++; // Advance to the next frame
+                currentFrameIndex++;
             }
 
-            // Now, check if any animation has just finished its cycle
-            if (currentFrameIndex >= maxFrames) {
+            if (currentFrameIndex >= track.frames) {
                 if (currentAction == Action.DEATH) {
-                    // When the death animation finishes, mark the entity as dead for removal
                     this.isDead = true;
-                    // Clamp to the last frame so it doesn't disappear before being removed
-                    currentFrameIndex = maxFrames - 1;
+                    currentFrameIndex = track.frames - 1;
                 } else if (currentAction == Action.SWING) {
-                    // After attacking, go back to being idle
                     setAction(Action.IDLE);
+                    this.currentAnimationName = "idle";
                     currentState = AiState.WANDERING;
-                    currentFrameIndex = 0; // Reset frame
+                    currentFrameIndex = 0;
                 } else {
-                    // Loop all other animations
                     currentFrameIndex = 0;
                 }
             }
         }
     }
 
-    @Override public String getDisplayName() { return "Slime"; }
-    @Override public int getFrameWidth() { return FRAME_WIDTH; }
-    @Override public int getFrameHeight() { return FRAME_HEIGHT; }
+    @Override
+    public String getDisplayName() { return "Slime"; }
 }

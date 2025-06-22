@@ -1,0 +1,36 @@
+{
+  "anchors": {
+    "2_0":  { "dx": 8, "dy": 0, "rotation": 45, "drawBehind": true },
+    "0_0":  { "dx": 8, "dy": 0, "rotation": 45, "drawBehind": false },
+    "3_0":  { "dx": 8, "dy": 0, "rotation": 45, "drawBehind": false },
+    "1_0":  { "dx": -8, "dy": 0, "rotation": -45, "drawBehind": false },
+
+    "12_0": { "dx": 5, "dy": -5, "rotation": -45, "drawBehind": true },
+    "12_1": { "dx": 2, "dy": -10, "rotation": -15, "drawBehind": true },
+    "12_2": { "dx": -5, "dy": 5, "rotation": 30, "drawBehind": false },
+    "12_3": { "dx": 15, "dy": 10, "rotation": 90, "drawBehind": false },
+    "12_4": { "dx": 20, "dy": 15, "rotation": 120, "drawBehind": true },
+    "12_5": { "dx": 15, "dy": 12, "rotation": 90, "drawBehind": false },
+
+    "14_0": { "dx": -5, "dy": 0, "rotation": -60, "drawBehind": true },
+    "14_1": { "dx": 0, "dy": 5, "rotation": -30, "drawBehind": true },
+    "14_2": { "dx": 10, "dy": 10, "rotation": 30, "drawBehind": false },
+    "14_3": { "dx": 20, "dy": 15, "rotation": 90, "drawBehind": false },
+    "14_4": { "dx": 25, "dy": 20, "rotation": 120, "drawBehind": false },
+    "14_5": { "dx": 18, "dy": 18, "rotation": 100, "drawBehind": false },
+
+    "13_0": { "dx": -15, "dy": 5, "rotation": 30, "drawBehind": false },
+    "13_1": { "dx": -20, "dy": 8, "rotation": -30, "drawBehind": false },
+    "13_2": { "dx": -15, "dy": 10, "rotation": -90, "drawBehind": false },
+    "13_3": { "dx": -5, "dy": 12, "rotation": -135, "drawBehind": false },
+    "13_4": { "dx": 5, "dy": 15, "rotation": -160, "drawBehind": false },
+    "13_5": { "dx": 0, "dy": 12, "rotation": -140, "drawBehind": false },
+
+    "15_0": { "dx": 15, "dy": 5, "rotation": -30, "drawBehind": false },
+    "15_1": { "dx": 20, "dy": 8, "rotation": 30, "drawBehind": false },
+    "15_2": { "dx": 15, "dy": 10, "rotation": 90, "drawBehind": false },
+    "15_3": { "dx": 5, "dy": 12, "rotation": 135, "drawBehind": false },
+    "15_4": { "dx": -5, "dy": 15, "rotation": 160, "drawBehind": false },
+    "15_5": { "dx": 0, "dy": 12, "rotation": 140, "drawBehind": false }
+  }
+}

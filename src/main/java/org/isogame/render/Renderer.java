@@ -7,6 +7,7 @@ import org.isogame.constants.Constants;
 import org.isogame.entity.*;
 // import org.isogame.game.Game; // Removed to reduce coupling
 import org.isogame.game.Game;
+import org.isogame.gamedata.AnchorDefinition;
 import org.isogame.input.InputHandler;
 import org.isogame.inventory.InventorySlot;
 import org.isogame.item.Item;
@@ -1243,70 +1244,87 @@ public class Renderer {
     }
 
     // --- CHANGE: renderWorldSprites() now accepts deltaTime ---
-    private void renderWorldSprites(double deltaTime) { // <-- FIX: Add deltaTime here
+    private void renderWorldSprites(double deltaTime) {
         if (spriteVaoId == 0 || worldEntities.isEmpty()) return;
-
-        glBindVertexArray(spriteVaoId);
-        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
-        spriteVertexBuffer.clear();
-
-        int verticesInBatch = 0;
-        Texture currentBatchTexture = null;
 
         defaultShader.setUniform("uHasTexture", 1);
         defaultShader.setUniform("uTextureSampler", 0);
 
+        glBindVertexArray(spriteVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+
+        // Loop through each entity and draw it individually to ensure correct texture binding
         for (Object entityObj : worldEntities) {
+            spriteVertexBuffer.clear(); // Clear buffer for each entity
+
             Texture textureForThisEntity;
             int verticesAdded = 0;
-            boolean isPlayer = entityObj instanceof PlayerModel;
 
-            if (entityObj instanceof Entity) textureForThisEntity = playerTexture;
-            else if (entityObj instanceof TreeData || entityObj instanceof LooseRockData) textureForThisEntity = treeTexture;
-            else if (entityObj instanceof TorchData) textureForThisEntity = playerTexture;
-            else continue;
-
-            if (currentBatchTexture != null && textureForThisEntity.getId() != currentBatchTexture.getId()) {
-                renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
-                spriteVertexBuffer.clear();
-                verticesInBatch = 0;
+            // Determine the correct texture for the entity
+            if (entityObj instanceof Entity) {
+                // All entities like Player, Cow, Slime use the playerTexture sheet
+                textureForThisEntity = playerTexture;
+            } else if (entityObj instanceof TreeData || entityObj instanceof LooseRockData) {
+                textureForThisEntity = treeTexture;
+            } else if (entityObj instanceof TorchData) {
+                textureForThisEntity = playerTexture; // Assuming torch is on player sheet
+            } else {
+                continue; // Skip unknown objects
             }
-            currentBatchTexture = textureForThisEntity;
 
-            if (entityObj instanceof Entity) verticesAdded = addGenericEntityVerticesToBuffer((Entity) entityObj, spriteVertexBuffer);
-                // --- CHANGE: Pass deltaTime to tree rendering ---
-            else if (entityObj instanceof TreeData) verticesAdded = addTreeVerticesToBuffer_WorldSpace((TreeData) entityObj, spriteVertexBuffer, deltaTime);
-            else if (entityObj instanceof LooseRockData) verticesAdded = addLooseRockVerticesToBuffer_WorldSpace((LooseRockData) entityObj, spriteVertexBuffer);
-            else if (entityObj instanceof TorchData) verticesAdded = addTorchVerticesToBuffer_WorldSpace((TorchData) entityObj, spriteVertexBuffer);
+            // Bind the correct texture for this entity
+            if (textureForThisEntity != null) {
+                glActiveTexture(GL_TEXTURE0);
+                textureForThisEntity.bind();
+            }
 
-            verticesInBatch += verticesAdded;
+            // Add the entity's vertices to the buffer
+            if (entityObj instanceof Entity) {
+                verticesAdded = addGenericEntityVerticesToBuffer((Entity) entityObj, spriteVertexBuffer);
+            } else if (entityObj instanceof TreeData) {
+                verticesAdded = addTreeVerticesToBuffer_WorldSpace((TreeData) entityObj, spriteVertexBuffer, deltaTime);
+            } else if (entityObj instanceof LooseRockData) {
+                verticesAdded = addLooseRockVerticesToBuffer_WorldSpace((LooseRockData) entityObj, spriteVertexBuffer);
+            } else if (entityObj instanceof TorchData) {
+                verticesAdded = addTorchVerticesToBuffer_WorldSpace((TorchData) entityObj, spriteVertexBuffer);
+            }
 
-            if (isPlayer) {
+            // If vertices were added, upload and draw them immediately
+            if (verticesAdded > 0) {
+                spriteVertexBuffer.flip();
+                glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+                glDrawArrays(GL_TRIANGLES, 0, verticesAdded);
+            }
+
+            // --- Special Case: Render player's held item ---
+            if (entityObj instanceof PlayerModel) {
                 PlayerModel p = (PlayerModel) entityObj;
                 Item heldItem = p.getHeldItem();
-                PlayerModel.AnchorPoint anchor = p.getAnchorForCurrentFrame();
+                AnchorDefinition.AnchorPoint anchor = p.getAnchorForCurrentFrame();
 
+                // The held item uses the treeTexture atlas for its icons
                 if (heldItem != null && anchor != null && treeTexture != null) {
-                    renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
                     spriteVertexBuffer.clear();
-                    verticesInBatch = 0;
+
+                    // Bind the correct texture for the item
+                    treeTexture.bind();
 
                     float playerZ = (p.getVisualRow() + p.getVisualCol()) * DEPTH_SORT_FACTOR + (map.getTile(p.getTileRow(), p.getTileCol()).getElevation() * 0.005f) + Z_OFFSET_SPRITE_PLAYER;
                     float lightVal = map.getTile(p.getTileRow(), p.getTileCol()).getFinalLightLevel() / (float) MAX_LIGHT_LEVEL;
                     float itemZ = anchor.drawBehind ? playerZ + 0.001f : playerZ - 0.001f;
 
                     int itemVerts = addHeldItemVerticesToBuffer(p, heldItem, anchor, spriteVertexBuffer, itemZ, lightVal);
-                    renderSpriteBatch(spriteVertexBuffer, itemVerts, treeTexture);
-                    spriteVertexBuffer.clear();
-                    currentBatchTexture = playerTexture;
+
+                    if (itemVerts > 0) {
+                        spriteVertexBuffer.flip();
+                        glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+                        glDrawArrays(GL_TRIANGLES, 0, itemVerts);
+                    }
                 }
             }
         }
 
-        if (verticesInBatch > 0) {
-            renderSpriteBatch(spriteVertexBuffer, verticesInBatch, currentBatchTexture);
-        }
-
+        // Unbind after the loop is finished
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
     }
@@ -1655,7 +1673,7 @@ public class Renderer {
     }
 
 
-    private int addHeldItemVerticesToBuffer(PlayerModel player, Item item, PlayerModel.AnchorPoint anchor, FloatBuffer buffer, float itemWorldZ, float lightVal) {
+    private int addHeldItemVerticesToBuffer(PlayerModel player, Item item, AnchorDefinition.AnchorPoint anchor, FloatBuffer buffer, float itemWorldZ, float lightVal) { // <-- CHANGE THIS LINE
         if (treeTexture == null || map == null || anchor == null) return 0;
 
         float pR = player.getVisualRow();

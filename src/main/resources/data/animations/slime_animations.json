@@ -1,0 +1,22 @@
+{
+  "textureAtlas": "playerTexture",
+  "frameWidth": 64,
+  "frameHeight": 64,
+  "animations": {
+    "idle": {
+      "row": 0,
+      "frames": 4,
+      "frameDuration": 0.25
+    },
+    "attack": {
+      "row": 1,
+      "frames": 4,
+      "frameDuration": 0.25
+    },
+    "death": {
+      "row": 2,
+      "frames": 4,
+      "frameDuration": 0.35
+    }
+  }
+}
