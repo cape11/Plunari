@@ -6,6 +6,7 @@ import org.isogame.camera.CameraManager;
 import org.isogame.constants.Constants;
 import org.isogame.entity.*;
 // import org.isogame.game.Game; // Removed to reduce coupling
+import org.isogame.game.EntityManager;
 import org.isogame.game.Game;
 import org.isogame.gamedata.AnchorDefinition;
 import org.isogame.input.InputHandler;
@@ -39,6 +40,8 @@ public class Renderer {
     private PlayerModel player;
     private InputHandler inputHandler; // Store InputHandler reference
 
+
+    private EntityManager entityManager;
     private Texture playerTexture;
     private Texture treeTexture;
     private Font uiFont;
@@ -225,6 +228,7 @@ public class Renderer {
         this.map = map;
         this.player = player;
         this.inputHandler = inputHandler;
+        this.entityManager = entityManager;
         this.tileDetailRandom = new Random();
         this.projectionMatrix = new Matrix4f();
         this.activeMapChunks = new HashMap<>();
@@ -241,12 +245,12 @@ public class Renderer {
      * Sets the game-specific context for the renderer.
      * Called when a game is loaded or a new game starts.
      */
-    public void setGameSpecificReferences(Map map, PlayerModel player, InputHandler inputHandler) {
+    public void setGameSpecificReferences(Map map, PlayerModel player, InputHandler inputHandler, EntityManager entityManager) {
         System.out.println("Renderer: Setting game context. Current map: " + (this.map != null) + " -> New map: " + (map != null));
         this.map = map;
         this.player = player;
         this.inputHandler = inputHandler;
-
+        this.entityManager = entityManager;
         if (this.activeMapChunks != null) {
             for (Chunk chunk : this.activeMapChunks.values()) {
                 chunk.cleanup();
@@ -276,6 +280,7 @@ public class Renderer {
         }
         this.map = null;
         this.player = null;
+        this.entityManager = null;
         // this.inputHandler = null; // Keep inputHandler if it's managed globally by Game
         System.out.println("Renderer: Game context cleared.");
     }
@@ -1209,12 +1214,13 @@ public class Renderer {
         }
     }
 
-    // --- CHANGE: collectWorldEntities() now accepts and uses deltaTime ---
     private void collectWorldEntities(double deltaTime) {
         worldEntities.clear();
         particleEntities.clear();
-        if (map != null && map.getEntities() != null) {
-            for (Entity e : map.getEntities()) {
+
+        // Get entities from the EntityManager
+        if (entityManager != null && entityManager.getEntities() != null) {
+            for (Entity e : entityManager.getEntities()) {
                 if (e instanceof Particle) {
                     particleEntities.add((Particle) e);
                 } else {

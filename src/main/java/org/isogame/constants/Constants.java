@@ -24,6 +24,9 @@ public class Constants {
     public static final int NIVEL_ROCA = 30;
     public static final int NIVEL_NIEVE = 33;
 
+
+    public static final int MAX_ANIMALS = 25;
+
     // Window size
     public static final int WIDTH = 1280;
     public static final int HEIGHT = 720;

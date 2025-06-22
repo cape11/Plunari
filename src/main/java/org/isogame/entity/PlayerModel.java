@@ -122,7 +122,9 @@ public class PlayerModel extends Entity {
                             }
                             ToolItem.ToolType typeOfTool = (currentItemBeingUsed instanceof ToolItem) ? ((ToolItem) currentItemBeingUsed).getToolType() : null;
                             SwingArcProjectile projectile = new SwingArcProjectile(this, targetR, targetC, currentItemBeingUsed.damage, currentItemBeingUsed.knockback, typeOfTool);
-                            game.getMap().getEntities().add(projectile);
+                            // --- THIS IS THE FIX ---
+                            // Add the new projectile via the EntityManager
+                            game.getEntityManager().addEntity(projectile);
                         }
                     }
 

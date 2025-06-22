@@ -24,14 +24,9 @@ public class Map {
     private int characterSpawnCol;
     private final LightManager lightManager;
     private final long worldSeed;
-    private final List<Entity> entities;
 
-
-
-    // --- ADD THE NEW HASHMAP BELOW ---
+    // This map stores modified chunk data that is currently not loaded into active memory.
     private final HashMap<LightManager.ChunkCoordinate, MapSaveData.ChunkDiskData> modifiedUnloadedChunks;
-
-    public static final int MAX_ANIMALS = 25;
 
     public Map(long seed) {
         this.worldSeed = seed;
@@ -39,25 +34,10 @@ public class Map {
         this.loadedChunkTiles = new HashMap<>();
         this.chunkModificationStatus = new HashMap<>();
         this.lightManager = new LightManager(this);
-        this.entities = new ArrayList<>();
         this.modifiedUnloadedChunks = new HashMap<>();
 
         findSuitableCharacterPositionInChunk(0, 0);
 
-    }
-
-    public List<Entity> getEntities() {
-        return this.entities;
-    }
-
-    public int getAnimalCount(){
-        int count = 0;
-        for (Entity e : entities){
-            if (e instanceof Animal){
-                count++;
-            }
-        }
-        return count;
     }
 
     public Tile[][] getOrGenerateChunkTiles(int chunkX, int chunkY) {
@@ -84,7 +64,6 @@ public class Map {
         // 3. If no saved version exists, generate the chunk from scratch.
         System.out.println("Map: Generating new chunk " + coord + " from seed.");
         Tile[][] chunkTiles = new Tile[CHUNK_SIZE_TILES][CHUNK_SIZE_TILES];
-        // ... (the rest of the generation logic remains the same)
         int globalStartX = chunkX * CHUNK_SIZE_TILES;
         int globalStartY = chunkY * CHUNK_SIZE_TILES;
 
@@ -115,14 +94,7 @@ public class Map {
         chunkModificationStatus.put(coord, false);
         return chunkTiles;
     }
-    /**
-     * Retrieves a tile from global map coordinates.
-     * Handles loading or generating the chunk if it's not already in memory.
-     *
-     * @param globalR Global row coordinate of the tile.
-     * @param globalC Global column coordinate of the tile.
-     * @return The Tile at the given coordinates, or null if coordinates are somehow invalid (should be rare).
-     */
+
     public Tile getTile(int globalR, int globalC) {
         int chunkX = Math.floorDiv(globalC, CHUNK_SIZE_TILES);
         int chunkY = Math.floorDiv(globalR, CHUNK_SIZE_TILES);
@@ -138,41 +110,22 @@ public class Map {
         if (localX >= 0 && localX < CHUNK_SIZE_TILES && localY >= 0 && localY < CHUNK_SIZE_TILES) {
             return chunkSpecificTiles[localY][localX];
         } else {
-            // This should ideally not happen with correct floorDiv and modulo logic.
             System.err.println("Map.getTile: Calculated invalid local coordinates (" + localY + "," + localX + ") for global (" + globalR + "," + globalC + ") in chunk (" + chunkY + "," + chunkX + ")");
-            return null; // Or a default "void" tile
+            return null;
         }
     }
 
-    /**
-     * Marks a chunk as modified (e.g., by player interaction).
-     * This is a flag for the saving system (Phase 2).
-     * @param chunkX The X coordinate of the chunk (in chunk units).
-     * @param chunkY The Y coordinate of the chunk (in chunk units).
-     */
     public void markChunkAsModified(int chunkX, int chunkY) {
         LightManager.ChunkCoordinate coord = new LightManager.ChunkCoordinate(chunkX, chunkY);
-        // Ensure the chunk data is loaded before trying to mark it modified.
-        // Typically, this would be called after an action on an already loaded chunk.
         if (!loadedChunkTiles.containsKey(coord)) {
-            // This might happen if a modification occurs near a chunk border affecting an unloaded chunk.
-            // getOrGenerateChunkTiles(chunkX, chunkY); // Load it if not already.
-            // However, modifications should ideally only happen to loaded, active chunks.
             System.err.println("Map.markChunkAsModified: Attempting to mark a non-loaded chunk " + coord + ". This might indicate an issue.");
         }
         chunkModificationStatus.put(coord, true);
     }
 
-    /**
-     * Unloads chunk tile data from memory.
-     * In a future phase, this would also trigger saving the chunk to disk if it was modified.
-     * @param chunkX The X coordinate of the chunk to unload.
-     * @param chunkY The Y coordinate of the chunk to unload.
-     */
     public void unloadChunkData(int chunkX, int chunkY) {
         LightManager.ChunkCoordinate coord = new LightManager.ChunkCoordinate(chunkX, chunkY);
         if (loadedChunkTiles.containsKey(coord)) {
-            // If the chunk was modified, save its state before removing it from memory.
             if (chunkModificationStatus.getOrDefault(coord, false)) {
                 System.out.println("Map: Storing modified chunk " + coord + " before unloading.");
                 Tile[][] tilesToSave = loadedChunkTiles.get(coord);
@@ -185,126 +138,50 @@ public class Map {
         }
     }
 
-    /**
-     * Noise generation function, using global coordinates.
-     */
     private double calculateCombinedNoise(double globalX, double globalY) {
-        // Parameters for different noise layers (can be tuned)
-        double baseFrequency = NOISE_SCALE * 0.05;    // Overall landscape shape
-        double mountainFrequency = NOISE_SCALE * 0.2; // For larger features like mountains/valleys
-        double roughnessFrequency = NOISE_SCALE * 0.8;  // For smaller surface details
-
-        // Weights for each noise layer
+        double baseFrequency = NOISE_SCALE * 0.05;
+        double mountainFrequency = NOISE_SCALE * 0.2;
+        double roughnessFrequency = NOISE_SCALE * 0.8;
         double baseWeight = 1.0;
-        double mountainWeight = 0.40; // Mountains are less dominant but significant
-        double roughnessWeight = 0.15; // Roughness adds fine detail
-
-        // Calculate each noise component
+        double mountainWeight = 0.40;
+        double roughnessWeight = 0.15;
         double baseNoise = noiseGenerator.octaveNoise(globalX * baseFrequency, globalY * baseFrequency, 4, 0.6);
-        double mountainNoise = noiseGenerator.noise(globalX * mountainFrequency, globalY * mountainFrequency); // Single octave for broader features
+        double mountainNoise = noiseGenerator.noise(globalX * mountainFrequency, globalY * mountainFrequency);
         double roughnessNoise = noiseGenerator.noise(globalX * roughnessFrequency, globalY * roughnessFrequency);
-
-        // Combine noise layers
         double combined = (baseNoise * baseWeight) + (mountainNoise * mountainWeight) + (roughnessNoise * roughnessWeight);
-
-        // Normalize (approximate, as weights change the range)
-        // A more robust normalization might be needed if weights vary significantly
         double normalizationFactor = baseWeight + mountainWeight + roughnessWeight;
-        combined /= normalizationFactor; // Normalize to roughly -1 to 1 range
-
-        return Math.max(-1.0, Math.min(1.0, combined)); // Clamp to ensure it's within -1 to 1
+        combined /= normalizationFactor;
+        return Math.max(-1.0, Math.min(1.0, combined));
     }
 
-    /**
-     * Smooths the terrain elevation data for a single chunk.
-     * @param elevations The 2D array of raw elevation data for the chunk.
-     */
-    private void smoothChunkTerrain(int[][] elevations) { // Default to 1 pass
-        smoothChunkTerrain(elevations, 1);
-    }
-
-    private void smoothChunkTerrain(int[][] elevations, int passes) {
-        if (passes <= 0) return;
-        int chunkHeight = elevations.length;    // Should be CHUNK_SIZE_TILES
-        int chunkWidth = elevations[0].length; // Should be CHUNK_SIZE_TILES
-        int[][] tempElevations = new int[chunkHeight][chunkWidth];
-
-        for (int pass = 0; pass < passes; pass++) {
-            // Copy current elevations to temp for reading
-            for (int r = 0; r < chunkHeight; r++) {
-                System.arraycopy(elevations[r], 0, tempElevations[r], 0, chunkWidth);
-            }
-
-            // Apply smoothing based on neighbors
-            for (int r = 0; r < chunkHeight; r++) {
-                for (int c = 0; c < chunkWidth; c++) {
-                    int sum = 0;
-                    int count = 0;
-                    for (int dr = -1; dr <= 1; dr++) {
-                        for (int dc = -1; dc <= 1; dc++) {
-                            int nr = r + dr;
-                            int nc = c + dc;
-                            // Check bounds within the current chunk's tempElevations
-                            if (nr >= 0 && nr < chunkHeight && nc >= 0 && nc < chunkWidth) {
-                                sum += tempElevations[nr][nc];
-                                count++;
-                            }
-                        }
-                    }
-                    if (count > 0) {
-                        elevations[r][c] = sum / count; // Average elevation
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Finds a suitable character spawn position within a specified chunk.
-     * Prioritizes non-water tiles above sea level.
-     * @param chunkX The X coordinate of the chunk to spawn in.
-     * @param chunkY The Y coordinate of the chunk to spawn in.
-     */
     private void findSuitableCharacterPositionInChunk(int chunkX, int chunkY) {
-        Tile[][] chunkTiles = getOrGenerateChunkTiles(chunkX, chunkY); // Ensure this chunk is generated
+        Tile[][] chunkTiles = getOrGenerateChunkTiles(chunkX, chunkY);
 
         int centerLocalRow = CHUNK_SIZE_TILES / 2;
         int centerLocalCol = CHUNK_SIZE_TILES / 2;
 
-        // Search outwards from the center of the chunk
         for (int radius = 0; radius < CHUNK_SIZE_TILES / 2; radius++) {
             for (int rOffset = -radius; rOffset <= radius; rOffset++) {
                 for (int cOffset = -radius; cOffset <= radius; cOffset++) {
-                    // Check only the perimeter of the current search radius
                     if (Math.abs(rOffset) == radius || Math.abs(cOffset) == radius) {
-                        int lr = centerLocalRow + rOffset; // local row in chunk
-                        int lc = centerLocalCol + cOffset; // local col in chunk
-
-                        // Ensure local coordinates are within chunk bounds
+                        int lr = centerLocalRow + rOffset;
+                        int lc = centerLocalCol + cOffset;
                         if (lr >= 0 && lr < CHUNK_SIZE_TILES && lc >= 0 && lc < CHUNK_SIZE_TILES) {
                             Tile tile = chunkTiles[lr][lc];
                             if (tile.getType() != Tile.TileType.WATER && tile.getElevation() >= NIVEL_MAR) {
-                                // Convert local chunk coordinates to global map coordinates
                                 this.characterSpawnRow = chunkY * CHUNK_SIZE_TILES + lr;
                                 this.characterSpawnCol = chunkX * CHUNK_SIZE_TILES + lc;
-                                return; // Found a suitable spot
+                                return;
                             }
                         }
                     }
                 }
             }
         }
-        // Fallback: if no ideal spot is found, spawn at the center of the chunk (global coords)
         this.characterSpawnRow = chunkY * CHUNK_SIZE_TILES + centerLocalRow;
         this.characterSpawnCol = chunkX * CHUNK_SIZE_TILES + centerLocalCol;
     }
 
-    /**
-     * Populates save data.
-     * THIS IS A PLACEHOLDER. For a true infinite world, this needs to save
-     * world metadata (seed) and potentially a list of modified chunk files,
-     * or manage saving individual chunk files elsewhere.
-     */
     public void populateSaveData(MapSaveData saveData) {
         System.out.println("Map.populateSaveData: Saving seed and modified chunks...");
         saveData.worldSeed = this.worldSeed;
@@ -326,19 +203,8 @@ public class Map {
 
         System.out.println("Map.populateSaveData: Saved " + saveData.explicitlySavedChunks.size() + " total modified chunks.");
 
-        // ... (rest of the method for saving entities)
-        saveData.entities.clear();
-        for (Entity entity : this.entities) {
-            if (!(entity instanceof PlayerModel) && !(entity instanceof Projectile)) {
-                EntitySaveData entityData = new EntitySaveData();
-                entity.populateSaveData(entityData);
-                saveData.entities.add(entityData);
-            }
-        }
-        System.out.println("Map.populateSaveData: Saved " + saveData.entities.size() + " non-player entities.");
+        // Entity saving logic has been moved to EntityManager
     }
-
-
 
     private List<List<TileSaveData>> convertChunkTilesToSaveFormat(Tile[][] chunkTiles) {
         List<List<TileSaveData>> savedRows = new ArrayList<>();
@@ -361,23 +227,12 @@ public class Map {
         return savedRows;
     }
 
-
-    /**
-     * Loads map state.
-     * THIS IS A PLACEHOLDER. For a true infinite world, this would load
-     * world metadata (seed) and then chunks would be loaded on demand from individual files.
-     */
     public boolean loadState(MapSaveData mapData) {
-        System.out.println("Map.loadState: Placeholder for infinite world. Loading seed and pre-loading some chunks.");
+        System.out.println("Map.loadState: Loading seed and pre-loading chunk data.");
         if (mapData == null) return false;
 
-        // Critical: Re-initialize noise generator with the loaded seed!
-        // this.worldSeed = mapData.worldSeed; // This is already done in the constructor if mapData.worldSeed is passed.
-        // Ensure the current Map instance was created with mapData.worldSeed
-        // this.noiseGenerator = new SimplexNoise((int) mapData.worldSeed); // Re-init with loaded seed
-
-        this.characterSpawnRow = mapData.playerSpawnR; // Load spawn point
-        this.characterSpawnCol = mapData.playerSpawnC; // FIX: Correct variable name
+        this.characterSpawnRow = mapData.playerSpawnR;
+        this.characterSpawnCol = mapData.playerSpawnC;
 
         loadedChunkTiles.clear();
         chunkModificationStatus.clear();
@@ -388,40 +243,13 @@ public class Map {
                 Tile[][] tiles = convertSaveFormatToChunkTiles(cdd.tiles);
                 if (tiles != null) {
                     loadedChunkTiles.put(coord, tiles);
-                    chunkModificationStatus.put(coord, true); // Assume saved chunks were modified or important
+                    chunkModificationStatus.put(coord, true);
                 }
             }
             System.out.println("Map.loadState: Pre-loaded " + mapData.explicitlySavedChunks.size() + " chunks from save data.");
         }
 
-        // --- NEW: Load all non-player entities ---
-        this.entities.clear();
-        if (mapData.entities != null) {
-            for (EntitySaveData entityData : mapData.entities) {
-                // This safety check prevents crashes from corrupted save data
-                if (entityData == null || entityData.entityType == null) {
-                    System.err.println("Skipping a null or typeless entity in the save file.");
-                    continue;
-                }
-
-                Entity newEntity = null;
-                switch (entityData.entityType) {
-                    case "COW":
-                        newEntity = new Cow(entityData.mapRow, entityData.mapCol);
-                        break;
-                    case "SLIME":
-                        newEntity = new Slime(entityData.mapRow, entityData.mapCol);
-                        break;
-                }
-
-                if (newEntity != null) {
-                    newEntity.health = entityData.health;
-                    this.entities.add(newEntity);
-                }
-            }
-            System.out.println("Map.loadState: Loaded " + this.entities.size() + " non-player entities.");
-        }
-
+        // Entity loading logic has been moved to EntityManager
         return true;
     }
 
@@ -446,26 +274,20 @@ public class Map {
             }
         } catch (ArrayIndexOutOfBoundsException | NullPointerException e) {
             System.err.println("Error converting saved chunk data to Tile[][]: " + e.getMessage());
-            return null; // Or handle more gracefully
+            return null;
         }
         return chunkTiles;
     }
-
-
-    // --- Utility methods that now operate with global coordinates ---
 
     public Tile.TileType determineTileTypeFromElevation(int elevation) {
         if (elevation < NIVEL_MAR) return Tile.TileType.WATER;
         if (elevation < NIVEL_ARENA) return Tile.TileType.SAND;
         if (elevation < NIVEL_ROCA) return Tile.TileType.GRASS;
-        // Adjusted rock layer to be a bit more prominent before snow
         if (elevation < NIVEL_ROCA + (NIVEL_NIEVE - NIVEL_ROCA) / 2) return Tile.TileType.ROCK;
-        if (elevation < NIVEL_NIEVE) return Tile.TileType.ROCK; // More rock
+        if (elevation < NIVEL_NIEVE) return Tile.TileType.ROCK;
         return Tile.TileType.SNOW;
     }
 
-    // In Map.java - MAKE SURE THIS IS THE ONLY placeBlock METHOD
-    // In Map.java
     public boolean placeBlock(int globalR, int globalC, Item itemToPlace, Game game) {
         if (itemToPlace == null) {
             System.err.println("PLACEMENT FAILED: Item to place was null.");
@@ -509,29 +331,22 @@ public class Map {
                 return false;
         }
 
-        // --- START OF TARGETED LOGIC ---
-
-        // Store the old light levels before changing the tile
         byte oldSkyLight = targetTile.getSkyLightLevel();
         byte oldBlockLight = targetTile.getBlockLightLevel();
 
-        // Update the tile's properties
         targetTile.setElevation(newElevation);
         targetTile.setType(newType);
         targetTile.setTreeType(Tile.TreeVisualType.NONE);
         targetTile.setLooseRockType(Tile.LooseRockType.NONE);
 
-        // A newly placed solid block has no light of its own and blocks the sky.
         targetTile.setSkyLightLevel((byte) 0);
         targetTile.setBlockLightLevel((byte) 0);
 
-        // Mark the chunk as logically modified for saving
         markChunkAsModified(Math.floorDiv(globalC, CHUNK_SIZE_TILES), Math.floorDiv(globalR, CHUNK_SIZE_TILES));
 
         LightManager lm = this.lightManager;
         if (lm == null) return true;
 
-        // Queue the removal of the old light from the modified tile's location.
         if (oldSkyLight > 0) {
             lm.getSkyLightRemovalQueue_Direct().add(new LightManager.LightNode(globalR, globalC, oldSkyLight));
         }
@@ -539,7 +354,6 @@ public class Map {
             lm.getBlockLightRemovalQueue_Direct().add(new LightManager.LightNode(globalR, globalC, oldBlockLight));
         }
 
-        // Now, queue the direct neighbors for updates.
         int[] dr = {-1, 1, 0, 0};
         int[] dc = {0, 0, -1, 1};
         for (int i = 0; i < 4; i++) {
@@ -556,14 +370,11 @@ public class Map {
             }
         }
 
-        // Mark the central chunk and neighboring chunks as dirty for the renderer.
         lm.markChunkDirty(globalR, globalC);
         for (int i = 0; i < 4; i++) {
             lm.markChunkDirty(globalR + dr[i], globalC + dc[i]);
         }
 
-        // --- THIS IS THE LINE TO ADD FOR INSTANT UPDATES ---
-        // It forces all queued light calculations to finish right now.
         lm.processAllQueuesToCompletion();
 
         return true;
@@ -571,7 +382,7 @@ public class Map {
 
 
     public void setTileElevation(int globalR, int globalC, int newElevation) {
-        Tile tile = getTile(globalR, globalC); // This handles chunk loading/generation
+        Tile tile = getTile(globalR, globalC);
         if (tile == null) return;
 
         int oldElevation = tile.getElevation();
@@ -583,26 +394,22 @@ public class Map {
         tile.setType(determineTileTypeFromElevation(clampedElevation));
 
         if (clampedElevation != oldElevation && tile.getTreeType() != Tile.TreeVisualType.NONE) {
-            tile.setTreeType(Tile.TreeVisualType.NONE); // Elevation change removes trees
+            tile.setTreeType(Tile.TreeVisualType.NONE);
         }
         if (clampedElevation != oldElevation && tile.getLooseRockType() != Tile.LooseRockType.NONE) {
-            tile.setLooseRockType(Tile.LooseRockType.NONE); // Elevation change removes loose rocks
+            tile.setLooseRockType(Tile.LooseRockType.NONE);
         }
 
-        if (oldElevation != clampedElevation || oldType != tile.getType() || (oldTorchState != tile.hasTorch() && !oldTorchState) ) { // Check if torch was added or removed
+        if (oldElevation != clampedElevation || oldType != tile.getType() || (oldTorchState != tile.hasTorch() && !oldTorchState) ) {
             int chunkX = Math.floorDiv(globalC, CHUNK_SIZE_TILES);
             int chunkY = Math.floorDiv(globalR, CHUNK_SIZE_TILES);
             markChunkAsModified(chunkX, chunkY);
 
             queueLightUpdateForArea(globalR, globalC, 2, this.lightManager);
 
-            // If torch state changed or elevation changed where a torch was
             if (oldTorchState && (!tile.hasTorch() || oldElevation != clampedElevation)) {
-                lightManager.removeLightSource(globalR, globalC); // removeLightSource handles tile.setHasTorch(false)
+                lightManager.removeLightSource(globalR, globalC);
             }
-            // If a torch is now present (either newly placed or was already there and elevation didn't destroy it)
-            // and it wasn't there before in this state, or its light needs re-assertion.
-            // The addLightSource in queueLightUpdateForArea should handle re-asserting existing torches.
         }
     }
 
@@ -613,48 +420,40 @@ public class Map {
                 int nr = globalRow + dr;
                 int nc = globalCol + dc;
 
-                Tile t = getTile(nr, nc); // Ensures chunk data exists for this tile
+                Tile t = getTile(nr, nc);
                 if (t != null) {
-                    // Queue sky light updates
                     if (lm.isSurfaceTileExposedToSky(nr, nc, t.getElevation())) {
-                        // If exposed, it should try to get the current global target and propagate from there.
                         lm.getSkyLightPropagationQueue_Direct().add(new LightManager.LightNode(nr, nc, lm.getCurrentGlobalSkyLightTarget()));
                     } else if (t.getSkyLightLevel() > 0) {
-                        // If not exposed but had sky light, it needs to be removed.
                         lm.getSkyLightRemovalQueue_Direct().add(new LightManager.LightNode(nr, nc, t.getSkyLightLevel()));
                     }
 
-                    // Queue block light updates (if any block light was present)
                     if (t.getBlockLightLevel() > 0) {
                         lm.getBlockLightPropagationQueue_Direct().add(new LightManager.LightNode(nr, nc, t.getBlockLightLevel()));
                     }
 
-                    // If the tile itself is a torch, ensure its source is (re)added to propagation.
                     if (t.hasTorch()) {
-                        lm.addLightSource(nr, nc, (byte)TORCH_LIGHT_LEVEL); // addLightSource handles setting block light on tile
+                        lm.addLightSource(nr, nc, (byte)TORCH_LIGHT_LEVEL);
                     }
                 }
-                // Mark the CHUNK containing (nr, nc) as dirty for rendering.
-                // LightManager's markChunkDirty can take global tile coords.
                 lm.markChunkDirty(nr, nc);
             }
         }
     }
 
     public void toggleTorch(int globalR, int globalC) {
-        Tile tile = getTile(globalR, globalC); // This handles chunk loading/generation
+        Tile tile = getTile(globalR, globalC);
         if (tile != null && tile.getType() != Tile.TileType.WATER && tile.isSolidOpaqueBlock()) {
             if (tile.hasTorch()) {
-                lightManager.removeLightSource(globalR, globalC); // This method in LightManager should set tile.setHasTorch(false)
+                lightManager.removeLightSource(globalR, globalC);
             } else {
-                lightManager.addLightSource(globalR, globalC, (byte) TORCH_LIGHT_LEVEL); // This method in LightManager should set tile.setHasTorch(true)
+                lightManager.addLightSource(globalR, globalC, (byte) TORCH_LIGHT_LEVEL);
             }
-            // Mark chunk as modified
             int chunkX = Math.floorDiv(globalC, CHUNK_SIZE_TILES);
             int chunkY = Math.floorDiv(globalR, CHUNK_SIZE_TILES);
             markChunkAsModified(chunkX, chunkY);
 
-            queueLightUpdateForArea(globalR, globalC, 2, lightManager); // Update lighting in the area
+            queueLightUpdateForArea(globalR, globalC, 2, lightManager);
         }
     }
 
@@ -664,59 +463,40 @@ public class Map {
         int sourceStartGlobalX = sourceChunkCoord.chunkX * CHUNK_SIZE_TILES;
         int sourceStartGlobalY = sourceChunkCoord.chunkY * CHUNK_SIZE_TILES;
 
-        // Iterate over tiles that are on the border of sourceChunkCoord facing targetChunkCoord
-        // For each of these border tiles in the source chunk, queue them for light propagation.
-        // The light propagation logic itself (in LightManager) will then attempt to spread light
-        // into the adjacent tiles, which might be in the targetChunkCoord.
-
-        if (targetChunkCoord.chunkX > sourceChunkCoord.chunkX) { // Target is East of Source, check East border of Source
-            int borderX = sourceStartGlobalX + CHUNK_SIZE_TILES - 1; // Global X of the easternmost column of source chunk
+        if (targetChunkCoord.chunkX > sourceChunkCoord.chunkX) {
+            int borderX = sourceStartGlobalX + CHUNK_SIZE_TILES - 1;
             for (int y_local = 0; y_local < CHUNK_SIZE_TILES; y_local++) {
                 queueBorderTileForLightPropagation(sourceStartGlobalY + y_local, borderX, lm);
             }
-        } else if (targetChunkCoord.chunkX < sourceChunkCoord.chunkX) { // Target is West of Source, check West border of Source
-            int borderX = sourceStartGlobalX; // Global X of the westernmost column of source chunk
+        } else if (targetChunkCoord.chunkX < sourceChunkCoord.chunkX) {
+            int borderX = sourceStartGlobalX;
             for (int y_local = 0; y_local < CHUNK_SIZE_TILES; y_local++) {
                 queueBorderTileForLightPropagation(sourceStartGlobalY + y_local, borderX, lm);
             }
         }
 
-        if (targetChunkCoord.chunkY > sourceChunkCoord.chunkY) { // Target is South of Source, check South border of Source
-            int borderY = sourceStartGlobalY + CHUNK_SIZE_TILES - 1; // Global Y of the southernmost row of source chunk
+        if (targetChunkCoord.chunkY > sourceChunkCoord.chunkY) {
+            int borderY = sourceStartGlobalY + CHUNK_SIZE_TILES - 1;
             for (int x_local = 0; x_local < CHUNK_SIZE_TILES; x_local++) {
                 queueBorderTileForLightPropagation(borderY, sourceStartGlobalX + x_local, lm);
             }
-        } else if (targetChunkCoord.chunkY < sourceChunkCoord.chunkY) { // Target is North of Source, check North border of Source
-            int borderY = sourceStartGlobalY; // Global Y of the northernmost row of source chunk
+        } else if (targetChunkCoord.chunkY < sourceChunkCoord.chunkY) {
+            int borderY = sourceStartGlobalY;
             for (int x_local = 0; x_local < CHUNK_SIZE_TILES; x_local++) {
                 queueBorderTileForLightPropagation(borderY, sourceStartGlobalX + x_local, lm);
             }
         }
     }
 
-    /**
-     * Helper to queue a specific border tile for light propagation.
-     * Ensures the tile (and its chunk) is loaded before queueing.
-     */
     private void queueBorderTileForLightPropagation(int globalR, int globalC, LightManager lm) {
-        Tile tile = getTile(globalR, globalC); // Ensures chunk is loaded/generated
+        Tile tile = getTile(globalR, globalC);
         if (tile != null) {
-            // If sky light is present, add to sky propagation queue
             if (tile.getSkyLightLevel() > 0) {
-                // Basic check to avoid redundant queueing, more sophisticated checks can be added
-                // LightManager.LightNode node = new LightManager.LightNode(globalR, globalC, tile.getSkyLightLevel());
-                // if (!lm.getSkyLightPropagationQueue_Direct().contains(node)) { // Contains check can be slow for large queues
                 lm.getSkyLightPropagationQueue_Direct().add(new LightManager.LightNode(globalR, globalC, tile.getSkyLightLevel()));
-                // }
             }
-            // If block light is present, add to block propagation queue
             if (tile.getBlockLightLevel() > 0) {
-                // LightManager.LightNode node = new LightManager.LightNode(globalR, globalC, tile.getBlockLightLevel());
-                // if (!lm.getBlockLightPropagationQueue_Direct().contains(node)) {
                 lm.getBlockLightPropagationQueue_Direct().add(new LightManager.LightNode(globalR, globalC, tile.getBlockLightLevel()));
-                // }
             }
-            // If the tile itself is a torch, re-assert its light source
             if (tile.hasTorch()) {
                 lm.addLightSource(globalR, globalC, (byte)TORCH_LIGHT_LEVEL);
             }
@@ -728,8 +508,4 @@ public class Map {
     public int getCharacterSpawnCol() { return characterSpawnCol; }
     public LightManager getLightManager() { return lightManager; }
     public long getWorldSeed() { return worldSeed; }
-
-    // These are deprecated as the map is no longer of a fixed, predefined size.
-    @Deprecated public int getWidth() { throw new UnsupportedOperationException("getWidth() is not supported for an infinite map."); }
-    @Deprecated public int getHeight() { throw new UnsupportedOperationException("getHeight() is not supported for an infinite map."); }
 }

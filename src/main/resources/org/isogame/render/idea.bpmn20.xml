@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  targetNamespace="http://www.plunari-engine.com/bpmn"
+                  id="Definitions_Plunari_Engine">
+
+    <bpmn:process id="mainGameLoop" name="Plunari Main Game Loop" isExecutable="true">
+
+        <bpmn:startEvent id="startLoop" name="Frame Start"/>
+        <bpmn:task id="pollInput" name="Poll Raw Input (InputManager)">
+            <bpmn:documentation>Reads keyboard and mouse state from hardware.</bpmn:documentation>
+        </bpmn:task>
+        <bpmn:subProcess id="updateLogic" name="Update World State (Logic Phase)">
+            <bpmn:startEvent id="logicStart"/>
+            <bpmn:task id="updateAI" name="Update AI System">
+                <bpmn:documentation>Runs behavior trees for all GameObjects with an AIComponent.</bpmn:documentation>
+            </bpmn:task>
+            <bpmn:task id="updatePhysics" name="Update Physics System">
+                <bpmn:documentation>Updates position based on velocity for all GameObjects with Transform and Velocity components.</bpmn:documentation>
+            </bpmn:task>
+            <bpmn:task id="updateAutomation" name="Update Automation System">
+                <bpmn:documentation>Updates all machines (Furnaces, Inserters) with a WorkableComponent.</bpmn:documentation>
+            </bpmn:task>
+            <bpmn:task id="updateFarming" name="Update Farming System">
+                <bpmn:documentation>Updates all crops with a GrowableComponent.</bpmn:documentation>
+            </bpmn:task>
+            <bpmn:endEvent id="logicEnd"/>
+            <bpmn:sequenceFlow id="flow_logic_start" sourceRef="logicStart" targetRef="updateAI"/>
+            <bpmn:sequenceFlow id="flow_ai_physics" sourceRef="updateAI" targetRef="updatePhysics"/>
+            <bpmn:sequenceFlow id="flow_physics_automation" sourceRef="updatePhysics" targetRef="updateAutomation"/>
+            <bpmn:sequenceFlow id="flow_automation_farming" sourceRef="updateAutomation" targetRef="updateFarming"/>
+            <bpmn:sequenceFlow id="flow_farming_end" sourceRef="updateFarming" targetRef="logicEnd"/>
+        </bpmn:subProcess>
+        <bpmn:subProcess id="renderFrame" name="Render Frame (Presentation Phase)">
+            <bpmn:startEvent id="renderStart"/>
+            <bpmn:task id="renderWorld" name="Render World (RenderSystem)">
+                <bpmn:documentation>Draws map tiles, entities, and world objects based on their final state.</bpmn:documentation>
+            </bpmn:task>
+            <bpmn:task id="renderUI" name="Render UI (UIManager)">
+                <bpmn:documentation>Draws all UI elements (hotbar, inventory, menus) on top of the world.</bpmn:documentation>
+            </bpmn:task>
+            <bpmn:endEvent id="renderEnd" name="Swap Buffers"/>
+            <bpmn:sequenceFlow id="flow_render_start" sourceRef="renderStart" targetRef="renderWorld"/>
+            <bpmn:sequenceFlow id="flow_world_ui" sourceRef="renderWorld" targetRef="renderUI"/>
+            <bpmn:sequenceFlow id="flow_ui_end" sourceRef="renderUI" targetRef="renderEnd"/>
+        </bpmn:subProcess>
+        <bpmn:endEvent id="endLoop" name="Frame End"/>
+        <bpmn:sequenceFlow id="flow1" sourceRef="startLoop" targetRef="pollInput"/>
+        <bpmn:sequenceFlow id="flow2" sourceRef="pollInput" targetRef="updateLogic"/>
+        <bpmn:sequenceFlow id="flow3" sourceRef="updateLogic" targetRef="renderFrame"/>
+        <bpmn:sequenceFlow id="flow4" sourceRef="renderFrame" targetRef="endLoop"/>
+    </bpmn:process>
+
+    <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+        <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="mainGameLoop">
+            <bpmndi:BPMNShape id="startLoop_di" bpmnElement="startLoop">
+                <dc:Bounds x="179" y="81" width="36" height="36" />
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="pollInput_di" bpmnElement="pollInput">
+                <dc:Bounds x="270" y="79" width="100" height="40" />
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="updateLogic_di" bpmnElement="updateLogic" isExpanded="true">
+                <dc:Bounds x="430" y="0" width="580" height="200" />
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="logicStart_di" bpmnElement="logicStart">
+                <dc:Bounds x="460" y="82" width="36" height="36" />
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="updateAI_di" bpmnElement="updateAI">
+                <dc:Bounds x="530" y="80" width="100" height="40" />
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="updatePhysics_di" bpmnElement="updatePhysics">
+                <dc:Bounds x="660" y="80" width="100" height="40" />
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="updateAutomation_di" bpmnElement="updateAutomation">
+                <dc:Bounds x="790" y="80" width="100" height="40" />
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="updateFarming_di" bpmnElement="updateFarming">
+                <dc:Bounds x="920" y="80" width="100" height="40" />
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="logicEnd_di" bpmnElement="logicEnd">
+                <dc:Bounds x="1052" y="82" width="36" height="36" />
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNEdge id="flow_logic_start_di" bpmnElement="flow_logic_start">
+                <di:waypoint x="496" y="100" />
+                <di:waypoint x="530" y="100" />
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="flow_ai_physics_di" bpmnElement="flow_ai_physics">
+                <di:waypoint x="630" y="100" />
+                <di:waypoint x="660" y="100" />
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="flow_physics_automation_di" bpmnElement="flow_physics_automation">
+                <di:waypoint x="760" y="100" />
+                <di:waypoint x="790" y="100" />
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="flow_automation_farming_di" bpmnElement="flow_automation_farming">
+                <di:waypoint x="890" y="100" />
+                <di:waypoint x="920" y="100" />
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="flow_farming_end_di" bpmnElement="flow_farming_end">
+                <di:waypoint x="1020" y="100" />
+                <di:waypoint x="1052" y="100" />
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNShape id="renderFrame_di" bpmnElement="renderFrame" isExpanded="true">
+                <dc:Bounds x="430" y="240" width="380" height="140" />
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="renderStart_di" bpmnElement="renderStart">
+                <dc:Bounds x="460" y="292" width="36" height="36" />
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="renderWorld_di" bpmnElement="renderWorld">
+                <dc:Bounds x="530" y="290" width="100" height="40" />
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="renderUI_di" bpmnElement="renderUI">
+                <dc:Bounds x="660" y="290" width="100" height="40" />
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="renderEnd_di" bpmnElement="renderEnd">
+                <dc:Bounds x="792" y="292" width="36" height="36" />
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNEdge id="flow_render_start_di" bpmnElement="flow_render_start">
+                <di:waypoint x="496" y="310" />
+                <di:waypoint x="530" y="310" />
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="flow_world_ui_di" bpmnElement="flow_world_ui">
+                <di:waypoint x="630" y="310" />
+                <di:waypoint x="660" y="310" />
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="flow_ui_end_di" bpmnElement="flow_ui_end">
+                <di:waypoint x="760" y="310" />
+                <di:waypoint x="792" y="310" />
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNShape id="endLoop_di" bpmnElement="endLoop">
+                <dc:Bounds x="1052" y="81" width="36" height="36" />
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNEdge id="flow1_di" bpmnElement="flow1">
+                <di:waypoint x="215" y="99" />
+                <di:waypoint x="270" y="99" />
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="flow2_di" bpmnElement="flow2">
+                <di:waypoint x="370" y="99" />
+                <di:waypoint x="430" y="99" />
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="flow3_di" bpmnElement="flow3">
+                <di:waypoint x="720" y="200" />
+                <di:waypoint x="720" y="240" />
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="flow4_di" bpmnElement="flow4">
+                <di:waypoint x="810" y="310" />
+                <di:waypoint x="1070" y="310" />
+                <di:waypoint x="1070" y="117" />
+            </bpmndi:BPMNEdge>
+        </bpmndi:BPMNPlane>
+    </bpmndi:BPMNDiagram>
+</bpmn:definitions>

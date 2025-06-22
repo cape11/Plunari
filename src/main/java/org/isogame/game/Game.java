@@ -57,6 +57,7 @@ public class Game {
     private Renderer renderer;
     private final InputHandler inputHandler;
     private final MouseHandler mouseHandler;
+    private final EntityManager entityManager; // <-- NEW: EntityManager instance
 
     // Game world specific components, initialized when a game starts/loads
     private Map map;
@@ -118,20 +119,17 @@ public class Game {
             cameraManager = new CameraManager(initialFramebufferWidth, initialScreenHeight, 1, 1);
             System.out.println("Game Constructor: CameraManager initialized.");
 
-            // Renderer is initialized once. It needs to handle null map/player for menu.
-            // Its internal references to map/player will be set in initializeGameWorldCommonLogic.
+            this.entityManager = new EntityManager();
+
+            // FIX: Corrected Renderer constructor call
             renderer = new Renderer(cameraManager, null, null, null);
             renderer.onResize(initialFramebufferWidth, initialScreenHeight);
-            System.out.println("Game Constructor: Renderer initialized for menu.")
-            ;
-            // Initialize registries that depend on loaded assets.
+            System.out.println("Game Constructor: Renderer initialized for menu.");
+
             ItemRegistry.loadItems();
             RecipeRegistry.loadRecipes();
             ItemRegistry.initializeItemUVs(renderer.getTextureMap());
 
-            // Input and Mouse Handlers are initialized once. Callbacks are registered once.
-            // They will use gameInstance.getCurrentGameState() to determine behavior.
-            // Their internal map/player references will be updated.
             inputHandler = new InputHandler(window, cameraManager, null, null, this);
             inputHandler.registerCallbacks(this::requestFullMapRegeneration);
             System.out.println("Game Constructor: InputHandler initialized and callbacks registered.");
@@ -152,7 +150,7 @@ public class Game {
         });
 
         currentGameState = GameState.MAIN_MENU;
-        refreshAvailableSaveFiles(); // This also calls setupMainMenuButtons
+        refreshAvailableSaveFiles();
         System.out.println("Game Constructor: Finished. Initial state: MAIN_MENU.");
     }
 
@@ -165,8 +163,8 @@ public class Game {
         }
 
         // Add player to the map's entity list when game starts
-        map.getEntities().clear();
-        map.getEntities().add(player);
+        entityManager.clearAllEntities();
+        entityManager.addEntity(player);
 
         this.lightManager = map.getLightManager();
         if (this.lightManager == null) {
@@ -181,8 +179,7 @@ public class Game {
         mouseHandler.updateGameReferences(map, player, inputHandler);
 
         // Update the existing Renderer instance with game world references
-        // This requires Renderer to have a method to accept these.
-        renderer.setGameSpecificReferences(map, player, inputHandler);
+        renderer.setGameSpecificReferences(map, player, inputHandler, entityManager);
         // Ensure viewport is correct if it was changed or if renderer was menu-only before
         int[] fbW = new int[1], fbH = new int[1];
         glfwGetFramebufferSize(window, fbW, fbH);
@@ -379,35 +376,32 @@ public class Game {
             LightManager.ChunkCoordinate currentActiveCoord = iterator.next();
             if (!desiredSet.contains(currentActiveCoord)) {
 
-                int chunkMinR = currentActiveCoord.chunkY * CHUNK_SIZE_TILES;
-                int chunkMaxR = chunkMinR + CHUNK_SIZE_TILES;
-                int chunkMinC = currentActiveCoord.chunkX * CHUNK_SIZE_TILES;
-                int chunkMaxC = chunkMinC + CHUNK_SIZE_TILES;
+                // Unload entities within the chunk that is being deactivated
+                if (entityManager != null) {
+                    int chunkMinR = currentActiveCoord.chunkY * CHUNK_SIZE_TILES;
+                    int chunkMaxR = chunkMinR + CHUNK_SIZE_TILES;
+                    int chunkMinC = currentActiveCoord.chunkX * CHUNK_SIZE_TILES;
+                    int chunkMaxC = chunkMinC + CHUNK_SIZE_TILES;
 
-                Iterator<Entity> entityIterator = map.getEntities().iterator();
-                while (entityIterator.hasNext()) {
-                    Entity entity = entityIterator.next();
-                    // If the entity is dead, remove it from the game.
-                    if (entity.isDead()) {
-                        entityIterator.remove();
-                        continue; // Skip the rest of the update logic for this dead entity
-                    }
+                    // Use an iterator to safely remove entities while iterating
+                    Iterator<Entity> entityIterator = entityManager.getEntities().iterator();
+                    while (entityIterator.hasNext()) {
+                        Entity entity = entityIterator.next();
+                        if (entity instanceof PlayerModel) { // Don't unload the player
+                            continue;
+                        }
+                        int entityR = entity.getTileRow();
+                        int entityC = entity.getTileCol();
 
-                    if (entity instanceof PlayerModel) {
-                        continue;
-                    }
-                    int entityR = entity.getTileRow();
-                    int entityC = entity.getTileCol();
-
-                    if (entityR >= chunkMinR && entityR < chunkMaxR && entityC >= chunkMinC && entityC < chunkMaxC) {
-                        entityIterator.remove();
+                        if (entityR >= chunkMinR && entityR < chunkMaxR && entityC >= chunkMinC && entityC < chunkMaxC) {
+                            entityIterator.remove();
+                        }
                     }
                 }
 
-                // --- FIX: Re-added the missing calls to unload the chunk itself ---
                 renderer.unloadChunkGraphics(currentActiveCoord.chunkX, currentActiveCoord.chunkY);
                 map.unloadChunkData(currentActiveCoord.chunkX, currentActiveCoord.chunkY);
-                iterator.remove(); // This is crucial, it removes the chunk from the currentlyActiveLogicalChunks set
+                iterator.remove();
                 globalSkyRefreshNeededQueue.remove(currentActiveCoord);
             }
         }
@@ -457,14 +451,13 @@ public class Game {
     }
 
     private void handleDynamicSpawning(double deltaTime) {
-        if (map == null || player == null) return;
+        if (map == null || player == null || entityManager == null) return;
 
         spawnTimer += deltaTime;
         if (spawnTimer >= SPAWN_CYCLE_TIME) {
             spawnTimer = 0;
 
-            // Check if we are under the entity cap
-            if (map.getEntities().size() >= Map.MAX_ANIMALS) {
+            if (entityManager.getEntities().size() >= MAX_ANIMALS + 1) { // +1 for the player
                 return;
             }
 
@@ -477,17 +470,12 @@ public class Game {
             if (currentlyActiveLogicalChunks.contains(new LightManager.ChunkCoordinate(chunkX, chunkY))) {
                 Tile targetTile = map.getTile(spawnTryY, spawnTryX);
 
-                // Only spawn on valid, walkable land tiles
                 if (targetTile != null && targetTile.getType() != Tile.TileType.WATER && targetTile.getType() != Tile.TileType.AIR) {
-
-                    // --- THIS IS THE KEY CHANGE ---
-                    // 50/50 chance to spawn a Slime or a Cow
                     if (spawnRandom.nextBoolean()) {
-                        map.getEntities().add(new Slime(spawnTryY + 0.5f, spawnTryX + 0.5f));
+                        entityManager.addEntity(new Slime(spawnTryY + 0.5f, spawnTryX + 0.5f));
                     } else {
-                        // Only spawn cows on grass for a more natural feel
                         if (targetTile.getType() == Tile.TileType.GRASS) {
-                            map.getEntities().add(new Cow(spawnTryY + 0.5f, spawnTryX + 0.5f));
+                            entityManager.addEntity(new Cow(spawnTryY + 0.5f, spawnTryX + 0.5f));
                         }
                     }
                 }
@@ -497,7 +485,7 @@ public class Game {
 
 
     private void updateGameLogic(double deltaTime) {
-        if (player == null || map == null || lightManager == null) return;
+        if (player == null || map == null || lightManager == null || entityManager == null) return;
 
         pseudoTimeOfDay += deltaTime * DAY_NIGHT_CYCLE_SPEED;
         if (pseudoTimeOfDay >= 1.0) pseudoTimeOfDay -= 1.0;
@@ -518,25 +506,8 @@ public class Game {
             }
         }
 
-        List<Entity> currentEntities = new ArrayList<>(map.getEntities());
-        for (Entity entity : currentEntities) {
-            if (!entity.isDead()) { // Only update entities that are alive
-                entity.update(deltaTime, this);
-                entity.updateVisualEffects(deltaTime);
-            }
-        }
-
-        // 2. After all updates are done, iterate over the original list and
-        //    safely remove any entity that is marked as dead.
-        Iterator<Entity> iterator = map.getEntities().iterator();
-        while (iterator.hasNext()) {
-            Entity entity = iterator.next();
-            if (entity.isDead()) {
-                iterator.remove();
-            }
-        }
-
-        // --- End of Corrected Logic ---
+        // Use the EntityManager to update all entities
+        entityManager.update(deltaTime, this);
 
         inputHandler.handleContinuousInput(deltaTime);
         cameraManager.update(deltaTime);
@@ -591,16 +562,19 @@ public class Game {
         this.currentWorldName = baseWorldName;
 
         this.map = new Map(saveState.mapData.worldSeed);
-        if (!this.map.loadState(saveState.mapData)) {
+        if (!this.map.loadState(saveState.mapData)) { // Map load no longer loads entities
             System.err.println("Failed to load map state from save file. Aborting load.");
             this.currentWorldName = null; this.map = null;
             return false;
         }
 
         this.player = new PlayerModel(this.map.getCharacterSpawnRow(), this.map.getCharacterSpawnCol());
-        this.placementManager = new PlacementManager(this, this.map, this.player); //
 
-        this.placementManager = new PlacementManager(this, this.map, this.player); //
+        // Load entities using the EntityManager AFTER player and map are loaded
+        this.entityManager.loadState(saveState);
+
+        this.placementManager = new PlacementManager(this, this.map, this.player);
+
         if (!this.player.loadState(saveState.playerData)) {
             System.err.println("Failed to load player state. Player state may be inconsistent.");
         }
@@ -638,8 +612,7 @@ public class Game {
         }
 
         System.out.println("Game loaded successfully: " + this.currentWorldName);
-        setCurrentGameState(GameState.IN_GAME); // This will also refresh save files if logic is consistent
-        // refreshAvailableSaveFiles(); // Not strictly needed here if setCurrentGameState handles it
+        setCurrentGameState(GameState.IN_GAME);
         return true;
     }
 
@@ -648,8 +621,8 @@ public class Game {
             System.err.println("SaveGame Error: World name is null or empty.");
             return;
         }
-        if (player == null || map == null) {
-            System.err.println("SaveGame Error: Player or Map is null. Cannot save.");
+        if (player == null || map == null || entityManager == null) {
+            System.err.println("SaveGame Error: Player, Map, or EntityManager is null. Cannot save.");
             return;
         }
 
@@ -662,7 +635,8 @@ public class Game {
         player.populateSaveData(saveState.playerData);
 
         saveState.mapData = new MapSaveData();
-        map.populateSaveData(saveState.mapData);
+        map.populateSaveData(saveState.mapData); // Map saves its own data
+        entityManager.populateSaveData(saveState); // EntityManager saves entity data into the mapData object
 
         saveState.pseudoTimeOfDay = this.pseudoTimeOfDay;
 
@@ -678,35 +652,23 @@ public class Game {
         }
     }
 
-    /**
-     * Checks if the player has enough items in their inventory to craft a given recipe.
-     * @param recipe The recipe to check.
-     * @return true if the recipe can be crafted, false otherwise.
-     */
     public boolean canCraft(CraftingRecipe recipe) {
         if (player == null || recipe == null) return false;
 
         for (java.util.Map.Entry<Item, Integer> entry : recipe.getRequiredItems().entrySet()) {
             Item requiredItem = entry.getKey();
             int requiredQuantity = entry.getValue();
-            // Use the new helper method in PlayerModel
             if (player.getInventoryItemCount(requiredItem) < requiredQuantity) {
-                return false; // Player doesn't have enough of this item
+                return false;
             }
         }
-        return true; // Player has all required items
+        return true;
     }
 
-    /**
-     * Executes the craft if possible. Consumes ingredients and adds the output to the player's inventory.
-     * @param recipe The recipe to craft.
-     */
     public void doCraft(CraftingRecipe recipe) {
-        // FIX 1: Check if the player has space for the output item BEFORE consuming ingredients.
-        // The hasSpaceFor method already exists in your PlayerModel.
         if (!player.hasSpaceFor(recipe.getOutputItem(), recipe.getOutputQuantity())) {
             System.out.println("Cannot craft " + recipe.getOutputItem().getDisplayName() + ": No inventory space.");
-            return; // Exit without consuming ingredients
+            return;
         }
 
         if (!canCraft(recipe)) {
@@ -714,22 +676,15 @@ public class Game {
             return;
         }
 
-        // Consume ingredients using the new helper method
         for (java.util.Map.Entry<Item, Integer> entry : recipe.getRequiredItems().entrySet()) {
             player.consumeItem(entry.getKey(), entry.getValue());
         }
 
-        // Add the crafted item to the player's inventory
         player.addItemToInventory(recipe.getOutputItem(), recipe.getOutputQuantity());
-
-        // FIX 2: Mark the UI as dirty so it redraws with the new inventory state.
         setHotbarDirty(true);
 
         System.out.println("Crafted: " + recipe.getOutputItem().getDisplayName());
     }
-
-
-
 
     public void initOpenGL() {
         System.out.println("Game.initOpenGL() - OpenGL version from context: " + glGetString(GL_VERSION));
@@ -876,10 +831,9 @@ public class Game {
 
         this.map = new Map(new Random().nextLong());
         this.player = new PlayerModel(map.getCharacterSpawnRow(), map.getCharacterSpawnCol());
-        this.placementManager = new PlacementManager(this, this.map, this.player); // <-- ADD THIS LINE
+        this.placementManager = new PlacementManager(this, this.map, this.player);
         this.player.getInventorySlots().forEach(InventorySlot::clearSlot);
         this.player.setSelectedHotbarSlotIndex(0);
-        this.placementManager = new PlacementManager(this, this.map, this.player); //
 
         this.currentWorldName = newWorldName;
         initializeGameWorldCommonLogic();
@@ -926,7 +880,6 @@ public class Game {
         }
     }
 
-    // Add these new getter and setter methods to the class
     public org.isogame.crafting.CraftingRecipe getHoveredRecipe() {
         return this.hoveredRecipe;
     }
@@ -935,89 +888,65 @@ public class Game {
         this.hoveredRecipe = recipe;
     }
 
+    public List<String> getAvailableSaveFiles() { return availableSaveFiles; }
+    public String getCurrentWorldName() { return currentWorldName; }
+    public void toggleInventory() { this.showInventory = !this.showInventory; }
+    public boolean isInventoryVisible() { return this.showInventory; }
+    public GameState getCurrentGameState() { return currentGameState; }
 
+    public void setCurrentGameState(GameState newState) {
+        System.out.println("Game state changing from " + this.currentGameState + " to " + newState + " (World: " + currentWorldName + ")");
+        GameState oldState = this.currentGameState;
+        this.currentGameState = newState;
 
-
-        public List<String> getAvailableSaveFiles() { return availableSaveFiles; }
-        public String getCurrentWorldName() { return currentWorldName; }
-        public void toggleInventory() { this.showInventory = !this.showInventory; }
-        public boolean isInventoryVisible() { return this.showInventory; }
-        public GameState getCurrentGameState() { return currentGameState; }
-
-        public void setCurrentGameState(GameState newState) {
-            System.out.println("Game state changing from " + this.currentGameState + " to " + newState + " (World: " + currentWorldName + ")");
-            GameState oldState = this.currentGameState;
-            this.currentGameState = newState;
-
-            if (newState == GameState.MAIN_MENU) {
-                if (oldState == GameState.IN_GAME && currentWorldName != null && !currentWorldName.isEmpty() && map != null && player != null) {
-                    System.out.println("setCurrentGameState: Saving game " + currentWorldName + " before returning to menu.");
-                    saveGame(currentWorldName);
-                }
-                // When returning to menu, ensure menu-specific context for handlers and renderer
-                System.out.println("setCurrentGameState: Transitioning to MAIN_MENU. Resetting/Re-initializing UI components.");
-                if (renderer != null) {
-                    renderer.cleanup(); // Clean up in-game renderer resources
-                }
-                try {
-                    // Create a fresh renderer instance for the menu
-                    renderer = new Renderer(cameraManager, null, null, null);
-                    int[] fbW = new int[1], fbH = new int[1];
-                    glfwGetFramebufferSize(window, fbW, fbH);
-                    if (fbW[0] > 0 && fbH[0] > 0) renderer.onResize(fbW[0], fbH[0]);
-                    else renderer.onResize(WIDTH, HEIGHT); // Fallback
-
-                    // Input handlers also need to be context-aware or reset
-                    inputHandler.updateGameReferences(null, null); // Clear game world context
-                    mouseHandler.updateGameReferences(null, null, inputHandler); // Clear game world context
-
-                    System.out.println("setCurrentGameState: UI components re-initialized for MAIN_MENU.");
-                } catch (Exception e) {
-                    System.err.println("Error re-initializing components for MAIN_MENU: " + e.getMessage());
-                    e.printStackTrace();
-                }
+        if (newState == GameState.MAIN_MENU) {
+            if (oldState == GameState.IN_GAME && currentWorldName != null && !currentWorldName.isEmpty() && map != null && player != null) {
+                System.out.println("setCurrentGameState: Saving game " + currentWorldName + " before returning to menu.");
+                saveGame(currentWorldName);
+            }
+            System.out.println("setCurrentGameState: Transitioning to MAIN_MENU. Resetting/Re-initializing UI components.");
+            if (renderer != null) {
+                renderer.clearGameContext();
+            }
+            inputHandler.updateGameReferences(null, null);
+            mouseHandler.updateGameReferences(null, null, inputHandler);
+            refreshAvailableSaveFiles();
+        } else if (newState == GameState.IN_GAME) {
+            if (map == null || player == null) {
+                System.err.println("setCurrentGameState: Attempting to enter IN_GAME without map/player. Forcing MAIN_MENU.");
+                this.currentGameState = GameState.MAIN_MENU;
                 refreshAvailableSaveFiles();
-            } else if (newState == GameState.IN_GAME) {
-                // This state is typically entered via createNewWorld() or loadGame(),
-                // which already call initializeGameWorldCommonLogic().
-                if (map == null || player == null) {
-                    System.err.println("setCurrentGameState: Attempting to enter IN_GAME without map/player. Forcing MAIN_MENU.");
-                    this.currentGameState = GameState.MAIN_MENU; // Revert
-                    refreshAvailableSaveFiles(); // This will re-setup menu
-                    return;
-                }
-                // If initializeGameWorldCommonLogic wasn't called by create/load (e.g. direct state set)
-                // or if renderer is not set up for the game world.
-                if (renderer == null || renderer.getMap() != map || lightManager == null) {
-                    System.out.println("setCurrentGameState: IN_GAME state set, ensuring common logic is initialized/updated.");
-                    initializeGameWorldCommonLogic();
-                }
+                return;
+            }
+            if (renderer == null || renderer.getMap() != map || lightManager == null) {
+                System.out.println("setCurrentGameState: IN_GAME state set, ensuring common logic is initialized/updated.");
+                initializeGameWorldCommonLogic();
+            }
 
-                if (mouseHandler != null) mouseHandler.resetLeftMouseDragFlags();
-                if (cameraManager != null && player != null && inputHandler != null) {
-                    float[] focusPoint = inputHandler.calculateCameraFocusPoint(player.getMapCol(), player.getMapRow());
-                    cameraManager.setTargetPositionInstantly(focusPoint[0], focusPoint[1]);
-                }
+            if (mouseHandler != null) mouseHandler.resetLeftMouseDragFlags();
+            if (cameraManager != null && player != null && inputHandler != null) {
+                float[] focusPoint = inputHandler.calculateCameraFocusPoint(player.getMapCol(), player.getMapRow());
+                cameraManager.setTargetPositionInstantly(focusPoint[0], focusPoint[1]);
             }
         }
+    }
 
+    public int getCurrentRenderDistanceChunks() { return currentRenderDistanceChunks; }
+    public void increaseRenderDistance() { currentRenderDistanceChunks = Math.min(currentRenderDistanceChunks + 1, RENDER_DISTANCE_CHUNKS_MAX); }
+    public void decreaseRenderDistance() { currentRenderDistanceChunks = Math.max(RENDER_DISTANCE_CHUNKS_MIN, currentRenderDistanceChunks - 1); }
 
-        public int getCurrentRenderDistanceChunks() { return currentRenderDistanceChunks; }
-        public void increaseRenderDistance() { currentRenderDistanceChunks = Math.min(currentRenderDistanceChunks + 1, RENDER_DISTANCE_CHUNKS_MAX); }
-        public void decreaseRenderDistance() { currentRenderDistanceChunks = Math.max(RENDER_DISTANCE_CHUNKS_MIN, currentRenderDistanceChunks - 1); }
+    public int getSelectedHotbarSlotIndex() {
+        return (player != null) ? player.getSelectedHotbarSlotIndex() : 0;
+    }
 
-        public int getSelectedHotbarSlotIndex() {
-            return (player != null) ? player.getSelectedHotbarSlotIndex() : 0;
+    public void setSelectedHotbarSlotIndex(int index) {
+        if (player != null) {
+            player.setSelectedHotbarSlotIndex(index);
+            if (renderer != null) renderer.setHotbarDirty(true);
         }
+    }
 
-        public void setSelectedHotbarSlotIndex(int index) {
-            if (player != null) {
-                player.setSelectedHotbarSlotIndex(index);
-                if (renderer != null) renderer.setHotbarDirty(true);
-            }
-        }
-
-    private void renderGame(double deltaTime) { // <-- CHANGE: Added deltaTime parameter
+    private void renderGame(double deltaTime) {
         if (renderer == null || lightManager == null || map == null || player == null || cameraManager == null) {
             System.err.println("Game.renderGame: Critical component is null. Skipping render. CurrentState: " + currentGameState);
             glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
@@ -1025,7 +954,6 @@ public class Game {
             return;
         }
 
-        // --- Calculate Sky Color (Unchanged) ---
         float rSky, gSky, bSky;
         float lightRange = (float)(SKY_LIGHT_DAY - SKY_LIGHT_NIGHT_MINIMUM);
         float lightRatio = 0.5f;
@@ -1044,10 +972,6 @@ public class Game {
         glEnable(GL_DEPTH_TEST);
         renderer.render(pseudoTimeOfDay, deltaTime);
 
-        // --- MODIFICATION: Pass time of day to the renderer ---
-        renderer.render(pseudoTimeOfDay, deltaTime);
-
-        // --- Render UI Elements (Unchanged) ---
         glDisable(GL_DEPTH_TEST);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -1076,98 +1000,70 @@ public class Game {
         glEnable(GL_DEPTH_TEST);
     }
 
-    // --- NEW GETTER (Optional but good practice) ---
     public double getPseudoTimeOfDay() {
         return this.pseudoTimeOfDay;
     }
 
-
     public void requestFullMapRegeneration() {
-            System.out.println("Game: Full map regeneration requested (new world with new seed).");
-            if (renderer != null && renderer.getMap() != null && currentlyActiveLogicalChunks != null) { // Check if renderer has an active map
-                System.out.println("requestFullMapRegeneration: Cleaning up graphics from previous world.");
-                for(LightManager.ChunkCoordinate coord : currentlyActiveLogicalChunks) {
-                    if(renderer.isChunkGraphicsLoaded(coord.chunkX, coord.chunkY)){
-                        renderer.unloadChunkGraphics(coord.chunkX, coord.chunkY);
-                    }
+        System.out.println("Game: Full map regeneration requested (new world with new seed).");
+        if (renderer != null && renderer.getMap() != null && currentlyActiveLogicalChunks != null) {
+            System.out.println("requestFullMapRegeneration: Cleaning up graphics from previous world.");
+            for(LightManager.ChunkCoordinate coord : currentlyActiveLogicalChunks) {
+                if(renderer.isChunkGraphicsLoaded(coord.chunkX, coord.chunkY)){
+                    renderer.unloadChunkGraphics(coord.chunkX, coord.chunkY);
                 }
             }
-            currentlyActiveLogicalChunks.clear();
-            globalSkyRefreshNeededQueue.clear();
-            chunkRenderUpdateQueue.clear();
-
-            this.map = new Map(new Random().nextLong());
-            this.player = new PlayerModel(map.getCharacterSpawnRow(), map.getCharacterSpawnCol());
-            this.player.getInventorySlots().forEach(InventorySlot::clearSlot);
-            this.player.setSelectedHotbarSlotIndex(0);
-
-            this.currentWorldName = null;
-            initializeGameWorldCommonLogic();
-            System.out.println("Game: Full map regeneration processing complete. World is now unsaved.");
         }
+        currentlyActiveLogicalChunks.clear();
+        globalSkyRefreshNeededQueue.clear();
+        chunkRenderUpdateQueue.clear();
 
-    // In Game.java
+        this.map = new Map(new Random().nextLong());
+        this.player = new PlayerModel(map.getCharacterSpawnRow(), map.getCharacterSpawnCol());
+        this.player.getInventorySlots().forEach(InventorySlot::clearSlot);
+        this.player.setSelectedHotbarSlotIndex(0);
+
+        this.currentWorldName = null;
+        initializeGameWorldCommonLogic();
+        System.out.println("Game: Full map regeneration processing complete. World is now unsaved.");
+    }
 
     public void requestTileRenderUpdate(int r, int c) {
         if (renderer == null || lightManager == null || map == null || CHUNK_SIZE_TILES <= 0) {
             return;
         }
-        // This is the direct, unified fix.
-        // Instead of using our own queue, we tell the LightManager the chunk is dirty.
-        // The main game loop already has logic to process the LightManager's dirty list.
-        // This ensures lighting and block updates are handled by the same system.
         lightManager.markChunkDirty(r, c);
-
-        // We can add a debug message here to be 100% certain the call is happening.
         System.out.println("GAME: Acknowledged tile change at (" + r + "," + c + "). Marked chunk as dirty in LightManager.");
     }
 
+    public boolean isShowHotbar() { return this.showHotbar; }
+    public Map getMap() { return this.map; }
+    public EntityManager getEntityManager() { return this.entityManager; } // <-- NEW GETTER
+    public boolean isDraggingItem() { return this.isDraggingItem; }
+    public InventorySlot getDraggedItemStack() { return this.draggedItemStack; }
 
-        public boolean isShowHotbar() { return this.showHotbar; }
-
-
-    public Map getMap() {
-        return this.map;
-    }
-
-    public boolean isDraggingItem() {
-        return this.isDraggingItem;
-    }
-
-    public InventorySlot getDraggedItemStack() {
-        return this.draggedItemStack;
-    }
-    /**
-     * Called by MouseHandler when a drag begins.
-     * @param slotIndex The inventory slot index where the drag started.
-     */
     public void startDraggingItem(int slotIndex) {
         if (player == null || slotIndex < 0 || slotIndex >= player.getInventorySlots().size()) {
             return;
         }
         InventorySlot sourceSlot = player.getInventorySlots().get(slotIndex);
         if (sourceSlot.isEmpty()) {
-            return; // Cannot drag an empty slot
+            return;
         }
 
         this.draggedItemStack = new InventorySlot();
-        this.draggedItemStack.addItem(sourceSlot.getItem(), sourceSlot.getQuantity()); // Create a copy
+        this.draggedItemStack.addItem(sourceSlot.getItem(), sourceSlot.getQuantity());
         this.originalDragSlotIndex = slotIndex;
         this.isDraggingItem = true;
 
-        sourceSlot.clearSlot(); // Remove item from the original slot
-        setHotbarDirty(true); // Mark UI for redraw
+        sourceSlot.clearSlot();
+        setHotbarDirty(true);
     }
-
-
 
     public PlacementManager getPlacementManager() {
         return this.placementManager;
     }
-    /**
-     * Called by MouseHandler when the mouse button is released.
-     * @param dropSlotIndex The inventory slot index where the item was dropped, or -1 if outside.
-     */
+
     public void stopDraggingItem(int dropSlotIndex) {
         if (!isDraggingItem || player == null) {
             isDraggingItem = false;
@@ -1176,41 +1072,31 @@ public class Game {
 
         List<InventorySlot> slots = player.getInventorySlots();
 
-        // Case 1: Dropped on a valid slot
         if (dropSlotIndex >= 0 && dropSlotIndex < slots.size()) {
             InventorySlot targetSlot = slots.get(dropSlotIndex);
 
-            // If target slot is empty, just place the item there.
             if (targetSlot.isEmpty()) {
                 targetSlot.addItem(draggedItemStack.getItem(), draggedItemStack.getQuantity());
             } else {
-                // If target slot is not empty, swap the items.
-                // Store the target's items temporarily.
                 Item tempItem = targetSlot.getItem();
                 int tempQuantity = targetSlot.getQuantity();
 
-                // Place dragged item in the target slot.
                 targetSlot.clearSlot();
                 targetSlot.addItem(draggedItemStack.getItem(), draggedItemStack.getQuantity());
 
-                // Place the target's original items back in the source slot.
                 slots.get(originalDragSlotIndex).addItem(tempItem, tempQuantity);
             }
         }
-        // Case 2: Dropped outside the inventory or on an invalid slot
         else {
-            // Return the item to its original slot.
             player.getInventorySlots().get(originalDragSlotIndex).addItem(draggedItemStack.getItem(), draggedItemStack.getQuantity());
         }
 
-        // Reset drag state
         this.isDraggingItem = false;
         this.draggedItemStack = null;
         this.originalDragSlotIndex = -1;
-        setHotbarDirty(true); // Mark UI for redraw
+        setHotbarDirty(true);
     }
 
-    // Helper method to mark hotbar for redraw, if it's not already in Game.java
     public void setHotbarDirty(boolean dirty) {
         if (renderer != null) {
             renderer.setHotbarDirty(true);
@@ -1226,8 +1112,6 @@ public class Game {
     private void cleanup() {
         System.out.println("Game cleanup initiated...");
         if (renderer != null) renderer.cleanup();
-        // If InputHandler or MouseHandler held any specific resources that need freeing (unlikely for these classes),
-        // they would also have cleanup methods called here.
         System.out.println("Game cleanup complete.");
     }
 
@@ -1237,4 +1121,5 @@ public class Game {
 
     public LightManager getLightManager() {
         return (map != null) ? map.getLightManager() : null;
-    }}
+    }
+}
