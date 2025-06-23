@@ -1,6 +1,7 @@
 package org.isogame.ui;
 
 import org.isogame.asset.AssetManager;
+import org.isogame.crafting.CraftingRecipe;
 import org.isogame.game.Game;
 import org.isogame.input.InputHandler;
 import org.isogame.inventory.InventorySlot;
@@ -154,6 +155,7 @@ public class UIManager {
 
     // --- METHODS MOVED FROM RENDERER ---
 
+    // in isogame/ui/UIManager.java
     private void renderInventoryAndCraftingUI(PlayerModel playerForInventory) {
         Font currentUiFont = renderer.getUiFont();
         Font titleFont = renderer.getTitleFont();
@@ -163,13 +165,12 @@ public class UIManager {
             return;
         }
 
-        // --- 1. LAYOUT CALCULATIONS ---
+        // --- 1. LAYOUT CALCULATIONS (This part is correct) ---
         final float slotSize = 50f;
         final float slotMargin = 10f;
         final float panelMarginX = 30f;
         final float topMarginY = 40f;
         final float marginBetweenPanels = 20f;
-
         final int invSlotsPerRow = 5;
         List<InventorySlot> slots = playerForInventory.getInventorySlots();
         final int invNumRows = slots.isEmpty() ? 1 : (int) Math.ceil((double) slots.size() / invSlotsPerRow);
@@ -177,15 +178,14 @@ public class UIManager {
         final float invPanelHeight = (invNumRows * slotSize) + ((invNumRows + 1) * slotMargin);
         final float invPanelX = renderer.getCamera().getScreenWidth() - invPanelWidth - panelMarginX;
         final float invPanelY = topMarginY;
-
-        List<org.isogame.crafting.CraftingRecipe> allRecipes = org.isogame.crafting.RecipeRegistry.getAllRecipes();
+        List<CraftingRecipe> allRecipes = org.isogame.crafting.RecipeRegistry.getAllRecipes();
         final float recipeRowHeight = 50f;
         final float craftPanelWidth = invPanelWidth;
         final float craftPanelHeight = (allRecipes.size() * recipeRowHeight) + (slotMargin * 2) + 30f;
         final float craftPanelX = invPanelX;
         final float craftPanelY = invPanelY + invPanelHeight + marginBetweenPanels;
 
-        // --- 2. RENDER PANEL BACKGROUNDS AND SLOTS ---
+        // --- 2. RENDER PANEL BACKGROUNDS AND SLOTS (This part is correct) ---
         renderer.beginUIColoredRendering();
         float[] invPanelColor = {0.15f, 0.15f, 0.2f, 0.95f};
         float[] craftPanelColor = {0.1f, 0.1f, 0.15f, 0.95f};
@@ -200,7 +200,6 @@ public class UIManager {
             SlotStyle style = getSlotStyle(isSelected, !slots.get(i).isEmpty());
             renderer.drawGradientQuad(currentSlotX, currentSlotY, slotSize, slotSize, 0.03f, style.topBgColor, style.bottomBgColor);
             renderer.drawColoredQuad(currentSlotX - style.borderWidth, currentSlotY - style.borderWidth, slotSize + (2 * style.borderWidth), slotSize + (2 * style.borderWidth), 0.02f, style.borderColor);
-
             currentSlotX += slotSize + slotMargin;
             colCount++;
             if (colCount >= invSlotsPerRow) {
@@ -211,11 +210,12 @@ public class UIManager {
         }
         renderer.endUIColoredRendering();
 
-        // --- 3. RENDER ICONS (BATCHED) ---
+        // --- 3. GATHER ALL ICONS TO BE RENDERED (INVENTORY AND CRAFTING) ---
         Map<Texture, List<IconRenderData>> iconBatchMap = new HashMap<>();
         final float itemRenderSize = slotSize * 0.8f;
         final float itemOffset = (slotSize - itemRenderSize) / 2f;
 
+        // GATHER INVENTORY ICONS
         currentSlotX = invPanelX + slotMargin;
         currentSlotY = invPanelY + slotMargin;
         colCount = 0;
@@ -237,6 +237,24 @@ public class UIManager {
             }
         }
 
+        // GATHER CRAFTING ICONS
+        final float recipeIconSize = 32f;
+        float currentRecipeY = craftPanelY + 40f; // Start below title
+        for (CraftingRecipe recipe : allRecipes) {
+            Item outputItem = recipe.getOutputItem();
+            if (outputItem != null && outputItem.hasIconTexture()) {
+                Texture itemTexture = assetManager.getTexture(outputItem.getAtlasName());
+                if (itemTexture != null) {
+                    float iconX = craftPanelX + 10f;
+                    float iconY = currentRecipeY + (recipeRowHeight - recipeIconSize) / 2f;
+                    iconBatchMap.computeIfAbsent(itemTexture, k -> new ArrayList<>())
+                            .add(new IconRenderData(iconX, iconY, 0.01f, recipeIconSize, outputItem));
+                }
+            }
+            currentRecipeY += recipeRowHeight;
+        }
+
+        // --- 4. RENDER THE ENTIRE BATCH OF ICONS ---
         renderer.beginUITexturedRendering();
         for (Map.Entry<Texture, List<IconRenderData>> entry : iconBatchMap.entrySet()) {
             renderer.bindTexture(entry.getKey());
@@ -246,8 +264,7 @@ public class UIManager {
         }
         renderer.endUITexturedRendering();
 
-
-        // --- 4. RENDER TEXT ---
+        // --- 5. RENDER ALL TEXT AND TOOLTIPS ---
         renderInventoryText(slots, currentUiFont, invPanelX, invPanelY, slotSize, slotMargin, invSlotsPerRow);
         renderCraftingText(allRecipes, game, currentUiFont, titleFont, craftPanelX, craftPanelY, craftPanelWidth, recipeRowHeight);
 
