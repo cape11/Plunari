@@ -1,5 +1,8 @@
+// Game.java
+
 package org.isogame.game;
 
+import org.isogame.asset.AssetManager;
 import org.isogame.constants.Constants;
 import org.isogame.crafting.CraftingRecipe;
 import org.isogame.crafting.RecipeRegistry;
@@ -17,6 +20,7 @@ import org.isogame.render.Renderer;
 import org.isogame.savegame.*;
 import org.isogame.tile.Tile;
 import org.isogame.ui.MenuItemButton;
+import org.isogame.ui.UIManager;
 
 
 import com.google.gson.Gson;
@@ -58,6 +62,9 @@ public class Game {
     private final InputHandler inputHandler;
     private final MouseHandler mouseHandler;
     private final EntityManager entityManager; // <-- NEW: EntityManager instance
+    private final UIManager uiManager;
+    private AssetManager assetManager;
+
 
     // Game world specific components, initialized when a game starts/loads
     private Map map;
@@ -126,9 +133,14 @@ public class Game {
             renderer.onResize(initialFramebufferWidth, initialScreenHeight);
             System.out.println("Game Constructor: Renderer initialized for menu.");
 
+            assetManager = new AssetManager(renderer);
+            assetManager.loadAllAssets();
+            renderer.setAssetManager(assetManager);
+
+
             ItemRegistry.loadItems();
             RecipeRegistry.loadRecipes();
-            ItemRegistry.initializeItemUVs(renderer.getTextureMap());
+            ItemRegistry.initializeItemUVs(assetManager.getTextureMapForRegistry());
 
             inputHandler = new InputHandler(window, cameraManager, null, null, this);
             inputHandler.registerCallbacks(this::requestFullMapRegeneration);
@@ -136,6 +148,8 @@ public class Game {
 
             mouseHandler = new MouseHandler(window, cameraManager, null, inputHandler, null, this);
             System.out.println("Game Constructor: MouseHandler initialized.");
+
+            uiManager = new UIManager(this, renderer, null, null, inputHandler);
 
         } catch (Exception e) {
             System.err.println("FATAL: Exception during core component initialization in Game constructor!");
@@ -180,6 +194,8 @@ public class Game {
 
         // Update the existing Renderer instance with game world references
         renderer.setGameSpecificReferences(map, player, inputHandler, entityManager);
+        uiManager.updateGameReferences(player, assetManager);
+
         // Ensure viewport is correct if it was changed or if renderer was menu-only before
         int[] fbW = new int[1], fbH = new int[1];
         glfwGetFramebufferSize(window, fbW, fbH);
@@ -681,9 +697,6 @@ public class Game {
         }
 
         player.addItemToInventory(recipe.getOutputItem(), recipe.getOutputQuantity());
-        setHotbarDirty(true);
-
-        System.out.println("Crafted: " + recipe.getOutputItem().getDisplayName());
     }
 
     public void initOpenGL() {
@@ -942,7 +955,6 @@ public class Game {
     public void setSelectedHotbarSlotIndex(int index) {
         if (player != null) {
             player.setSelectedHotbarSlotIndex(index);
-            if (renderer != null) renderer.setHotbarDirty(true);
         }
     }
 
@@ -976,8 +988,9 @@ public class Game {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         renderer.renderPlayerHealthBar(player);
-        if (this.showInventory) renderer.renderInventoryAndCraftingUI(player);
-        if (this.showHotbar) renderer.renderHotbar(player, player.getSelectedHotbarSlotIndex());
+
+        uiManager.render();
+
         if (this.showDebugOverlay && inputHandler != null) {
             List<String> debugLines = new ArrayList<>();
             debugLines.add(String.format("FPS: %.1f", displayedFps));
@@ -1096,11 +1109,10 @@ public class Game {
         this.originalDragSlotIndex = -1;
         setHotbarDirty(true);
     }
+    private boolean hotbarDirty = true; // Start as dirty
 
     public void setHotbarDirty(boolean dirty) {
-        if (renderer != null) {
-            renderer.setHotbarDirty(true);
-        }
+        this.hotbarDirty = dirty;
     }
     public PlayerModel getPlayer() {
         return this.player;

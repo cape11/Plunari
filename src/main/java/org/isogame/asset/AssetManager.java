@@ -25,10 +25,11 @@ public class AssetManager {
         System.out.println("AssetManager: Loading all assets...");
         try {
             // Load Textures
-            loadTexture("tileAtlas", "/org/isogame/render/textures/textu.png");
+            // Use more descriptive names that match your JSON data
+            loadTexture("tileAtlasTexture", "/org/isogame/render/textures/textu.png");
             loadTexture("mainMenuBackground", "/org/isogame/render/textures/main_menu_background.png");
-            loadTexture("player", "/org/isogame/render/textures/lpc_character.png");
-            loadTexture("trees", "/org/isogame/render/textures/fruit-trees.png");
+            loadTexture("playerTexture", "/org/isogame/render/textures/lpc_character.png");
+            loadTexture("treeTexture", "/org/isogame/render/textures/fruit-trees.png"); // <-- RENAME THIS KEY
 
             // Load Fonts
             loadFont("ui", "/org/isogame/render/fonts/PressStart2P-Regular.ttf", 16f);
@@ -77,9 +78,10 @@ public class AssetManager {
 
     public Map<String, Texture> getTextureMapForRegistry() {
         Map<String, Texture> registryMap = new HashMap<>();
-        registryMap.put("tileAtlasTexture", getTexture("tileAtlas"));
-        registryMap.put("playerTexture", getTexture("player"));
-        registryMap.put("treeTexture", getTexture("trees"));
+        // Use the new, consistent keys
+        registryMap.put("tileAtlasTexture", getTexture("tileAtlasTexture"));
+        registryMap.put("playerTexture", getTexture("playerTexture"));
+        registryMap.put("treeTexture", getTexture("treeTexture")); // <-- UPDATE THIS KEY
         return registryMap;
     }
 
