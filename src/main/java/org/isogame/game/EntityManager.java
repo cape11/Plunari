@@ -1,6 +1,8 @@
 package org.isogame.game;
 
+import org.isogame.constants.Constants;
 import org.isogame.entity.*;
+import org.isogame.map.LightManager;
 import org.isogame.savegame.EntitySaveData;
 import org.isogame.savegame.GameSaveState;
 
@@ -28,6 +30,37 @@ public class EntityManager {
         this.newEntities = new ArrayList<>();
     }
 
+
+    /**
+     * Unloads all entities (except the player) that are located within the given chunk coordinates.
+     * This is called by the World when a chunk is deactivated.
+     * @param coord The coordinate of the chunk to clear of entities.
+     */
+    public void unloadEntitiesInChunk(LightManager.ChunkCoordinate coord) {
+        if (entities == null || entities.isEmpty()) {
+            return;
+        }
+
+        int chunkMinR = coord.chunkY * Constants.CHUNK_SIZE_TILES;
+        int chunkMaxR = chunkMinR + Constants.CHUNK_SIZE_TILES;
+        int chunkMinC = coord.chunkX * Constants.CHUNK_SIZE_TILES;
+        int chunkMaxC = chunkMinC + Constants.CHUNK_SIZE_TILES;
+
+        entities.removeIf(entity ->
+                !(entity instanceof PlayerModel) &&
+                        entity.getTileRow() >= chunkMinR && entity.getTileRow() < chunkMaxR &&
+                        entity.getTileCol() >= chunkMinC && entity.getTileCol() < chunkMaxC);
+    }
+
+
+    /**
+     * Gets the total number of entities currently being managed.
+     * @return The number of entities.
+     */
+    public int getEntityCount() {
+        return (this.entities != null) ? this.entities.size() : 0;
+    }
+
     /**
      * The main update loop for all entities.
      * It processes entity logic, handles death and removal, and adds new entities from the buffer.
@@ -35,7 +68,6 @@ public class EntityManager {
      * @param game The main game instance, providing context for entity updates (e.g., map data, player reference).
      */
     public void update(double deltaTime, Game game) {
-        // Update all existing entities
         for (Entity entity : entities) {
             if (!entity.isDead()) {
                 entity.update(deltaTime, game);
@@ -43,15 +75,8 @@ public class EntityManager {
             }
         }
 
-        // Safely remove entities marked as dead
-        Iterator<Entity> iterator = entities.iterator();
-        while (iterator.hasNext()) {
-            if (iterator.next().isDead()) {
-                iterator.remove();
-            }
-        }
+        entities.removeIf(Entity::isDead);
 
-        // Add any new entities that were created during the update loop
         if (!newEntities.isEmpty()) {
             entities.addAll(newEntities);
             newEntities.clear();
@@ -100,11 +125,8 @@ public class EntityManager {
         newEntities.clear();
     }
 
-    /**
-     * Populates a GameSaveState object with data from all savable entities.
-     * This method is called during the game-saving process.
-     * @param saveData The main game save state object to populate.
-     */
+
+
     public void populateSaveData(GameSaveState saveData) {
         if (saveData.mapData.entities == null) {
             saveData.mapData.entities = new ArrayList<>();
@@ -112,32 +134,30 @@ public class EntityManager {
         saveData.mapData.entities.clear();
 
         for (Entity entity : this.entities) {
-            // Only save entities that are savable and not the player model or a projectile
             if (entity.isSavable() && !(entity instanceof PlayerModel) && !(entity instanceof Projectile)) {
                 EntitySaveData entityData = new EntitySaveData();
                 entity.populateSaveData(entityData);
                 saveData.mapData.entities.add(entityData);
             }
         }
-        System.out.println("EntityManager: Saved " + saveData.mapData.entities.size() + " non-player entities.");
     }
-
     /**
      * Loads entity states from a GameSaveState object.
      * This method clears any existing entities and populates the manager with entities from the save file.
      * @param saveData The save state containing the entity data to load.
      */
     public void loadState(GameSaveState saveData) {
-        clearAllEntities(); // Start with a clean slate
+        clearAllEntities();
         if (saveData.mapData == null || saveData.mapData.entities == null) {
             return;
         }
 
+        // The player is loaded separately in Game/World, so add it first.
+        // This ensures it's present in the entity list.
+        // entities.add(game.getPlayer()); // This should be handled by the World constructor now.
+
         for (EntitySaveData entityData : saveData.mapData.entities) {
-            if (entityData == null || entityData.entityType == null) {
-                System.err.println("EntityManager: Skipping a null or typeless entity in the save file.");
-                continue;
-            }
+            if (entityData == null || entityData.entityType == null) continue;
 
             Entity newEntity = null;
             switch (entityData.entityType) {
@@ -147,14 +167,12 @@ public class EntityManager {
                 case "SLIME":
                     newEntity = new Slime(entityData.mapRow, entityData.mapCol);
                     break;
-                // Add cases for other savable entity types here
             }
 
             if (newEntity != null) {
                 newEntity.health = entityData.health;
-                this.entities.add(newEntity); // Add directly since this is part of initial load
+                this.entities.add(newEntity);
             }
         }
-        System.out.println("EntityManager: Loaded " + this.entities.size() + " non-player entities.");
     }
 }

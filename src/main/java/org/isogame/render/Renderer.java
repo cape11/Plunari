@@ -15,6 +15,7 @@ import org.isogame.map.Map;
 import org.isogame.tile.Tile;
 import org.isogame.ui.MenuItemButton;
 import org.isogame.ui.UIManager;
+import org.isogame.world.World;
 import org.joml.Matrix4f;
 import org.joml.Vector4f;
 import org.lwjgl.glfw.GLFW;
@@ -228,6 +229,8 @@ public class Renderer {
         initShaders();
         initRenderObjects();
         initUiColoredResources();
+        initShadowResources();
+
     }
 
 
@@ -1124,10 +1127,13 @@ public class Renderer {
     }
 
 
-    public void render(double pseudoTimeOfDay, double deltaTime) {
-        if (defaultShader == null || camera == null) {
+    public void render(World world, double deltaTime) {
+        if (defaultShader == null || camera == null || world == null) {
             return;
         }
+
+        // Get simulation data from the world object
+        double pseudoTimeOfDay = world.getPseudoTimeOfDay();
 
         // Bind the main shader and set universal uniforms for the 3D world
         defaultShader.bind();
@@ -1155,8 +1161,8 @@ public class Renderer {
         // Prepare entities and render them
         if (map != null) {
             collectWorldEntities(deltaTime);
-            renderShadows(pseudoTimeOfDay); // Render shadows first (underneath sprites)
-            renderWorldSprites(deltaTime);  // Render the actual sprites
+            renderShadows(pseudoTimeOfDay); // Pass the time of day here
+            renderWorldSprites(deltaTime);
         }
 
         // Render particles

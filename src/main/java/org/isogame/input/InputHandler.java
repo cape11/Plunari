@@ -39,7 +39,7 @@ public class InputHandler {
         this.map = map;
         this.player = player;
         this.gameInstance = gameInstance;
-        if (this.player != null && this.map != null) {
+        if (this.player != null) {
             this.selectedRow = player.getTileRow();
             this.selectedCol = player.getTileCol();
         }
@@ -48,7 +48,7 @@ public class InputHandler {
     public void updateGameReferences(Map map, PlayerModel player) {
         this.map = map;
         this.player = player;
-        if (this.player != null && this.map != null) {
+        if (this.player != null) {
             this.selectedRow = player.getTileRow();
             this.selectedCol = player.getTileCol();
         } else {
