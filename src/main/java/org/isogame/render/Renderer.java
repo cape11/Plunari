@@ -1129,6 +1129,7 @@ public class Renderer {
             return;
         }
 
+        // Bind the main shader and set universal uniforms for the 3D world
         defaultShader.bind();
         defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
         defaultShader.setUniform("uModelViewMatrix", camera.getViewMatrix());
@@ -1137,6 +1138,7 @@ public class Renderer {
         defaultShader.setUniform("uIsShadow", 0);
         defaultShader.setUniform("u_isSelectedIcon", 0);
 
+        // Render the tile map chunks
         if (map != null && tileAtlasTexture != null && tileAtlasTexture.getId() != 0) {
             glActiveTexture(GL_TEXTURE0);
             tileAtlasTexture.bind();
@@ -1150,15 +1152,14 @@ public class Renderer {
             tileAtlasTexture.unbind();
         }
 
+        // Prepare entities and render them
         if (map != null) {
             collectWorldEntities(deltaTime);
-            renderShadows(pseudoTimeOfDay);
+            renderShadows(pseudoTimeOfDay); // Render shadows first (underneath sprites)
+            renderWorldSprites(deltaTime);  // Render the actual sprites
         }
 
-        if (map != null) {
-            renderWorldSprites(deltaTime);
-        }
-
+        // Render particles
         if (map != null && !particleEntities.isEmpty()) {
             renderParticles();
         }

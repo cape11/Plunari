@@ -71,7 +71,9 @@ public class MouseHandler {
             int physicalMouseX = (int)(xpos * cScaleX);
             int physicalMouseY = (int)(ypos * cScaleY);
 
-            if (gameInstance.getCurrentGameState() == Game.GameState.IN_GAME) {
+            // --- START OF CORRECTION 1 ---
+            // Get the current state from the GameStateManager
+            if (gameInstance.getGameStateManager().getCurrentState() instanceof org.isogame.game.states.InGameState) {
                 // World Tile Hover
                 if (map != null && inputHandlerRef != null && !gameInstance.isInventoryVisible()) {
                     int[] hoveredCoords = camera.screenToAccurateMapTile(physicalMouseX, physicalMouseY, map);
@@ -94,7 +96,7 @@ public class MouseHandler {
                     float[] mapDelta = camera.screenVectorToMapVector((float) -dx, (float) -dy);
                     camera.moveTargetPosition(mapDelta[0], mapDelta[1]);
                 }
-            } else if (gameInstance.getCurrentGameState() == Game.GameState.MAIN_MENU) {
+            } else if (gameInstance.getGameStateManager().getCurrentState() instanceof org.isogame.game.states.MainMenuState) {
                 // Main menu button hover
                 List<MenuItemButton> menuButtons = gameInstance.getMainMenuButtons();
                 if (menuButtons != null) {
@@ -103,6 +105,7 @@ public class MouseHandler {
                     }
                 }
             }
+            // --- END OF CORRECTION 1 ---
             lastMouseX = currentX;
             lastMouseY = currentY;
         });
@@ -118,14 +121,13 @@ public class MouseHandler {
             int mouseX_physical = (int)(lastMouseX * cScaleX);
             int mouseY_physical = (int)(lastMouseY * cScaleY);
 
-            switch (gameInstance.getCurrentGameState()) {
-                case MAIN_MENU:
-                    handleMenuMouseClick(buttonId, action, mouseX_physical, mouseY_physical);
-                    break;
-                case IN_GAME:
-                    handleGameMouseClick(buttonId, action, mouseX_physical, mouseY_physical);
-                    break;
+            // --- START OF CORRECTION 2 ---
+            if (gameInstance.getGameStateManager().getCurrentState() instanceof org.isogame.game.states.MainMenuState) {
+                handleMenuMouseClick(buttonId, action, mouseX_physical, mouseY_physical);
+            } else if (gameInstance.getGameStateManager().getCurrentState() instanceof org.isogame.game.states.InGameState) {
+                handleGameMouseClick(buttonId, action, mouseX_physical, mouseY_physical);
             }
+            // --- END OF CORRECTION 2 ---
         });
 
         // --- MOUSE SCROLL CALLBACK ---

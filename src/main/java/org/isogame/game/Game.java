@@ -1,4 +1,4 @@
-// Game.java
+// src/main/java/org/isogame/game/Game.java
 
 package org.isogame.game;
 
@@ -47,31 +47,22 @@ import static org.isogame.constants.Constants.*;
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
 
-/**
- * Manages the overall game state, logic, and rendering flow.
- * This class orchestrates interactions between different game components like
- * the map, player, camera, input handlers, and renderer.
- */
 public class Game {
     private double lastFrameTime;
 
     private final long window;
-    // Core components are now final and initialized once in the constructor
     private CameraManager cameraManager;
     private Renderer renderer;
     private final InputHandler inputHandler;
     private final MouseHandler mouseHandler;
-    private final EntityManager entityManager; // <-- NEW: EntityManager instance
+    private final EntityManager entityManager;
     private final UIManager uiManager;
     private AssetManager assetManager;
 
-
-    // Game world specific components, initialized when a game starts/loads
     private Map map;
     private PlayerModel player;
     private LightManager lightManager;
     private PlacementManager placementManager;
-
 
     private double pseudoTimeOfDay = 0.0005;
     private byte currentGlobalSkyLightActual;
@@ -86,22 +77,17 @@ public class Game {
     private boolean showHotbar = true;
     private boolean showDebugOverlay = true;
 
-
-
-    // --- NEW FIELDS FOR DYNAMIC SPAWNING ---
     private double spawnTimer = 0.0;
     private final Random spawnRandom = new Random();
-    private static final double SPAWN_CYCLE_TIME = 5.0; // Try to spawn something every 5 seconds
-    private static final int SPAWN_RADIUS = 32; // How far from the player animals can spawn
-
+    private static final double SPAWN_CYCLE_TIME = 5.0;
+    private static final int SPAWN_RADIUS = 32;
 
     private final Queue<LightManager.ChunkCoordinate> chunkRenderUpdateQueue = new LinkedList<>();
-    private static final int MAX_CHUNK_GEOMETRY_UPDATES_PER_FRAME = 2; // Can be tuned
+    private static final int MAX_CHUNK_GEOMETRY_UPDATES_PER_FRAME = 2;
     private final Queue<LightManager.ChunkCoordinate> globalSkyRefreshNeededQueue = new LinkedList<>();
     private static final int CHUNKS_TO_REFRESH_SKY_PER_FRAME = 4;
 
-    public enum GameState { MAIN_MENU, IN_GAME }
-    private GameState currentGameState = GameState.MAIN_MENU;
+    private GameStateManager gameStateManager;
 
     private String currentWorldName = null;
     private List<String> availableSaveFiles = new ArrayList<>();
@@ -110,9 +96,7 @@ public class Game {
     private boolean isDraggingItem = false;
     private InventorySlot draggedItemStack = null;
     private int originalDragSlotIndex = -1;
-    private org.isogame.crafting.CraftingRecipe hoveredRecipe = null;
-
-
+    private CraftingRecipe hoveredRecipe = null;
 
     private List<MenuItemButton> menuButtons = new ArrayList<>();
     private Set<LightManager.ChunkCoordinate> currentlyActiveLogicalChunks = new HashSet<>();
@@ -127,8 +111,6 @@ public class Game {
             System.out.println("Game Constructor: CameraManager initialized.");
 
             this.entityManager = new EntityManager();
-
-            // FIX: Corrected Renderer constructor call
             renderer = new Renderer(cameraManager, null, null, null);
             renderer.onResize(initialFramebufferWidth, initialScreenHeight);
             System.out.println("Game Constructor: Renderer initialized for menu.");
@@ -136,7 +118,6 @@ public class Game {
             assetManager = new AssetManager(renderer);
             assetManager.loadAllAssets();
             renderer.setAssetManager(assetManager);
-
 
             ItemRegistry.loadItems();
             RecipeRegistry.loadRecipes();
@@ -149,7 +130,9 @@ public class Game {
             mouseHandler = new MouseHandler(window, cameraManager, null, inputHandler, null, this);
             System.out.println("Game Constructor: MouseHandler initialized.");
 
-            uiManager = new UIManager(this, renderer, null, null, inputHandler);
+            uiManager = new UIManager(this, renderer, null, assetManager, inputHandler);
+
+            this.gameStateManager = new GameStateManager(this, renderer);
 
         } catch (Exception e) {
             System.err.println("FATAL: Exception during core component initialization in Game constructor!");
@@ -160,19 +143,136 @@ public class Game {
         glfwSetFramebufferSizeCallback(window, (win, fbW, fbH) -> {
             if (cameraManager != null) cameraManager.updateScreenSize(fbW, fbH);
             if (renderer != null) renderer.onResize(fbW, fbH);
-            if (currentGameState == GameState.MAIN_MENU) setupMainMenuButtons();
+            setupMainMenuButtons();
         });
 
-        currentGameState = GameState.MAIN_MENU;
         refreshAvailableSaveFiles();
         System.out.println("Game Constructor: Finished. Initial state: MAIN_MENU.");
     }
 
+    public void updateGameLogic(double deltaTime) {
+        if (player == null || map == null || lightManager == null || entityManager == null) return;
+
+        pseudoTimeOfDay += deltaTime * DAY_NIGHT_CYCLE_SPEED;
+        if (pseudoTimeOfDay >= 1.0) pseudoTimeOfDay -= 1.0;
+
+        updateActiveChunksAroundPlayer();
+        updateSkyLightBasedOnTimeOfDay(deltaTime);
+
+        handleDynamicSpawning(deltaTime);
+
+        if (!globalSkyRefreshNeededQueue.isEmpty()) {
+            int refreshedThisFrame = 0;
+            while (refreshedThisFrame < CHUNKS_TO_REFRESH_SKY_PER_FRAME && !globalSkyRefreshNeededQueue.isEmpty()) {
+                LightManager.ChunkCoordinate coordToRefresh = globalSkyRefreshNeededQueue.poll();
+                if (coordToRefresh != null && currentlyActiveLogicalChunks.contains(coordToRefresh)) {
+                    lightManager.refreshSkyLightForSingleChunk(coordToRefresh, lightManager.getCurrentGlobalSkyLightTarget());
+                }
+                refreshedThisFrame++;
+            }
+        }
+
+        entityManager.update(deltaTime, this);
+        inputHandler.handleContinuousInput(deltaTime);
+        cameraManager.update(deltaTime);
+        lightManager.processLightQueuesIncrementally();
+
+        Set<LightManager.ChunkCoordinate> dirtyFromLighting = lightManager.getDirtyChunksAndClear();
+        for (LightManager.ChunkCoordinate dirtyCoord : dirtyFromLighting) {
+            if (currentlyActiveLogicalChunks.contains(dirtyCoord) && !chunkRenderUpdateQueue.contains(dirtyCoord)) {
+                chunkRenderUpdateQueue.offer(dirtyCoord);
+            }
+        }
+
+        if (!chunkRenderUpdateQueue.isEmpty()) {
+            int updatedThisFrame = 0;
+            while (!chunkRenderUpdateQueue.isEmpty() && updatedThisFrame < MAX_CHUNK_GEOMETRY_UPDATES_PER_FRAME) {
+                LightManager.ChunkCoordinate coordToUpdate = chunkRenderUpdateQueue.poll();
+                if (coordToUpdate != null && currentlyActiveLogicalChunks.contains(coordToUpdate)) {
+                    renderer.updateChunkByGridCoords(coordToUpdate.chunkX, coordToUpdate.chunkY);
+                    updatedThisFrame++;
+                }
+            }
+        }
+    }
+
+
+    public void gameLoop() {
+        initOpenGL();
+        lastFrameTime = glfwGetTime();
+        System.out.println("Entering game loop...");
+
+        while (!glfwWindowShouldClose(window)) {
+            double currentTime = glfwGetTime();
+            double deltaTime = currentTime - lastFrameTime;
+            lastFrameTime = currentTime;
+            if (deltaTime > 0.1) deltaTime = 0.1;
+
+            // --- FPS Calculation (no change here) ---
+            timeAccumulatorForFps += deltaTime;
+            framesRenderedThisSecond++;
+            if (timeAccumulatorForFps >= 1.0) {
+                displayedFps = (double) framesRenderedThisSecond / timeAccumulatorForFps;
+                framesRenderedThisSecond = 0;
+                timeAccumulatorForFps -= 1.0;
+            }
+
+            // --- Handle Input ---
+            glfwPollEvents();
+
+            // --- Update Game Logic based on State ---
+            gameStateManager.update(deltaTime);
+
+            // --- Prepare for Rendering (THIS IS THE FIX) ---
+            // Set the background color based on the current state.
+            if (gameStateManager.getCurrentState() instanceof org.isogame.game.states.InGameState) {
+                // Dynamic sky color for in-game
+                float rSky, gSky, bSky;
+                float lightRange = (float)(SKY_LIGHT_DAY - SKY_LIGHT_NIGHT_MINIMUM);
+                float lightRatio = 0.5f;
+                if (lightRange > 0.001f && lightManager != null) {
+                    lightRatio = (float)(lightManager.getCurrentGlobalSkyLightTarget() - SKY_LIGHT_NIGHT_MINIMUM) / lightRange;
+                }
+                lightRatio = Math.max(0, Math.min(1, lightRatio));
+                float dayR = 0.5f, dayG = 0.7f, dayB = 1.0f;
+                float nightR = 0.02f, nightG = 0.02f, nightB = 0.08f;
+                rSky = nightR + (dayR - nightR) * lightRatio;
+                gSky = nightG + (dayG - nightG) * lightRatio;
+                bSky = nightB + (dayB - nightB) * lightRatio;
+                glClearColor(rSky, gSky, bSky, 1.0f);
+            } else {
+                // A default dark color for the main menu
+                glClearColor(0.1f, 0.12f, 0.15f, 1.0f);
+            }
+
+            // Clear the screen's color and depth buffers
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+
+            // --- Render Game Logic based on State ---
+            gameStateManager.render(deltaTime);
+
+            // --- Swap Buffers to Display the New Frame ---
+            glfwSwapBuffers(window);
+        }
+        System.out.println("Game loop exited.");
+        gameStateManager.getCurrentState().exit();
+        cleanup();
+    }
+
+
+    public UIManager getUiManager() {
+        return this.uiManager;
+    }
+    public void setCurrentGameState(org.isogame.game.GameStateManager.State newState) {
+        gameStateManager.setState(newState);
+    }
+    // ... all other methods in Game.java remain the same
     private void initializeGameWorldCommonLogic() {
         System.out.println("Game: Initializing game world common logic for world: " + (currentWorldName != null ? currentWorldName : "NEW (Unsaved)"));
         if (map == null || player == null) {
             System.err.println("Game.initializeGameWorldCommonLogic: Map or Player is null. Cannot proceed.");
-            setCurrentGameState(GameState.MAIN_MENU); // Fallback
+            setCurrentGameState(org.isogame.game.GameStateManager.State.MAIN_MENU); // Fallback
             return;
         }
 
@@ -183,7 +283,7 @@ public class Game {
         this.lightManager = map.getLightManager();
         if (this.lightManager == null) {
             System.err.println("FATAL: LightManager is null after map initialization in initializeGameWorldCommonLogic.");
-            setCurrentGameState(GameState.MAIN_MENU); return;
+            setCurrentGameState(GameStateManager.State.MAIN_MENU); return;
         }
 
         cameraManager.setTargetPositionInstantly(player.getMapCol(), player.getMapRow());
@@ -219,6 +319,8 @@ public class Game {
         System.out.println("Game world initialized. Player at: " + player.getTileRow() + "," + player.getTileCol());
         if (map != null) System.out.println("World Seed: " + map.getWorldSeed());
     }
+
+
 
 
     public List<MenuItemButton> getMainMenuButtons() { return menuButtons; }
@@ -499,56 +601,6 @@ public class Game {
         }
     }
 
-
-    private void updateGameLogic(double deltaTime) {
-        if (player == null || map == null || lightManager == null || entityManager == null) return;
-
-        pseudoTimeOfDay += deltaTime * DAY_NIGHT_CYCLE_SPEED;
-        if (pseudoTimeOfDay >= 1.0) pseudoTimeOfDay -= 1.0;
-
-        updateActiveChunksAroundPlayer();
-        updateSkyLightBasedOnTimeOfDay(deltaTime);
-
-        handleDynamicSpawning(deltaTime);
-
-        if (!globalSkyRefreshNeededQueue.isEmpty()) {
-            int refreshedThisFrame = 0;
-            while (refreshedThisFrame < CHUNKS_TO_REFRESH_SKY_PER_FRAME && !globalSkyRefreshNeededQueue.isEmpty()) {
-                LightManager.ChunkCoordinate coordToRefresh = globalSkyRefreshNeededQueue.poll();
-                if (coordToRefresh != null && currentlyActiveLogicalChunks.contains(coordToRefresh)) {
-                    lightManager.refreshSkyLightForSingleChunk(coordToRefresh, lightManager.getCurrentGlobalSkyLightTarget());
-                }
-                refreshedThisFrame++;
-            }
-        }
-
-        // Use the EntityManager to update all entities
-        entityManager.update(deltaTime, this);
-
-        inputHandler.handleContinuousInput(deltaTime);
-        cameraManager.update(deltaTime);
-        lightManager.processLightQueuesIncrementally();
-
-        Set<LightManager.ChunkCoordinate> dirtyFromLighting = lightManager.getDirtyChunksAndClear();
-        for (LightManager.ChunkCoordinate dirtyCoord : dirtyFromLighting) {
-            // Check if the chunk is still active and not already in the queue
-            if (currentlyActiveLogicalChunks.contains(dirtyCoord) && !chunkRenderUpdateQueue.contains(dirtyCoord)) {
-                chunkRenderUpdateQueue.offer(dirtyCoord);
-            }
-        }
-
-        if (!chunkRenderUpdateQueue.isEmpty()) {
-            int updatedThisFrame = 0;
-            while (!chunkRenderUpdateQueue.isEmpty() && updatedThisFrame < MAX_CHUNK_GEOMETRY_UPDATES_PER_FRAME) {
-                LightManager.ChunkCoordinate coordToUpdate = chunkRenderUpdateQueue.poll();
-                if (coordToUpdate != null && currentlyActiveLogicalChunks.contains(coordToUpdate)) {
-                    renderer.updateChunkByGridCoords(coordToUpdate.chunkX, coordToUpdate.chunkY);
-                    updatedThisFrame++;
-                }
-            }
-        }
-    }
-
     public boolean loadGame(String worldNameOrFileName) {
         System.out.println("Game: loadGame called for " + worldNameOrFileName);
         if (worldNameOrFileName == null || worldNameOrFileName.trim().isEmpty()) {
@@ -628,7 +680,7 @@ public class Game {
         }
 
         System.out.println("Game loaded successfully: " + this.currentWorldName);
-        setCurrentGameState(GameState.IN_GAME);
+        setCurrentGameState(GameStateManager.State.IN_GAME);
         return true;
     }
 
@@ -707,51 +759,6 @@ public class Game {
         glDepthFunc(GL_LEQUAL);
     }
 
-    public void gameLoop() {
-        initOpenGL();
-        lastFrameTime = glfwGetTime();
-        System.out.println("Entering game loop... Initial state: " + currentGameState);
-
-        while (!glfwWindowShouldClose(window)) {
-            double currentTime = glfwGetTime();
-            double deltaTime = currentTime - lastFrameTime;
-            lastFrameTime = currentTime;
-            if (deltaTime > 0.1) deltaTime = 0.1;
-
-            timeAccumulatorForFps += deltaTime;
-            framesRenderedThisSecond++;
-            if (timeAccumulatorForFps >= 1.0) {
-                displayedFps = (double) framesRenderedThisSecond / timeAccumulatorForFps;
-                framesRenderedThisSecond = 0;
-                timeAccumulatorForFps -= 1.0;
-            }
-
-            glfwPollEvents();
-
-            switch (currentGameState) {
-                case MAIN_MENU:
-                    updateMainMenu(deltaTime);
-                    renderMainMenu();
-                    break;
-                case IN_GAME:
-                    updateGameLogic(deltaTime);
-                    renderGame(deltaTime);
-                    break;
-            }
-            glfwSwapBuffers(window);
-        }
-        System.out.println("Game loop exited.");
-        if (currentGameState == GameState.IN_GAME && currentWorldName != null && !currentWorldName.trim().isEmpty()) {
-            saveGame(currentWorldName);
-        }
-        cleanup();
-    }
-
-    private void updateMainMenu(double deltaTime) {
-        // MouseHandler's GLFW callback handles hover.
-        if (cameraManager == null || menuButtons == null) return;
-    }
-
     private byte calculateSkyLightForTime(double time) {
         byte newSkyLight;
         if (time >= 0.0 && time < 0.40) {
@@ -770,55 +777,6 @@ public class Game {
 
     public void toggleHotbar() {
         this.showHotbar = !this.showHotbar;
-    }
-
-    private void renderMainMenu() {
-        Font titleFontToUse = null;
-        Font generalUiFont = null;
-
-        if (renderer == null || cameraManager == null) {
-            System.err.println("RenderMainMenu: Renderer or CameraManager is null. Cannot render menu.");
-            glClearColor(0.05f, 0.05f, 0.1f, 1.0f);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-            return;
-        }
-
-        titleFontToUse = renderer.getTitleFont();
-        generalUiFont = renderer.getUiFont();
-        glClearColor(0.1f, 0.12f, 0.15f, 1.0f);
-
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        glDisable(GL_DEPTH_TEST);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-        renderer.renderMainMenuBackground();
-
-        if (titleFontToUse != null && titleFontToUse.isInitialized()) {
-            String title = "PLUNARI";
-            float titleWidth = titleFontToUse.getTextWidthScaled(title, 1.0f);
-            titleFontToUse.drawText(
-                    cameraManager.getScreenWidth() / 2f - titleWidth / 2f,
-                    cameraManager.getScreenHeight() * 0.15f,
-                    title, 0.9f, 0.85f, 0.7f);
-        } else if (generalUiFont != null && generalUiFont.isInitialized()){
-            String title = "PLUNARI";
-            float titleWidth = generalUiFont.getTextWidthScaled(title, 2.0f);
-            generalUiFont.drawTextScaled(cameraManager.getScreenWidth() / 2f - titleWidth / 2f,
-                    cameraManager.getScreenHeight() * 0.15f, title, 2.0f, 0.9f,0.85f,0.7f);
-        } else {
-            System.err.println("RenderMainMenu: No valid font available for title.");
-        }
-
-        if (menuButtons != null) {
-            for (MenuItemButton button : menuButtons) {
-                if (button.isVisible) {
-                    renderer.renderMenuButton(button);
-                }
-            }
-        }
-        glEnable(GL_DEPTH_TEST);
     }
 
     public void createNewWorld() {
@@ -852,7 +810,7 @@ public class Game {
         initializeGameWorldCommonLogic();
         saveGame(this.currentWorldName);
         refreshAvailableSaveFiles();
-        setCurrentGameState(GameState.IN_GAME);
+        setCurrentGameState(GameStateManager.State.IN_GAME);
         System.out.println("Game: New world '" + newWorldName + "' created and game state set to IN_GAME.");
     }
 
@@ -888,16 +846,14 @@ public class Game {
                 availableSaveFiles.sort(String::compareToIgnoreCase);
             }
         }
-        if (currentGameState == GameState.MAIN_MENU) {
-            setupMainMenuButtons();
-        }
+        setupMainMenuButtons();
     }
 
-    public org.isogame.crafting.CraftingRecipe getHoveredRecipe() {
+    public CraftingRecipe getHoveredRecipe() {
         return this.hoveredRecipe;
     }
 
-    public void setHoveredRecipe(org.isogame.crafting.CraftingRecipe recipe) {
+    public void setHoveredRecipe(CraftingRecipe recipe) {
         this.hoveredRecipe = recipe;
     }
 
@@ -905,44 +861,6 @@ public class Game {
     public String getCurrentWorldName() { return currentWorldName; }
     public void toggleInventory() { this.showInventory = !this.showInventory; }
     public boolean isInventoryVisible() { return this.showInventory; }
-    public GameState getCurrentGameState() { return currentGameState; }
-
-    public void setCurrentGameState(GameState newState) {
-        System.out.println("Game state changing from " + this.currentGameState + " to " + newState + " (World: " + currentWorldName + ")");
-        GameState oldState = this.currentGameState;
-        this.currentGameState = newState;
-
-        if (newState == GameState.MAIN_MENU) {
-            if (oldState == GameState.IN_GAME && currentWorldName != null && !currentWorldName.isEmpty() && map != null && player != null) {
-                System.out.println("setCurrentGameState: Saving game " + currentWorldName + " before returning to menu.");
-                saveGame(currentWorldName);
-            }
-            System.out.println("setCurrentGameState: Transitioning to MAIN_MENU. Resetting/Re-initializing UI components.");
-            if (renderer != null) {
-                renderer.clearGameContext();
-            }
-            inputHandler.updateGameReferences(null, null);
-            mouseHandler.updateGameReferences(null, null, inputHandler);
-            refreshAvailableSaveFiles();
-        } else if (newState == GameState.IN_GAME) {
-            if (map == null || player == null) {
-                System.err.println("setCurrentGameState: Attempting to enter IN_GAME without map/player. Forcing MAIN_MENU.");
-                this.currentGameState = GameState.MAIN_MENU;
-                refreshAvailableSaveFiles();
-                return;
-            }
-            if (renderer == null || renderer.getMap() != map || lightManager == null) {
-                System.out.println("setCurrentGameState: IN_GAME state set, ensuring common logic is initialized/updated.");
-                initializeGameWorldCommonLogic();
-            }
-
-            if (mouseHandler != null) mouseHandler.resetLeftMouseDragFlags();
-            if (cameraManager != null && player != null && inputHandler != null) {
-                float[] focusPoint = inputHandler.calculateCameraFocusPoint(player.getMapCol(), player.getMapRow());
-                cameraManager.setTargetPositionInstantly(focusPoint[0], focusPoint[1]);
-            }
-        }
-    }
 
     public int getCurrentRenderDistanceChunks() { return currentRenderDistanceChunks; }
     public void increaseRenderDistance() { currentRenderDistanceChunks = Math.min(currentRenderDistanceChunks + 1, RENDER_DISTANCE_CHUNKS_MAX); }
@@ -956,61 +874,6 @@ public class Game {
         if (player != null) {
             player.setSelectedHotbarSlotIndex(index);
         }
-    }
-
-    private void renderGame(double deltaTime) {
-        if (renderer == null || lightManager == null || map == null || player == null || cameraManager == null) {
-            System.err.println("Game.renderGame: Critical component is null. Skipping render. CurrentState: " + currentGameState);
-            glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-            return;
-        }
-
-        float rSky, gSky, bSky;
-        float lightRange = (float)(SKY_LIGHT_DAY - SKY_LIGHT_NIGHT_MINIMUM);
-        float lightRatio = 0.5f;
-        if (lightRange > 0.001f) {
-            lightRatio = (float)(lightManager.getCurrentGlobalSkyLightTarget() - SKY_LIGHT_NIGHT_MINIMUM) / lightRange;
-        }
-        lightRatio = Math.max(0, Math.min(1, lightRatio));
-        float dayR = 0.5f, dayG = 0.7f, dayB = 1.0f;
-        float nightR = 0.02f, nightG = 0.02f, nightB = 0.08f;
-        rSky = nightR + (dayR - nightR) * lightRatio;
-        gSky = nightG + (dayG - nightG) * lightRatio;
-        bSky = nightB + (dayB - nightB) * lightRatio;
-        glClearColor(rSky, gSky, bSky, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        glEnable(GL_DEPTH_TEST);
-        renderer.render(pseudoTimeOfDay, deltaTime);
-
-        glDisable(GL_DEPTH_TEST);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        renderer.renderPlayerHealthBar(player);
-
-        uiManager.render();
-
-        if (this.showDebugOverlay && inputHandler != null) {
-            List<String> debugLines = new ArrayList<>();
-            debugLines.add(String.format("FPS: %.1f", displayedFps));
-            debugLines.add(String.format("Time: %.3f, SkyLight (Actual/Target): %d/%d", pseudoTimeOfDay, currentGlobalSkyLightActual, lightManager.getCurrentGlobalSkyLightTarget()));
-            debugLines.add("Player: (" + player.getTileRow() + "," + player.getTileCol() + ") V(" + String.format("%.1f",player.getVisualRow()) + "," + String.format("%.1f",player.getVisualCol()) + ") A:" + player.getCurrentAction() + " D:" + player.getCurrentDirection());
-            if (currentWorldName != null && map != null) debugLines.add("World: " + currentWorldName + " (Seed: " + map.getWorldSeed() + ")");
-            else debugLines.add("World: (Unsaved/New)");
-
-            Tile selectedTile = (map != null) ? map.getTile(inputHandler.getSelectedRow(), inputHandler.getSelectedCol()) : null;
-            String selectedInfo = "Sel: ("+inputHandler.getSelectedRow()+","+inputHandler.getSelectedCol()+")";
-            if(selectedTile!=null) selectedInfo += " E:"+selectedTile.getElevation()+" T:"+selectedTile.getType()+" SL:"+selectedTile.getSkyLightLevel()+" BL:"+selectedTile.getBlockLightLevel()+" FL:"+selectedTile.getFinalLightLevel() + (selectedTile.hasTorch()?" (T)":"") + " Tree:" + selectedTile.getTreeType().name();
-            debugLines.add(selectedInfo);
-            debugLines.add(String.format("Cam: (%.1f,%.1f) Z:%.2f RD:%d AC:%d SkyQ:%d", cameraManager.getCameraX(),cameraManager.getCameraY(),cameraManager.getZoom(), currentRenderDistanceChunks, currentlyActiveLogicalChunks.size(), globalSkyRefreshNeededQueue.size()));
-            if (lightManager != null) {
-                debugLines.add("RndQ: " + chunkRenderUpdateQueue.size() + " LightQ (SP,SR,BP,BR): " + lightManager.getSkyLightPropagationQueueSize() + "," + lightManager.getSkyLightRemovalQueueSize() + "," + lightManager.getBlockLightPropagationQueueSize() + "," + lightManager.getBlockLightRemovalQueueSize());
-            }
-            debugLines.add("Hotbar Sel: " + player.getSelectedHotbarSlotIndex() + (showInventory ? " InvShow" : ""));
-            renderer.renderDebugOverlay(10f, 10f, 1300f, 300f, debugLines);
-        }
-        glEnable(GL_DEPTH_TEST);
     }
 
     public double getPseudoTimeOfDay() {
@@ -1051,7 +914,7 @@ public class Game {
 
     public boolean isShowHotbar() { return this.showHotbar; }
     public Map getMap() { return this.map; }
-    public EntityManager getEntityManager() { return this.entityManager; } // <-- NEW GETTER
+    public EntityManager getEntityManager() { return this.entityManager; }
     public boolean isDraggingItem() { return this.isDraggingItem; }
     public InventorySlot getDraggedItemStack() { return this.draggedItemStack; }
 
@@ -1116,6 +979,12 @@ public class Game {
     }
     public PlayerModel getPlayer() {
         return this.player;
+    }
+
+    // Add this method to src/main/java/org/isogame/game/Game.java
+
+    public org.isogame.game.GameStateManager getGameStateManager() {
+        return this.gameStateManager;
     }
 
     public boolean isShowDebugOverlay() { return this.showDebugOverlay; }

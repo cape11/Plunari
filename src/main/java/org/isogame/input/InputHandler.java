@@ -1,3 +1,4 @@
+// src/main/java/org/isogame/input/InputHandler.java
 package org.isogame.input;
 
 import org.isogame.camera.CameraManager;
@@ -5,6 +6,7 @@ import org.isogame.constants.Constants;
 import org.isogame.entity.Entity;
 import org.isogame.entity.PlayerModel;
 import org.isogame.game.Game;
+import org.isogame.game.GameStateManager;
 import org.isogame.item.Item;
 import org.isogame.item.ItemRegistry;
 import org.isogame.item.UseStyle;
@@ -63,53 +65,38 @@ public class InputHandler {
             }
 
             if (key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE) {
-                if (gameInstance.getCurrentGameState() == Game.GameState.IN_GAME) {
-                    gameInstance.setCurrentGameState(Game.GameState.MAIN_MENU);
-                } else if (gameInstance.getCurrentGameState() == Game.GameState.MAIN_MENU) {
-                    glfwSetWindowShouldClose(window, true);
-                }
+                gameInstance.setCurrentGameState(GameStateManager.State.MAIN_MENU);
                 return;
             }
 
-            if (gameInstance.getCurrentGameState() == Game.GameState.IN_GAME) {
-                if (player == null || map == null) {
-                    return;
-                }
-                if (action == GLFW_PRESS) {
-                    keysDown.add(key);
-                    handleSingleKeyPressInGame(key, requestFullMapRegenerationCallback);
-                } else if (action == GLFW_RELEASE) {
-                    keysDown.remove(key);
-                    if ((key == GLFW_KEY_W || key == GLFW_KEY_S || key == GLFW_KEY_A || key == GLFW_KEY_D)) {
-                        boolean stillPressingMovementKey = keysDown.stream().anyMatch(k ->
-                                k == GLFW_KEY_W || k == GLFW_KEY_S || k == GLFW_KEY_A || k == GLFW_KEY_D);
-                        if (!stillPressingMovementKey) {
-                            player.setMovementInput(0f, 0f);
-                        }
+            if (action == GLFW_PRESS) {
+                keysDown.add(key);
+                handleSingleKeyPressInGame(key, requestFullMapRegenerationCallback);
+            } else if (action == GLFW_RELEASE) {
+                keysDown.remove(key);
+                if ((key == GLFW_KEY_W || key == GLFW_KEY_S || key == GLFW_KEY_A || key == GLFW_KEY_D)) {
+                    boolean stillPressingMovementKey = keysDown.stream().anyMatch(k ->
+                            k == GLFW_KEY_W || k == GLFW_KEY_S || k == GLFW_KEY_A || k == GLFW_KEY_D);
+                    if (!stillPressingMovementKey && player != null) {
+                        player.setMovementInput(0f, 0f);
                     }
-                }
-            } else {
-                if (action == GLFW_PRESS) {
-                    keysDown.add(key);
-                } else if (action == GLFW_RELEASE) {
-                    keysDown.remove(key);
                 }
             }
         });
     }
 
     private void handleSingleKeyPressInGame(int key, Runnable requestFullMapRegenerationCallback) {
+        if (player == null || map == null) {
+            return;
+        }
         switch (key) {
             case GLFW_KEY_J:
                 performPlayerActionOnCurrentlySelectedTile();
                 break;
-
-            // vvv ADD THIS NEW CASE vvv
-            case GLFW_KEY_F1: // R for "Redraw"
+            case GLFW_KEY_F1:
                 System.out.println("DEBUG: Forcing render update for player's current chunk.");
                 gameInstance.requestTileRenderUpdate(player.getTileRow(), player.getTileCol());
                 break;
-            // ^^^ END OF NEW CASE ^^^
             case GLFW_KEY_C:
                 if (cameraManager != null) {
                     cameraManager.stopManualPan();
@@ -162,55 +149,53 @@ public class InputHandler {
     }
 
     public void handleContinuousInput(double deltaTime) {
-        if (gameInstance != null && gameInstance.getCurrentGameState() == Game.GameState.IN_GAME) {
-            if (player == null || cameraManager == null || map == null) {
-                return;
+        if (player == null || cameraManager == null || map == null) {
+            return;
+        }
+
+        float dCol = 0f;
+        float dRow = 0f;
+        boolean isPlayerTryingToMove = false;
+
+        if (keysDown.contains(GLFW_KEY_W)) { dRow--; dCol--; isPlayerTryingToMove = true; }
+        if (keysDown.contains(GLFW_KEY_S)) { dRow++; dCol++; isPlayerTryingToMove = true; }
+        if (keysDown.contains(GLFW_KEY_A)) { dRow++; dCol--; isPlayerTryingToMove = true; }
+        if (keysDown.contains(GLFW_KEY_D)) { dRow--; dCol++; isPlayerTryingToMove = true; }
+
+        if (isPlayerTryingToMove) {
+            if (cameraManager.isManuallyPanning()) {
+                cameraManager.stopManualPan();
             }
 
-            float dCol = 0f;
-            float dRow = 0f;
-            boolean isPlayerTryingToMove = false;
-
-            if (keysDown.contains(GLFW_KEY_W)) { dRow--; dCol--; isPlayerTryingToMove = true; }
-            if (keysDown.contains(GLFW_KEY_S)) { dRow++; dCol++; isPlayerTryingToMove = true; }
-            if (keysDown.contains(GLFW_KEY_A)) { dRow++; dCol--; isPlayerTryingToMove = true; }
-            if (keysDown.contains(GLFW_KEY_D)) { dRow--; dCol++; isPlayerTryingToMove = true; }
-
-            if (isPlayerTryingToMove) {
-                if (cameraManager.isManuallyPanning()) {
-                    cameraManager.stopManualPan();
+            if (dCol != 0f || dRow != 0f) {
+                float length = (float)Math.sqrt(dCol * dCol + dRow * dRow);
+                if (length != 0) {
+                    dCol /= length;
+                    dRow /= length;
                 }
-
-                if (dCol != 0f || dRow != 0f) {
-                    float length = (float)Math.sqrt(dCol * dCol + dRow * dRow);
-                    if (length != 0) {
-                        dCol /= length;
-                        dRow /= length;
-                    }
-                }
-                player.setMovementInput(dCol, dRow);
-
-                if (keysDown.contains(GLFW_KEY_W)) {
-                    if (keysDown.contains(GLFW_KEY_D)) player.setDirection(PlayerModel.Direction.EAST);
-                    else if (keysDown.contains(GLFW_KEY_A)) player.setDirection(PlayerModel.Direction.NORTH);
-                    else player.setDirection(PlayerModel.Direction.NORTH);
-                } else if (keysDown.contains(GLFW_KEY_S)) {
-                    if (keysDown.contains(GLFW_KEY_D)) player.setDirection(PlayerModel.Direction.SOUTH);
-                    else if (keysDown.contains(GLFW_KEY_A)) player.setDirection(PlayerModel.Direction.WEST);
-                    else player.setDirection(PlayerModel.Direction.SOUTH);
-                } else if (keysDown.contains(GLFW_KEY_D)) {
-                    player.setDirection(PlayerModel.Direction.EAST);
-                } else if (keysDown.contains(GLFW_KEY_A)) {
-                    player.setDirection(PlayerModel.Direction.WEST);
-                }
-            } else {
-                player.setMovementInput(0f, 0f);
             }
+            player.setMovementInput(dCol, dRow);
 
-            if (!cameraManager.isManuallyPanning()) {
-                float[] focusPoint = calculateCameraFocusPoint(player.getMapCol(), player.getMapRow());
-                cameraManager.setTargetPosition(focusPoint[0], focusPoint[1]);
+            if (keysDown.contains(GLFW_KEY_W)) {
+                if (keysDown.contains(GLFW_KEY_D)) player.setDirection(PlayerModel.Direction.EAST);
+                else if (keysDown.contains(GLFW_KEY_A)) player.setDirection(PlayerModel.Direction.NORTH);
+                else player.setDirection(PlayerModel.Direction.NORTH);
+            } else if (keysDown.contains(GLFW_KEY_S)) {
+                if (keysDown.contains(GLFW_KEY_D)) player.setDirection(PlayerModel.Direction.SOUTH);
+                else if (keysDown.contains(GLFW_KEY_A)) player.setDirection(PlayerModel.Direction.WEST);
+                else player.setDirection(PlayerModel.Direction.SOUTH);
+            } else if (keysDown.contains(GLFW_KEY_D)) {
+                player.setDirection(PlayerModel.Direction.EAST);
+            } else if (keysDown.contains(GLFW_KEY_A)) {
+                player.setDirection(PlayerModel.Direction.WEST);
             }
+        } else {
+            player.setMovementInput(0f, 0f);
+        }
+
+        if (!cameraManager.isManuallyPanning()) {
+            float[] focusPoint = calculateCameraFocusPoint(player.getMapCol(), player.getMapRow());
+            cameraManager.setTargetPosition(focusPoint[0], focusPoint[1]);
         }
     }
 
@@ -225,13 +210,11 @@ public class InputHandler {
 
         if (targetTile == null) return;
 
-        // Check interaction range
         float distance = Math.abs(targetR - player.getMapRow()) + Math.abs(targetC - player.getMapCol());
         if (distance > Constants.MAX_INTERACTION_DISTANCE) {
             return;
         }
 
-        // Set player direction to face the target.
         float dColPlayerToTarget = targetC - player.getMapCol();
         float dRowPlayerToTarget = targetR - player.getMapRow();
         if (Math.abs(dColPlayerToTarget) > Math.abs(dRowPlayerToTarget)) {
@@ -240,26 +223,20 @@ public class InputHandler {
             player.setDirection(dRowPlayerToTarget > 0 ? PlayerModel.Direction.SOUTH : PlayerModel.Direction.NORTH);
         }
 
-        // --- CORRECTED LOGIC ---
         Item heldItem = player.getHeldItem();
 
         if (heldItem != null) {
-            // If holding a tool, use the new data-driven system
             heldItem.onUse(gameInstance, player, targetTile, targetR, targetC);
         } else {
-            // If holding nothing, perform a bare-handed action.
-            player.setAction(Entity.Action.SWING); // Play the punch animation
+            player.setAction(Entity.Action.SWING);
 
-            // --- THIS LOGIC HAS BEEN RESTORED ---
-            // Add back the logic for interacting with the world with bare hands
             if (targetTile.getLooseRockType() != Tile.LooseRockType.NONE) {
                 player.addItemToInventory(ItemRegistry.getItem("loose_rock"), 1);
                 targetTile.setLooseRockType(Tile.LooseRockType.NONE);
                 gameInstance.requestTileRenderUpdate(targetR, targetC);
             } else if (targetTile.getTreeType() != Tile.TreeVisualType.NONE) {
-                // Punching a tree gives one stick and deals a tiny bit of damage
                 player.addItemToInventory(ItemRegistry.getItem("stick"), 1);
-                targetTile.takeDamage(1); // Deal 1 damage
+                targetTile.takeDamage(1);
             }
         }
     }
@@ -279,33 +256,24 @@ public class InputHandler {
         }
     }
 
-    // In InputHandler.java
-
     public void setSelectedTile(int col, int row) {
         if (map == null) {
             return;
         }
-        // Prevent selection from changing if it's the same tile
         if (this.selectedRow == row && this.selectedCol == col) {
             return;
         }
 
-        // Store the location of the previously selected tile
         int oldSelectedRow = this.selectedRow;
         int oldSelectedCol = this.selectedCol;
 
-        // Update to the new selection
         this.selectedRow = row;
         this.selectedCol = col;
 
         if (gameInstance != null) {
-            // --- THIS IS THE IMPROVED LOGIC ---
-            // Request a redraw for the tile that is no longer selected
             gameInstance.requestTileRenderUpdate(oldSelectedRow, oldSelectedCol);
-            // Request a redraw for the newly selected tile
             gameInstance.requestTileRenderUpdate(this.selectedRow, this.selectedCol);
 
-            // Also request updates for neighbors to prevent visual artifacts
             gameInstance.requestTileRenderUpdate(oldSelectedRow + 1, oldSelectedCol);
             gameInstance.requestTileRenderUpdate(oldSelectedRow - 1, oldSelectedCol);
             gameInstance.requestTileRenderUpdate(oldSelectedRow, oldSelectedCol + 1);
