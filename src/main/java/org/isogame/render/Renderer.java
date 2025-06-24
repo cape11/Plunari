@@ -130,6 +130,11 @@ public class Renderer {
     // --- NEW: Shadow Rendering Resources ---
     private int shadowVaoId, shadowVboId;
     private FloatBuffer shadowVertexBuffer;
+    private int particleVaoId, particleVboId;
+    private FloatBuffer particleVertexBuffer;
+    private static final int MAX_PARTICLE_QUADS = 1024;
+    public static final int FLOATS_PER_VERTEX_PARTICLE = 7; // x,y,z, r,g,b,a
+
     private static final int MAX_SHADOW_QUADS = 1024; // Max shadows per frame
     private static final float[] SHADOW_COLOR = {0.0f, 0.0f, 0.0f, 0.4f}; // RGBA for shadows
     private static final float Z_OFFSET_SHADOW = 0.001f; // Just above the tile surface
@@ -230,6 +235,7 @@ public class Renderer {
         initRenderObjects();
         initUiColoredResources();
         initShadowResources();
+        initParticleResources();
 
     }
 
@@ -1465,45 +1471,53 @@ public class Renderer {
 
 
     private void renderParticles() {
-        if (spriteVaoId == 0 || particleEntities.isEmpty()) return;
+        if (particleVaoId == 0 || particleEntities.isEmpty()) {
+            return;
+        }
 
-        // 1. Set the shader to "un-textured" mode.
+        // Prepare the shader for un-textured drawing
+        defaultShader.bind();
         defaultShader.setUniform("uHasTexture", 0);
 
-        // 2. Bind the sprite buffers.
-        glBindVertexArray(spriteVaoId);
-        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
-        spriteVertexBuffer.clear();
+        // Bind the dedicated particle rendering resources
+        glBindVertexArray(particleVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, particleVboId);
+        particleVertexBuffer.clear();
 
+        // Fill the buffer with all visible particles
         int verticesInBatch = 0;
-        // 3. Loop through ONLY particles and add them to a single batch.
         for (Particle particle : particleEntities) {
-            // Ensure buffer has space. If not, draw and clear.
-            if (spriteVertexBuffer.remaining() < 6 * FLOATS_PER_VERTEX_SPRITE_TEXTURED) {
-                if (verticesInBatch > 0) {
-                    spriteVertexBuffer.flip();
-                    glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
-                    glDrawArrays(GL_TRIANGLES, 0, verticesInBatch);
-                    spriteVertexBuffer.clear();
-                    verticesInBatch = 0;
-                }
+            if (particleVertexBuffer.remaining() < 6 * FLOATS_PER_VERTEX_PARTICLE) {
+                break;
             }
-            verticesInBatch += addParticleVerticesToBuffer(particle, spriteVertexBuffer);
+            verticesInBatch += addParticleVerticesToBuffer(particle, particleVertexBuffer);
         }
 
-        // 4. Draw all the particles in the final batch.
         if (verticesInBatch > 0) {
-            spriteVertexBuffer.flip();
-            glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+            // *** THE DEFINITIVE FIX ***
+            // Temporarily disable the depth test to allow blending with objects behind the particles.
+            glDisable(GL_DEPTH_TEST);
+            glDepthMask(false); // Also disable writing to the depth buffer for transparency
+
+            particleVertexBuffer.flip();
+            glBufferSubData(GL_ARRAY_BUFFER, 0, particleVertexBuffer);
             glDrawArrays(GL_TRIANGLES, 0, verticesInBatch);
+
+            // *** CRITICAL CLEANUP ***
+            // Re-enable the depth test for the UI and subsequent frames.
+            glDepthMask(true);
+            glEnable(GL_DEPTH_TEST);
         }
 
-        // 5. Unbind buffers.
+        // Unbind everything
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
+    }
 
-        // IMPORTANT: Reset the shader state for the next frame.
-        defaultShader.setUniform("uHasTexture", 1);
+    // *** FIX: A new, simpler helper method for adding particle vertices ***
+    private void addVertexToParticleBuffer(FloatBuffer buffer, float x, float y, float z, float[] color) {
+        buffer.put(x).put(y).put(z);
+        buffer.put(color[0]).put(color[1]).put(color[2]).put(color[3]);
     }
 
     private int addTorchVerticesToBuffer_WorldSpace(TorchData torch, FloatBuffer buffer) {
@@ -1578,18 +1592,22 @@ public class Renderer {
     private int addParticleVerticesToBuffer(Particle particle, FloatBuffer buffer) {
         if (map == null) return 0;
 
-        float pR = particle.getVisualRow();
-        float pC = particle.getVisualCol();
+        // Use the particle's current visual position for screen coordinates
+        float pR_visual = particle.getVisualRow();
+        float pC_visual = particle.getVisualCol();
 
-        // Calculate the base X/Y on the ground plane
-        float pIsoX = (pC - pR) * (Constants.TILE_WIDTH / 2.0f);
-        float pIsoY = (pC + pR) * (Constants.TILE_HEIGHT / 2.0f);
+        float pIsoX = (pC_visual - pR_visual) * (Constants.TILE_WIDTH / 2.0f);
+        float pIsoY = (pC_visual + pR_visual) * (Constants.TILE_HEIGHT / 2.0f);
+        pIsoY -= particle.getZ(); // Subtract Z-height for visual positioning
 
-        // The particle's "Z" is its height off the ground. Subtract this from the Y position.
-        pIsoY -= particle.getZ();
+        // *** FIX: Calculate depth based on the particle's INTEGER tile coordinates ***
+        // This prevents Z-fighting as the particle moves across a tile.
+        int tileR = particle.getTileRow();
+        int tileC = particle.getTileCol();
+        float baseDepth = (tileR + tileC) * Constants.DEPTH_SORT_FACTOR;
 
-        // Use a high Z-depth value to ensure particles draw in front
-        float particleWorldZ = (pR + pC) * Constants.DEPTH_SORT_FACTOR - 0.1f;
+        // Apply a strong negative bias to ensure it's in front of everything on that tile
+        float particleWorldZ = baseDepth - 0.5f;
 
         float halfSize = particle.size / 2.0f;
         float xL = pIsoX - halfSize;
@@ -1597,23 +1615,18 @@ public class Renderer {
         float yT = pIsoY - halfSize;
         float yB = pIsoY + halfSize;
 
-        // --- The two incorrect lines that flipped the Y-axis have been removed. ---
-        // This makes the particle coordinates consistent with all other objects.
-
-        float[] tint = particle.color;
-
-        // Calculate alpha fade based on the particle's remaining life
         float lifeRatio = (float)particle.getLife() / (float)particle.getMaxLife();
         float alphaFade = Math.min(1.0f, lifeRatio * 2.0f);
 
-        // Pass the calculated alpha into the "light" attribute of the vertex.
-        addVertexToSpriteBuffer(buffer, xL, yT, particleWorldZ, tint, 0, 0, alphaFade);
-        addVertexToSpriteBuffer(buffer, xL, yB, particleWorldZ, tint, 0, 0, alphaFade);
-        addVertexToSpriteBuffer(buffer, xR, yB, particleWorldZ, tint, 0, 0, alphaFade);
+        float[] finalColor = { particle.color[0], particle.color[1], particle.color[2], alphaFade };
 
-        addVertexToSpriteBuffer(buffer, xR, yB, particleWorldZ, tint, 0, 0, alphaFade);
-        addVertexToSpriteBuffer(buffer, xR, yT, particleWorldZ, tint, 0, 0, alphaFade);
-        addVertexToSpriteBuffer(buffer, xL, yT, particleWorldZ, tint, 0, 0, alphaFade);
+        addVertexToParticleBuffer(buffer, xL, yT, particleWorldZ, finalColor);
+        addVertexToParticleBuffer(buffer, xL, yB, particleWorldZ, finalColor);
+        addVertexToParticleBuffer(buffer, xR, yB, particleWorldZ, finalColor);
+
+        addVertexToParticleBuffer(buffer, xR, yB, particleWorldZ, finalColor);
+        addVertexToParticleBuffer(buffer, xR, yT, particleWorldZ, finalColor);
+        addVertexToParticleBuffer(buffer, xL, yT, particleWorldZ, finalColor);
 
         return 6;
     }
@@ -2310,6 +2323,29 @@ public class Renderer {
         glBindVertexArray(spriteVaoId);
         glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
         spriteVertexBuffer.clear();
+    }
+
+    private void initParticleResources() {
+        particleVaoId = glGenVertexArrays();
+        glBindVertexArray(particleVaoId);
+        particleVboId = glGenBuffers();
+        glBindBuffer(GL_ARRAY_BUFFER, particleVboId);
+
+        int bufferCapacityFloats = MAX_PARTICLE_QUADS * 6 * FLOATS_PER_VERTEX_PARTICLE;
+        particleVertexBuffer = MemoryUtil.memAllocFloat(bufferCapacityFloats);
+        glBufferData(GL_ARRAY_BUFFER, (long)particleVertexBuffer.capacity() * Float.BYTES, GL_DYNAMIC_DRAW);
+
+        int stride = FLOATS_PER_VERTEX_PARTICLE * Float.BYTES;
+        // Position (vec3)
+        glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, 0L);
+        glEnableVertexAttribArray(0);
+        // Color (vec4)
+        glVertexAttribPointer(1, 4, GL_FLOAT, false, stride, 3 * Float.BYTES);
+        glEnableVertexAttribArray(1);
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        System.out.println("[Renderer DEBUG] Particle Resources Initialized. VAO: " + particleVaoId + ", VBO: " + particleVboId);
     }
 
     public void bindTexture(Texture texture){

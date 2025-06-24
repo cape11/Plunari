@@ -119,8 +119,12 @@ public class World {
         });
         for (LightManager.ChunkCoordinate newCoord : desiredCoords) {
             if (currentlyActiveLogicalChunks.add(newCoord)) {
+                // The World's job is to manage the *data*. It just ensures the tiles exist.
                 map.getOrGenerateChunkTiles(newCoord.chunkX, newCoord.chunkY);
-                game.getRenderer().ensureChunkGraphicsLoaded(newCoord.chunkX, newCoord.chunkY);
+
+                // *** FIX: Removed the direct call to the renderer from here. ***
+                // The Game class will be responsible for telling the renderer to update graphics later.
+
                 lightManager.initializeSkylightForChunk(newCoord);
                 globalSkyRefreshNeededQueue.offer(newCoord);
                 propagateLightToNewChunkBorders(newCoord);
@@ -157,14 +161,22 @@ public class World {
         spawnTimer += deltaTime;
         if (spawnTimer >= SPAWN_CYCLE_TIME) {
             spawnTimer = 0;
-            if (entityManager.getEntityCount() >= MAX_ANIMALS + 1) return;
+
+            if (entityManager.getEntityCount() >= MAX_ANIMALS + 1) {
+                return;
+            }
+
             int spawnTryC = player.getTileCol() + spawnRandom.nextInt(SPAWN_RADIUS * 2) - SPAWN_RADIUS;
             int spawnTryR = player.getTileRow() + spawnRandom.nextInt(SPAWN_RADIUS * 2) - SPAWN_RADIUS;
+
             int chunkX = Math.floorDiv(spawnTryC, CHUNK_SIZE_TILES);
             int chunkY = Math.floorDiv(spawnTryR, CHUNK_SIZE_TILES);
+
             if (currentlyActiveLogicalChunks.contains(new LightManager.ChunkCoordinate(chunkX, chunkY))) {
                 Tile targetTile = map.getTile(spawnTryR, spawnTryC);
-                if (targetTile != null && targetTile.getType() != Tile.TileType.WATER && !targetTile.isSolidOpaqueBlock()) {
+
+                // spawning on grass, dirt, sand, etc.
+                if (targetTile != null && targetTile.getType() != Tile.TileType.WATER && targetTile.getType() != Tile.TileType.AIR) {
                     Entity newEntity = spawnRandom.nextBoolean() ? new Slime(spawnTryR + 0.5f, spawnTryC + 0.5f) : new Cow(spawnTryR + 0.5f, spawnTryC + 0.5f);
                     entityManager.addEntity(newEntity);
                 }

@@ -1,3 +1,4 @@
+// src/main/java/org/isogame/entity/SwingArcProjectile.java
 package org.isogame.entity;
 
 import org.isogame.constants.Constants;
@@ -23,9 +24,8 @@ public class SwingArcProjectile extends Projectile {
 
     @Override
     public void update(double deltaTime, Game game) {
-        super.update(deltaTime, game); // Handles timeToLive countdown
-
-        if (isDead || !damagedTargets.isEmpty()) {
+        super.update(deltaTime, game);
+        if (isDead) {
             return;
         }
 
@@ -55,13 +55,8 @@ public class SwingArcProjectile extends Projectile {
                     }
                 }
 
-                // --- THIS IS THE FIX ---
-                // Get entities from the EntityManager via the Game object
                 for (Entity entity : new ArrayList<>(game.getEntityManager().getEntities())) {
-                    if (damagedTargets.contains(entity)) {
-                        continue;
-                    }
-                    if (entity instanceof Particle || entity == owner || entity instanceof Projectile) {
+                    if (entity instanceof Particle || entity == owner || entity instanceof Projectile || damagedTargets.contains(entity)) {
                         continue;
                     }
                     if (!entity.isDead() && entity.getTileRow() == currentCheckR && entity.getTileCol() == currentCheckC) {
@@ -75,17 +70,19 @@ public class SwingArcProjectile extends Projectile {
     }
 
     private void spawnHitParticles(Game game, float row, float col, int elevation) {
-        int particleCount = 3 + random.nextInt(3);
+        int particleCount = 4 + random.nextInt(4); // More particles
         for (int i = 0; i < particleCount; i++) {
-            float vx = (random.nextFloat() - 0.5f) * 4f;
-            float vy = (random.nextFloat() - 0.5f) * 4f;
-            float vz = 1f + random.nextFloat() * 4f;
-            int life = 15 + random.nextInt(15);
+            float vx = (random.nextFloat() - 0.5f) * 5f;
+            float vy = (random.nextFloat() - 0.5f) * 5f;
+            // *** FIX: Increased upward velocity to make them more visible ***
+            float vz = 3f + random.nextFloat() * 5f;
 
-            float startZ = (elevation * Constants.TILE_THICKNESS) + 5.0f;
+            // *** FIX: Increased lifespan to make them more visible ***
+            int life = 30 + random.nextInt(30);
+
+            float startZ = (elevation * Constants.TILE_THICKNESS) + (Constants.TILE_HEIGHT / 2.0f);
 
             Particle p = new Particle(row, col, startZ, vx, vy, vz, life);
-            // Add particles through the game's EntityManager
             game.getEntityManager().addEntity(p);
         }
     }
