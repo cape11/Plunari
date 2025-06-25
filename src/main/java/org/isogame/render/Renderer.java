@@ -12,7 +12,9 @@ import org.isogame.input.InputHandler;
 import org.isogame.item.Item;
 import org.isogame.map.LightManager;
 import org.isogame.map.Map;
+import org.isogame.tile.FurnaceEntity;
 import org.isogame.tile.Tile;
+import org.isogame.tile.TileEntity;
 import org.isogame.ui.MenuItemButton;
 import org.isogame.ui.UIManager;
 import org.isogame.world.World;
@@ -1138,22 +1140,20 @@ public class Renderer {
             return;
         }
 
-        // Get simulation data from the world object
         double pseudoTimeOfDay = world.getPseudoTimeOfDay();
 
-        // Bind the main shader and set universal uniforms for the 3D world
+        // Bind the main shader and set universal uniforms
         defaultShader.bind();
         defaultShader.setUniform("uProjectionMatrix", projectionMatrix);
         defaultShader.setUniform("uModelViewMatrix", camera.getViewMatrix());
         defaultShader.setUniform("uIsFont", 0);
         defaultShader.setUniform("uIsSimpleUiElement", 0);
         defaultShader.setUniform("uIsShadow", 0);
-        defaultShader.setUniform("u_isSelectedIcon", 0);
 
         // Render the tile map chunks
-        if (map != null && tileAtlasTexture != null && tileAtlasTexture.getId() != 0) {
+        if (map != null && assetManager.getTexture("tileAtlasTexture") != null) {
             glActiveTexture(GL_TEXTURE0);
-            tileAtlasTexture.bind();
+            assetManager.getTexture("tileAtlasTexture").bind();
             defaultShader.setUniform("uTextureSampler", 0);
             defaultShader.setUniform("uHasTexture", 1);
             for (Chunk chunk : activeMapChunks.values()) {
@@ -1161,13 +1161,14 @@ public class Renderer {
                     chunk.render();
                 }
             }
-            tileAtlasTexture.unbind();
         }
 
         // Prepare entities and render them
         if (map != null) {
-            collectWorldEntities(deltaTime);
-            renderShadows(pseudoTimeOfDay); // Pass the time of day here
+            // *** FIX: Pass the 'world' object down to the helper method ***
+            collectWorldEntities(world, deltaTime);
+
+            renderShadows(pseudoTimeOfDay);
             renderWorldSprites(deltaTime);
         }
 
@@ -1177,11 +1178,13 @@ public class Renderer {
         }
     }
 
-    private void collectWorldEntities(double deltaTime) {
+    private void collectWorldEntities(World world, double deltaTime) {
         worldEntities.clear();
         particleEntities.clear();
 
-        // Get entities from the EntityManager
+        // The incorrect line that caused the error has been removed.
+        // We now use the 'world' object that is passed directly into this method.
+
         if (entityManager != null && entityManager.getEntities() != null) {
             for (Entity e : entityManager.getEntities()) {
                 if (e instanceof Particle) {
@@ -1192,12 +1195,14 @@ public class Renderer {
             }
         }
 
+        if (world != null && world.getTileEntityManager() != null) {
+            worldEntities.addAll(world.getTileEntityManager().getAllTileEntities());
+        }
+
         if (activeMapChunks != null && !activeMapChunks.isEmpty() && camera != null) {
             for (Chunk chunk : activeMapChunks.values()) {
                 if (camera.isChunkVisible(chunk.getBoundingBox())) {
-                    for (TreeData tree : chunk.getTreesInChunk()) {
-                        worldEntities.add(tree);
-                    }
+                    worldEntities.addAll(chunk.getTreesInChunk());
                     worldEntities.addAll(chunk.getLooseRocksInChunk());
                     worldEntities.addAll(chunk.getTorchesInChunk());
                 }
@@ -1208,12 +1213,12 @@ public class Renderer {
             if (e instanceof Entity) return ((Entity) e).getVisualRow() + ((Entity) e).getVisualCol();
             if (e instanceof TreeData) return ((TreeData) e).mapRow + ((TreeData) e).mapCol;
             if (e instanceof LooseRockData) return ((LooseRockData) e).mapRow + ((LooseRockData) e).mapCol;
+            if (e instanceof TileEntity) return ((TileEntity) e).getRow() + ((TileEntity) e).getCol() - 0.01f;
+            if (e instanceof TorchData) return ((TorchData) e).mapRow + ((TorchData) e).mapCol;
+
             return 0;
         }));
     }
-
-    // --- CHANGE: renderWorldSprites() now accepts deltaTime ---
-    // Replace the entire existing renderWorldSprites method in Renderer.java with this one.
 
     private void renderWorldSprites(double deltaTime) {
         if (spriteVaoId == 0 || worldEntities.isEmpty()) {
@@ -1231,16 +1236,12 @@ public class Renderer {
         int verticesInCurrentBatch = 0;
 
         for (Object entityObj : worldEntities) {
-            int verticesForThisObject = 0;
             Texture textureForThisObject = null;
 
             // Determine the texture for the current object
-            // --- THIS IS THE CORRECTED LOGIC ---
-            if (entityObj instanceof Entity) {
-                // All entities like player, cow, slime use the player atlas for now
+            if (entityObj instanceof PlayerModel || entityObj instanceof Cow || entityObj instanceof Slime) {
                 textureForThisObject = this.assetManager.getTexture("playerTexture");
-            } else if (entityObj instanceof TreeData || entityObj instanceof LooseRockData || entityObj instanceof TorchData) {
-                // Trees, rocks, and torches are on the "treeTexture" atlas
+            } else if (entityObj instanceof FurnaceEntity || entityObj instanceof TreeData || entityObj instanceof LooseRockData || entityObj instanceof TorchData) {
                 textureForThisObject = this.assetManager.getTexture("treeTexture");
             }
 
@@ -1255,7 +1256,7 @@ public class Renderer {
             }
             currentBatchTexture = textureForThisObject;
 
-            // Estimate vertices to be added. A simple quad is 6 vertices.
+            // Estimate vertices to be added.
             int estimatedVertices = 6;
             if (entityObj instanceof PlayerModel) {
                 estimatedVertices += 6; // For held item
@@ -1267,17 +1268,23 @@ public class Renderer {
                 verticesInCurrentBatch = 0;
             }
 
+            // --- THIS IS THE FIX: The variable is now declared here, inside the loop's scope ---
+            int verticesForThisObject = 0;
+
             // Add the object's vertices to the buffer
-            if (entityObj instanceof Entity) {
+            if (entityObj instanceof FurnaceEntity) {
+                verticesForThisObject = addFurnaceVerticesToBuffer((FurnaceEntity) entityObj, spriteVertexBuffer);
+            }
+            else if (entityObj instanceof Entity) {
                 verticesForThisObject = addGenericEntityVerticesToBuffer((Entity) entityObj, spriteVertexBuffer);
+            } else if (entityObj instanceof FurnaceEntity) {
+                verticesForThisObject = addFurnaceVerticesToBuffer((FurnaceEntity) entityObj, spriteVertexBuffer);
             } else if (entityObj instanceof TreeData) {
                 verticesForThisObject = addTreeVerticesToBuffer_WorldSpace((TreeData) entityObj, spriteVertexBuffer, deltaTime);
             } else if (entityObj instanceof LooseRockData) {
                 verticesForThisObject = addLooseRockVerticesToBuffer_WorldSpace((LooseRockData) entityObj, spriteVertexBuffer);
             } else if (entityObj instanceof TorchData) {
-                // NOTE: Torch rendering logic seems incomplete in the provided code.
-                // This is a placeholder call. Ensure 'addTorchVerticesToBuffer_WorldSpace' is implemented.
-                // verticesForThisObject = addTorchVerticesToBuffer_WorldSpace((TorchData) entityObj, spriteVertexBuffer);
+                verticesForThisObject = addTorchVerticesToBuffer_WorldSpace((TorchData) entityObj, spriteVertexBuffer);
             }
             verticesInCurrentBatch += verticesForThisObject;
 
@@ -1289,14 +1296,12 @@ public class Renderer {
                 Texture itemTexture = getTextureByName(heldItem != null ? heldItem.getAtlasName() : null);
 
                 if (heldItem != null && anchor != null && itemTexture != null) {
-                    // If item texture is different, flush the player batch first
                     if (itemTexture.getId() != currentBatchTexture.getId()) {
                         renderSpriteBatch(spriteVertexBuffer, verticesInCurrentBatch, currentBatchTexture);
                         verticesInCurrentBatch = 0;
-                        currentBatchTexture = itemTexture; // Start a new batch for the item
+                        currentBatchTexture = itemTexture;
                     }
 
-                    // Check for buffer overflow before adding item
                     if (spriteVertexBuffer.position() + (6 * FLOATS_PER_VERTEX_SPRITE_TEXTURED) > spriteVertexBuffer.capacity()) {
                         renderSpriteBatch(spriteVertexBuffer, verticesInCurrentBatch, currentBatchTexture);
                         verticesInCurrentBatch = 0;
@@ -1448,8 +1453,74 @@ public class Renderer {
         defaultShader.setUniform("uIsShadow", 0);
     }
 
+// Add this new method anywhere inside Renderer.java
 
+    private int addFurnaceVerticesToBuffer(FurnaceEntity furnace, FloatBuffer buffer) {
+        Texture texture = assetManager.getTexture("treeTexture");
+        if (texture == null || map == null) return 0;
 
+        float fR = furnace.getRow();
+        float fC = furnace.getCol();
+        Tile tile = map.getTile((int)fR, (int)fC);
+        if (tile == null) return 0;
+
+        // --- THIS IS THE FIX ---
+        // 1. Get the elevation of the tile the furnace is on.
+        int elev = tile.getElevation();
+        float lightVal = tile.getFinalLightLevel() / (float) MAX_LIGHT_LEVEL;
+
+        // 2. Calculate the base Z-depth INCLUDING the elevation.
+        float baseWorldZ = (fR + fC) * DEPTH_SORT_FACTOR + (elev * 0.005f);
+
+        // 3. Add a small positive offset to place the furnace slightly in front of the tile,
+        // but behind the player. Z_OFFSET_SPRITE_ANIMAL (0.09f) is a good value for this.
+        float furnaceWorldZ = baseWorldZ + Z_OFFSET_SPRITE_ANIMAL;
+        // --- END OF FIX ---
+
+        // The rest of the logic for positioning and animation is correct.
+        float isoX = (fC - fR) * tileHalfWidth;
+        float isoY = (fC + fR) * tileHalfHeight - (elev * TILE_THICKNESS);
+
+        float renderWidth = TILE_WIDTH;
+        float renderHeight = TILE_HEIGHT * 1.5f;
+
+        float xL = isoX - renderWidth / 2f;
+        float xR = isoX + renderWidth / 2f;
+        float yB = isoY + TILE_HEIGHT / 2f;
+        float yT = yB - renderHeight;
+
+        float u0, v0, u1, v1;
+        float texTotalWidth = texture.getWidth();
+        float texTotalHeight = texture.getHeight();
+        float frameWidth = 64;
+        float frameHeight = 64;
+
+        if (furnace.isSmelting()) {
+            int frame = furnace.getCurrentFrame() + 1;
+            float sx = frame * frameWidth;
+            float sy = 1824;
+            u0 = sx / texTotalWidth;
+            v0 = sy / texTotalHeight;
+            u1 = (sx + frameWidth) / texTotalWidth;
+            v1 = (sy + frameHeight) / texTotalHeight;
+        } else {
+            float sx = 0;
+            float sy = 1824;
+            u0 = sx / texTotalWidth;
+            v0 = sy / texTotalHeight;
+            u1 = (sx + frameWidth) / texTotalWidth;
+            v1 = (sy + frameHeight) / texTotalHeight;
+        }
+
+        addVertexToSpriteBuffer(buffer, xL, yT, furnaceWorldZ, WHITE_TINT, u0, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yB, furnaceWorldZ, WHITE_TINT, u0, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yB, furnaceWorldZ, WHITE_TINT, u1, v1, lightVal);
+
+        addVertexToSpriteBuffer(buffer, xR, yB, furnaceWorldZ, WHITE_TINT, u1, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yT, furnaceWorldZ, WHITE_TINT, u1, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yT, furnaceWorldZ, WHITE_TINT, u0, v0, lightVal);
+        return 6;
+    }
 
     // --- NEW HELPER METHOD ---
     /**

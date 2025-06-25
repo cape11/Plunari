@@ -8,6 +8,7 @@ import org.isogame.item.ItemRegistry;
 import org.isogame.savegame.EntitySaveData;
 import org.isogame.savegame.MapSaveData;
 import org.isogame.savegame.TileSaveData;
+import org.isogame.tile.FurnaceEntity;
 import org.isogame.tile.Tile;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -288,6 +289,8 @@ public class Map {
         return Tile.TileType.SNOW;
     }
 
+    // In Map.java, replace the placeBlock method
+
     public boolean placeBlock(int globalR, int globalC, Item itemToPlace, Game game) {
         if (itemToPlace == null) {
             System.err.println("PLACEMENT FAILED: Item to place was null.");
@@ -300,85 +303,56 @@ public class Map {
             return false;
         }
 
-        if (itemToPlace.type != Item.ItemType.RESOURCE) {
-            System.err.println("PLACEMENT FAILED: Item '" + itemToPlace.getDisplayName() + "' is not a RESOURCE.");
+        // Prevent placing on top of other objects or in water
+        if (targetTile.getTreeType() != Tile.TreeVisualType.NONE ||
+                targetTile.getLooseRockType() != Tile.LooseRockType.NONE ||
+                targetTile.getType() == Tile.TileType.WATER ||
+                targetTile.hasTileEntity()) {
             return false;
         }
-
-        if (targetTile.getElevation() >= ALTURA_MAXIMA) {
-            System.err.println("PLACEMENT FAILED: Cannot place block. Target tile is already at max elevation (" + targetTile.getElevation() + ").");
-            return false;
-        }
-
-        int newElevation = targetTile.getElevation() + 1;
-        Tile.TileType newType;
 
         switch (itemToPlace.getItemId()) {
-            case "dirt":
-                newType = determineTileTypeFromElevation(newElevation);
-                if (targetTile.getType() == Tile.TileType.WATER) {
-                    newElevation = NIVEL_MAR;
-                    newType = determineTileTypeFromElevation(newElevation);
-                }
+            case "furnace":
+                // For a furnace, we DO NOT change the tile type or elevation.
+                // We create a new TileEntity and attach it to the tile.
+                FurnaceEntity furnaceEntity = new FurnaceEntity(globalR, globalC);
+                targetTile.setTileEntity(furnaceEntity);
+                game.getWorld().getTileEntityManager().addTileEntity(furnaceEntity);
                 break;
-            case "stone": newType = Tile.TileType.ROCK; break;
-            case "sand": newType = Tile.TileType.SAND; break;
-            case "wood_plank": newType = Tile.TileType.WOOD_PLANK; break;
-            case "red_brick": newType = Tile.TileType.RED_BRICK; break;
-            case "stone_brick": newType = Tile.TileType.STONE_WALL_SMOOTH; break;
+
+            case "dirt":
+            case "stone":
+            case "sand":
+            case "wood_plank":
+            case "red_brick":
+            case "stone_brick":
+                // For standard blocks, we still raise the terrain
+                int newElevation = targetTile.getElevation() + 1;
+                if (newElevation > ALTURA_MAXIMA) return false;
+
+                Tile.TileType newType = targetTile.getType(); // Default to old type
+                if (itemToPlace.getItemId().equals("dirt")) newType = determineTileTypeFromElevation(newElevation);
+                else if (itemToPlace.getItemId().equals("stone")) newType = Tile.TileType.ROCK;
+                else if (itemToPlace.getItemId().equals("sand")) newType = Tile.TileType.SAND;
+                else if (itemToPlace.getItemId().equals("wood_plank")) newType = Tile.TileType.WOOD_PLANK;
+                else if (itemToPlace.getItemId().equals("red_brick")) newType = Tile.TileType.RED_BRICK;
+                else if (itemToPlace.getItemId().equals("stone_brick")) newType = Tile.TileType.STONE_WALL_SMOOTH;
+
+                targetTile.setElevation(newElevation);
+                targetTile.setType(newType);
+                break;
+
             default:
                 System.err.println("PLACEMENT FAILED: Item ID '" + itemToPlace.getItemId() + "' has no placement rule in Map.java's switch statement.");
                 return false;
         }
 
-        byte oldSkyLight = targetTile.getSkyLightLevel();
-        byte oldBlockLight = targetTile.getBlockLightLevel();
-
-        targetTile.setElevation(newElevation);
-        targetTile.setType(newType);
-        targetTile.setTreeType(Tile.TreeVisualType.NONE);
-        targetTile.setLooseRockType(Tile.LooseRockType.NONE);
-
-        targetTile.setSkyLightLevel((byte) 0);
-        targetTile.setBlockLightLevel((byte) 0);
-
         markChunkAsModified(Math.floorDiv(globalC, CHUNK_SIZE_TILES), Math.floorDiv(globalR, CHUNK_SIZE_TILES));
-
-        LightManager lm = this.lightManager;
-        if (lm == null) return true;
-
-        if (oldSkyLight > 0) {
-            lm.getSkyLightRemovalQueue_Direct().add(new LightManager.LightNode(globalR, globalC, oldSkyLight));
-        }
-        if (oldBlockLight > 0) {
-            lm.getBlockLightRemovalQueue_Direct().add(new LightManager.LightNode(globalR, globalC, oldBlockLight));
-        }
-
-        int[] dr = {-1, 1, 0, 0};
-        int[] dc = {0, 0, -1, 1};
-        for (int i = 0; i < 4; i++) {
-            int nr = globalR + dr[i];
-            int nc = globalC + dc[i];
-            Tile neighbor = getTile(nr, nc);
-            if (neighbor != null) {
-                if (neighbor.getSkyLightLevel() > 0) {
-                    lm.getSkyLightPropagationQueue_Direct().add(new LightManager.LightNode(nr, nc, neighbor.getSkyLightLevel()));
-                }
-                if (neighbor.getBlockLightLevel() > 0) {
-                    lm.getBlockLightPropagationQueue_Direct().add(new LightManager.LightNode(nr, nc, neighbor.getBlockLightLevel()));
-                }
-            }
-        }
-
-        lm.markChunkDirty(globalR, globalC);
-        for (int i = 0; i < 4; i++) {
-            lm.markChunkDirty(globalR + dr[i], globalC + dc[i]);
-        }
-
-        lm.processAllQueuesToCompletion();
-
+        queueLightUpdateForArea(globalR, globalC, 2, this.lightManager);
+        lightManager.processAllQueuesToCompletion();
         return true;
     }
+
 
 
     public void setTileElevation(int globalR, int globalC, int newElevation) {

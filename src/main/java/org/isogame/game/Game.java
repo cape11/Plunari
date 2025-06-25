@@ -209,6 +209,8 @@ public class Game {
         if (fbW[0] > 0 && fbH[0] > 0) renderer.onResize(fbW[0], fbH[0]);
 
         System.out.println("Game references updated from world instance.");
+        forceFullRenderUpdate();
+
     }
 
     public void createNewWorld() {
@@ -232,7 +234,7 @@ public class Game {
         // Link the engine components to the new world
         initializeGameWorldReferences();
         forceFullRenderUpdate();
-
+        initializeGameWorldReferences();
         saveGame(this.currentWorldName);
         refreshAvailableSaveFiles();
         setCurrentGameState(org.isogame.game.GameStateManager.State.IN_GAME);
@@ -490,8 +492,20 @@ public class Game {
         System.out.println("Game cleanup complete.");
     }
 
+
     // --- Getters and Setters ---
+
+    public float getMouseX() {
+        return (mouseHandler != null) ? mouseHandler.getMouseX() : 0;
+    }
+
+    public float getMouseY() {
+        return (mouseHandler != null) ? mouseHandler.getMouseY() : 0;
+    }
+
+
     public World getWorld() { return this.world; }
+    public int getOriginalDragSlotIndex() {return this.originalDragSlotIndex;}
 
     public Renderer getRenderer() { return this.renderer; }
     public UIManager getUiManager() { return this.uiManager; }

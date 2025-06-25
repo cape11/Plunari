@@ -1,0 +1,16 @@
+{
+  "id": "furnace",
+  "displayName": "Furnace",
+  "description": "Smelts ore into useful metal bars.",
+  "type": "RESOURCE",
+  "texture": {
+    "atlas": "treeTexture",
+    "x": 0,
+    "y": 1824,
+    "w": 64,
+    "h": 64
+  },
+  "stats": {
+    "useStyle": "NONE"
+  }
+}

@@ -4,8 +4,10 @@ import static org.isogame.constants.Constants.MAX_LIGHT_LEVEL;
 
 public class Tile {
 
+    // In Tile.java
     public enum TileType {
-        AIR, WATER, SAND, GRASS, DIRT, ROCK, SNOW, STONE_BRICK, RED_BRICK, WOOD_PLANK, STONE_WALL_SMOOTH, STONE_WALL_ROUGH
+        AIR, WATER, SAND, GRASS, DIRT, ROCK, SNOW, STONE_BRICK, RED_BRICK, WOOD_PLANK, STONE_WALL_SMOOTH, STONE_WALL_ROUGH,
+        FURNACE
     }
 
     public enum LooseRockType {
@@ -20,6 +22,7 @@ public class Tile {
     private int elevation;
     private TreeVisualType treeType;
     private LooseRockType looseRockType = LooseRockType.NONE;
+    private TileEntity tileEntity = null;
 
     private int health = 0;
     private int maxHealth = 0;
@@ -86,6 +89,10 @@ public class Tile {
             this.maxHealth = 0;
         }
     }
+
+    public TileEntity getTileEntity() { return tileEntity; }
+    public void setTileEntity(TileEntity tileEntity) { this.tileEntity = tileEntity; }
+    public boolean hasTileEntity() { return tileEntity != null; }
 
     public byte getSkyLightLevel() { return skyLightLevel; }
     public void setSkyLightLevel(byte level) { this.skyLightLevel = (byte) Math.max(0, Math.min(MAX_LIGHT_LEVEL, level)); }

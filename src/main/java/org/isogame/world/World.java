@@ -12,6 +12,7 @@ import org.isogame.savegame.GameSaveState;
 import org.isogame.savegame.MapSaveData;
 import org.isogame.savegame.PlayerSaveData;
 import org.isogame.tile.Tile;
+import org.isogame.tile.TileEntityManager;
 
 import java.util.*;
 
@@ -25,6 +26,7 @@ public class World {
     private final EntityManager entityManager;
     private final LightManager lightManager;
     private final PlacementManager placementManager;
+    private final TileEntityManager tileEntityManager; // This field is correct
 
     private double pseudoTimeOfDay;
     private byte lastGlobalSkyLightTargetSetInLM;
@@ -40,9 +42,13 @@ public class World {
     private static final int MAX_CHUNK_GEOMETRY_UPDATES_PER_FRAME = 2;
     private static final int CHUNKS_TO_REFRESH_SKY_PER_FRAME = 4;
 
+
+
     public World(Game game, long seed) {
         this.game = game;
         this.entityManager = new EntityManager();
+        this.tileEntityManager = new TileEntityManager(); // Correctly initialized here
+
         this.map = new Map(seed);
         this.player = new PlayerModel(map.getCharacterSpawnRow(), map.getCharacterSpawnCol());
         this.entityManager.addEntity(player);
@@ -55,9 +61,13 @@ public class World {
         initializeWorldState();
     }
 
+
     public World(Game game, GameSaveState saveState) {
         this.game = game;
         this.entityManager = new EntityManager();
+        // *** THIS IS THE FIX: The following line was missing ***
+        this.tileEntityManager = new TileEntityManager();
+
         this.map = new Map(saveState.mapData.worldSeed);
         this.map.loadState(saveState.mapData);
         this.player = new PlayerModel(this.map.getCharacterSpawnRow(), this.map.getCharacterSpawnCol());
@@ -82,6 +92,7 @@ public class World {
         handleDynamicSpawning(deltaTime);
         processSkyRefreshQueue();
         entityManager.update(deltaTime, this.game);
+        tileEntityManager.update(deltaTime, this.game);
         lightManager.processLightQueuesIncrementally();
         queueDirtyChunksForRenderUpdate();
         processChunkRenderUpdateQueue();
@@ -107,9 +118,11 @@ public class World {
     private void updateActiveChunksAroundPlayer() {
         List<LightManager.ChunkCoordinate> desiredCoords = getDesiredActiveChunkCoordinates();
         Set<LightManager.ChunkCoordinate> desiredSet = new HashSet<>(desiredCoords);
+
         currentlyActiveLogicalChunks.removeIf(currentActiveCoord -> {
             if (!desiredSet.contains(currentActiveCoord)) {
                 entityManager.unloadEntitiesInChunk(currentActiveCoord);
+                // We can safely call unload, as this only happens on subsequent frames when the renderer is ready
                 game.getRenderer().unloadChunkGraphics(currentActiveCoord.chunkX, currentActiveCoord.chunkY);
                 map.unloadChunkData(currentActiveCoord.chunkX, currentActiveCoord.chunkY);
                 globalSkyRefreshNeededQueue.remove(currentActiveCoord);
@@ -117,13 +130,15 @@ public class World {
             }
             return false;
         });
+
         for (LightManager.ChunkCoordinate newCoord : desiredCoords) {
             if (currentlyActiveLogicalChunks.add(newCoord)) {
-                // The World's job is to manage the *data*. It just ensures the tiles exist.
                 map.getOrGenerateChunkTiles(newCoord.chunkX, newCoord.chunkY);
 
-                // *** FIX: Removed the direct call to the renderer from here. ***
-                // The Game class will be responsible for telling the renderer to update graphics later.
+                // *** THIS IS THE FIX ***
+                // We no longer call game.getRenderer().ensureChunkGraphicsLoaded() here.
+                // The World's job is to manage the data. The Game class will orchestrate
+                // the initial rendering of this data via forceFullRenderUpdate().
 
                 lightManager.initializeSkylightForChunk(newCoord);
                 globalSkyRefreshNeededQueue.offer(newCoord);
@@ -131,7 +146,6 @@ public class World {
             }
         }
     }
-
     private List<LightManager.ChunkCoordinate> getDesiredActiveChunkCoordinates() {
         List<LightManager.ChunkCoordinate> desiredActive = new ArrayList<>();
         int playerChunkX = Math.floorDiv(player.getTileCol(), CHUNK_SIZE_TILES);
@@ -286,6 +300,10 @@ public class World {
         }
     }
 
+
+    public TileEntityManager getTileEntityManager() {
+        return this.tileEntityManager;
+    }
     public Map getMap() { return map; }
     public PlayerModel getPlayer() { return player; }
     public EntityManager getEntityManager() { return entityManager; }

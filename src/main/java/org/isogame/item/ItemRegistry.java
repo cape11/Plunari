@@ -30,7 +30,8 @@ public class ItemRegistry {
             "torch.json",         // <-- ADD THIS LINE
             "wooden_sword.json",
             "wood_plank.json",
-            "stone_brick.json"// <-- AND THIS LINE
+            "stone_brick.json",
+            "furnace.json"
     );
 
     /**

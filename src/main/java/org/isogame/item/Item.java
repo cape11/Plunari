@@ -33,19 +33,36 @@ public class Item {
     private float iconU0, iconV0, iconU1, iconV1;
     private boolean hasIconTexture;
 
+
+
     public enum ItemType {
         RESOURCE, TOOL, EQUIPMENT, CONSUMABLE, MISC
     }
 
-    // In the onUse method:
     public boolean onUse(Game game, PlayerModel player, Tile targetTile, int tileR, int tileC) {
+        // --- THIS IS THE FIX ---
+        // First, check if the item being used is a placeable block/resource.
+        if (this.type == ItemType.RESOURCE) {
+            // If it is, attempt to place it. The map.placeBlock method will handle the logic.
+            if (game.getMap().placeBlock(tileR, tileC, this, game)) {
+                // If placement was successful, consume one of the item from the player's hand.
+                player.consumeHeldItem(1);
+                game.setHotbarDirty(true);
+                return true; // The use action was successful, stop here.
+            }
+            // If placement failed (e.g., trying to place in an invalid spot), do nothing.
+            return false;
+        }
+
+        // If it's not a placeable item, then perform the original swing/use animation logic.
         if (this.useStyle != UseStyle.NONE) {
-            // --- FIX: Pass the 'game' object, not 'this' item ---
             player.useItem(game);
             return true;
         }
+
         return false;
     }
+
 
     // Constructor for items WITHOUT a texture icon
     public Item(String itemId, String displayName, String description, ItemType type, int maxStackSize, float[] placeholderColor) {
