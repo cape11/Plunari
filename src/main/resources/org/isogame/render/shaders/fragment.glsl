@@ -46,18 +46,17 @@ void main() {
             FragColor = vec4(materialColor.rgb * lightIntensity, materialColor.a);
 
         } else {
-            // --- THIS IS THE CORRECTED LOGIC FOR PARTICLES ---
-            // This is for un-textured objects like particles.
-            materialColor = fColor;
+                    // --- THIS IS THE FIX FOR PARTICLES ---
+                    // This block is for un-textured objects like your particles.
 
-            // The particle's color is used directly, and the fLightValue,
-            // which contains the calculated alpha, is used for the transparency.
-            FragColor = vec4(materialColor.rgb, materialColor.a * fLightValue);
+                    // The particle's color, INCLUDING its transparency (alpha),
+                    // is passed directly in fColor. We simply use it.
+                    FragColor = fColor;
+                }
+            }
+
+            // Discard fully transparent pixels.
+            if (FragColor.a < 0.01) {
+                discard;
+            }
         }
-    }
-
-    // Discard fully transparent pixels. This is important for performance.
-    if (FragColor.a < 0.01) {
-        discard;
-    }
-}
