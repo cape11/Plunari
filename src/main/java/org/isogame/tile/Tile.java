@@ -6,10 +6,28 @@ public class Tile {
 
     // In Tile.java
     public enum TileType {
-        AIR, WATER, SAND, GRASS, DIRT, ROCK, SNOW, STONE_BRICK, RED_BRICK, WOOD_PLANK, STONE_WALL_SMOOTH, STONE_WALL_ROUGH,
-        FURNACE
-    }
+        AIR("air"), // It's good practice to have a definition for AIR, even if it's empty
+        WATER("water"),
+        SAND("sand"),
+        GRASS("grass"),
+        DIRT("dirt"),
+        ROCK("rock"),
+        SNOW("snow"),
+        // These now map directly to the JSON file names (without the .json)
+        STONE_BRICK("stone_brick"),
+        RED_BRICK("red_brick"),
+        WOOD_PLANK("wood_plank"),
+        STONE_WALL_SMOOTH("stone_wall_smooth"),
+        STONE_WALL_ROUGH("stone_wall_rough"),
+        FURNACE("furnace");
 
+
+        public final String id;
+
+        TileType(String id) {
+            this.id = id;
+        }
+    }
     public enum LooseRockType {
         NONE, TYPE_1, TYPE_2, TYPE_3, TYPE_4, TYPE_5, TYPE_6
     }

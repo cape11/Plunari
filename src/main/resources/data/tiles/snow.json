@@ -1,0 +1,8 @@
+{
+  "id": "snow",
+  "texture": {
+    "atlas": "tileAtlasTexture",
+    "top": { "x": 64, "y": 192, "w": 64, "h": 64 },
+    "side": { "x": 0, "y": 64, "w": 64, "h": 64 }
+  }
+}

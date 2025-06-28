@@ -1,0 +1,8 @@
+{
+  "id": "red_brick",
+  "texture": {
+    "atlas": "tileAtlasTexture",
+    "top": { "x": 128, "y": 0, "w": 64, "h": 64 },
+    "side": { "x": 128, "y": 0, "w": 64, "h": 64 }
+  }
+}

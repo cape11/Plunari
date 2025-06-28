@@ -1,0 +1,8 @@
+{
+  "id": "sand",
+  "texture": {
+    "atlas": "tileAtlasTexture",
+    "top": { "x": 64, "y": 64, "w": 64, "h": 64 },
+    "side": { "x": 64, "y": 64, "w": 64, "h": 64 }
+  }
+}

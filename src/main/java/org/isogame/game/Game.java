@@ -96,6 +96,7 @@ public class Game {
 
             ItemRegistry.loadItems();
             RecipeRegistry.loadRecipes();
+            org.isogame.gamedata.TileRegistry.loadTileDefinitions(); //
             ItemRegistry.initializeItemUVs(assetManager.getTextureMapForRegistry());
 
             // Input handlers are initialized without world-specific references

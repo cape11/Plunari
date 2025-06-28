@@ -1,0 +1,8 @@
+{
+  "id": "grass",
+  "texture": {
+    "atlas": "tileAtlasTexture",
+    "top": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "side": { "x": 64, "y": 0, "w": 64, "h": 64 }
+  }
+}

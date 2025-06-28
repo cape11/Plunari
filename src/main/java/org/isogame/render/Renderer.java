@@ -67,44 +67,6 @@ public class Renderer {
     public static final int FLOATS_PER_VERTEX_SPRITE_TEXTURED = 10;
     public static final int FLOATS_PER_VERTEX_UI_COLORED = 7;
     public static final int FLOATS_PER_VERTEX_SHADOW = 7;
-    public static final float ATLAS_TOTAL_WIDTH = 256.0f;
-    public static final float ATLAS_TOTAL_HEIGHT = 256.0f;
-    public static final float SUB_TEX_WIDTH = 64.0f, SUB_TEX_HEIGHT = 64.0f;
-    public static final float GRASS_ATLAS_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, GRASS_ATLAS_V0 = (0*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    public static final float GRASS_ATLAS_U1 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, GRASS_ATLAS_V1 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    public static final float ROCK_ATLAS_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, ROCK_ATLAS_V0 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-
-    public static final float ROCK_ATLAS_U1 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, ROCK_ATLAS_V1 = (2*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-
-    public static final float STONE_WALL_SMOOTH_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, STONE_WALL_SMOOTH_V0 = (2*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    public static final float STONE_WALL_SMOOTH_U1 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, STONE_WALL_SMOOTH_V1 = (3*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-
-    public static final float STONE_WALL_ROUGH_U0 = (0*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, STONE_WALL_ROUGH_V0 = (3*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    public static final float STONE_WALL_ROUGH_U1 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, STONE_WALL_ROUGH_V1 = (4*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-
-    // Column 1
-    public static final float DIRT_ATLAS_U0 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, DIRT_ATLAS_V0 = (0*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    public static final float DIRT_ATLAS_U1 = (2*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, DIRT_ATLAS_V1 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-
-    public static final float SAND_ATLAS_U0 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, SAND_ATLAS_V0 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    public static final float SAND_ATLAS_U1 = (2*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, SAND_ATLAS_V1 = (2*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-
-    public static final float WOOD_PLANK_U0 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, WOOD_PLANK_V0 = (2*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    public static final float WOOD_PLANK_U1 = (2*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, WOOD_PLANK_V1 = (3*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-
-    public static final float SNOW_ATLAS_U0 = (1*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, SNOW_ATLAS_V0 = (3*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    public static final float SNOW_ATLAS_U1 = (2*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, SNOW_ATLAS_V1 = (4*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-
-    // Column 2
-    public static final float RED_BRICK_U0 = (2*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, RED_BRICK_V0 = (0*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-    public static final float RED_BRICK_U1 = (3*SUB_TEX_WIDTH)/ATLAS_TOTAL_WIDTH, RED_BRICK_V1 = (1*SUB_TEX_HEIGHT)/ATLAS_TOTAL_HEIGHT;
-
-    // Default side texture (can be any you prefer, e.g., DIRT)
-    public static final float DEFAULT_SIDE_U0 = DIRT_ATLAS_U0, DEFAULT_SIDE_V0 = DIRT_ATLAS_V0;
-    public static final float DEFAULT_SIDE_U1 = DIRT_ATLAS_U1, DEFAULT_SIDE_V1 = DIRT_ATLAS_V1;
-
-    public static final float SNOW_SIDE_ATLAS_U0 = ROCK_ATLAS_U0, SNOW_SIDE_ATLAS_V0 = ROCK_ATLAS_V0;
-    public static final float SNOW_SIDE_ATLAS_U1 = ROCK_ATLAS_U1, SNOW_SIDE_ATLAS_V1 = ROCK_ATLAS_V1;
 
     // --- UPDATE THESE UVs FOR THE LOOSE ROCK if GIMP selection is correct ---
     public static final float LOOSE_ROCK_SPRITE_X_PIX = 25.0f;    // New X from GIMP
@@ -181,10 +143,6 @@ public class Renderer {
 
 
 
-    public static final float STONE_BRICK_SIDE_U0 = RED_BRICK_U0;
-    public static final float STONE_BRICK_SIDE_V0 = RED_BRICK_V0;
-    public static final float STONE_BRICK_SIDE_U1 = RED_BRICK_U1;
-    public static final float STONE_BRICK_SIDE_V1 = RED_BRICK_V1;
 
 
     // Actual coordinates from crude_axe.json
@@ -542,7 +500,8 @@ public class Renderer {
 
         if (currentTileTopSurfaceType != Tile.TileType.WATER) {
             verticesAddedCount += addPedestalSidesToList(
-                    vertexBuffer, tileGridPlaneCenterX, tileGridPlaneCenterY, tileBaseZ + Z_OFFSET_TILE_PEDESTAL,
+                    vertexBuffer, tile, // Pass the whole tile object
+                    tileGridPlaneCenterX, tileGridPlaneCenterY, tileBaseZ + Z_OFFSET_TILE_PEDESTAL,
                     sideTintToUse, normalizedLightValue);
         }
 
@@ -552,14 +511,14 @@ public class Renderer {
         }
 
         verticesAddedCount += addTopSurfaceToList(
-                vertexBuffer, currentTileTopSurfaceType, isSelected,
+                vertexBuffer, tile, isSelected, // Pass the whole tile object
                 tileGridPlaneCenterX, currentTileTopSurfaceActualY, tileTopSurfaceZ,
                 topSurfaceColor, WHITE_TINT, normalizedLightValue);
 
 
         if (currentTileElevation > 0 && currentTileTopSurfaceType != Tile.TileType.WATER) {
             verticesAddedCount += addStratifiedElevatedSidesToList(
-                    vertexBuffer, currentTileElevation,
+                    vertexBuffer, tile, // Pass the whole tile object
                     tileGridPlaneCenterX, tileGridPlaneCenterY, tileBaseZ + Z_OFFSET_TILE_SIDES,
                     (float)TILE_THICKNESS,
                     sideTintToUse, normalizedLightValue,
@@ -580,6 +539,7 @@ public class Renderer {
 
 
     private int addPedestalSidesToList(FloatBuffer vertexBuffer,
+                                       Tile tile, // Pass in the tile
                                        float tileCenterX, float gridPlaneY, float worldZ,
                                        float[] tint, float lightVal) {
         int vCount = 0;
@@ -593,7 +553,29 @@ public class Renderer {
         float pBotRx = tileCenterX + this.diamondRightOffsetX, pBotRy = pedestalBottomY + this.diamondSideOffsetY;
         float pBotBx = tileCenterX,                               pBotBy = pedestalBottomY + this.diamondBottomOffsetY;
 
-        float u0 = DEFAULT_SIDE_U0, v0 = DEFAULT_SIDE_V0, u1 = DEFAULT_SIDE_U1, vSpan = DEFAULT_SIDE_V1 - v0;
+        // --- Data-Driven Logic Start ---
+        // We'll use the "dirt" texture as the default pedestal side.
+        org.isogame.gamedata.TileDefinition def = org.isogame.gamedata.TileRegistry.getTileDefinition("dirt");
+        if (def == null || def.texture == null || def.texture.side == null) {
+            return 0; // Cannot draw pedestal without a default side texture definition.
+        }
+
+        float u0, v0, u1, v1Atlas;
+        float atlasW = tileAtlasTexture.getWidth();
+        float atlasH = tileAtlasTexture.getHeight();
+
+        if (atlasW > 0 && atlasH > 0) {
+            org.isogame.gamedata.TileDefinition.TextureCoords tex = def.texture.side;
+            u0 = tex.x / atlasW;
+            v0 = tex.y / atlasH;
+            u1 = (tex.x + tex.w) / atlasW;
+            v1Atlas = (tex.y + tex.h) / atlasH;
+        } else {
+            return 0; // Cannot calculate UVs
+        }
+        // --- Data-Driven Logic End ---
+
+        float vSpan = v1Atlas - v0;
         float vRepeats = (BASE_THICKNESS / (float) TILE_HEIGHT) * SIDE_TEXTURE_DENSITY_FACTOR;
         float vBotTex = v0 + vSpan * vRepeats;
 
@@ -619,41 +601,54 @@ public class Renderer {
 
 
     private int addTopSurfaceToList(FloatBuffer vertexBuffer,
-                                    Tile.TileType topSurfaceType, boolean isSelected,
+                                    Tile tile, boolean isSelected,
                                     float topCenterX, float topCenterY, float worldZ,
                                     float[] actualTopColor, float[] whiteTint, float lightVal) {
+
         int vCount = 0;
-        float topLx = topCenterX + this.diamondLeftOffsetX,  topLy = topCenterY + this.diamondSideOffsetY;
-        float topRx = topCenterX + this.diamondRightOffsetX, topRy = topCenterY + this.diamondSideOffsetY;
-        float topTx = topCenterX,                            topTy = topCenterY + this.diamondTopOffsetY;
-        float topBx = topCenterX,                            topBy = topCenterY + this.diamondBottomOffsetY;
+        float topLx = topCenterX + this.diamondLeftOffsetX;
+        float topLy = topCenterY + this.diamondSideOffsetY;
+        float topRx = topCenterX + this.diamondRightOffsetX;
+        float topRy = topCenterY + this.diamondSideOffsetY;
+        float topTx = topCenterX;
+        float topTy = topCenterY + this.diamondTopOffsetY;
+        float topBx = topCenterX;
+        float topBy = topCenterY + this.diamondBottomOffsetY;
 
         float[] colorToUse = actualTopColor;
         boolean textureTop = false;
-        float u0 = DUMMY_U, v0 = DUMMY_V, u1 = DUMMY_U, v1Atlas = DUMMY_V;
+        float u0 = 0, v0 = 0, u1 = 0, v1Atlas = 0;
 
-        if (topSurfaceType != Tile.TileType.WATER && topSurfaceType != Tile.TileType.AIR) {
-            textureTop = true;
-            switch (topSurfaceType) {
-                case GRASS: u0 = GRASS_ATLAS_U0; v0 = GRASS_ATLAS_V0; u1 = GRASS_ATLAS_U1; v1Atlas = GRASS_ATLAS_V1; break;
-                case DIRT:  u0 = DIRT_ATLAS_U0;  v0 = DIRT_ATLAS_V0;  u1 = DIRT_ATLAS_U1;  v1Atlas = DIRT_ATLAS_V1;  break;
-                case SAND:  u0 = SAND_ATLAS_U0;  v0 = SAND_ATLAS_V0;  u1 = SAND_ATLAS_U1;  v1Atlas = SAND_ATLAS_V1;  break;
-                case ROCK:  u0 = ROCK_ATLAS_U0;  v0 = ROCK_ATLAS_V0;  u1 = ROCK_ATLAS_U1;  v1Atlas = ROCK_ATLAS_V1;  break;
-                case SNOW:  u0 = SNOW_ATLAS_U0;  v0 = SNOW_ATLAS_V0;  u1 = SNOW_ATLAS_U1;  v1Atlas = SNOW_ATLAS_V1;  break;
-                // --- ADD THESE NEW CASES ---
-                case RED_BRICK: u0 = RED_BRICK_U0; v0 = RED_BRICK_V0; u1 = RED_BRICK_U1; v1Atlas = RED_BRICK_V1; break;
-                case WOOD_PLANK: u0 = WOOD_PLANK_U0; v0 = WOOD_PLANK_V0; u1 = WOOD_PLANK_U1; v1Atlas = WOOD_PLANK_V1; break;
-                case STONE_WALL_SMOOTH: u0 = STONE_WALL_SMOOTH_U0; v0 = STONE_WALL_SMOOTH_V0; u1 = STONE_WALL_SMOOTH_U1; v1Atlas = STONE_WALL_SMOOTH_V1; break;
-                case STONE_WALL_ROUGH: u0 = STONE_WALL_ROUGH_U0; v0 = STONE_WALL_ROUGH_V0; u1 = STONE_WALL_ROUGH_U1; v1Atlas = STONE_WALL_ROUGH_V1; break;
-                default: textureTop = false; break;
-            }
-            if (textureTop && !isSelected) {
-                colorToUse = whiteTint;
+        // Data-driven part starts here!
+        if (tile.getType() != Tile.TileType.WATER && tile.getType() != Tile.TileType.AIR) {
+            org.isogame.gamedata.TileDefinition def = org.isogame.gamedata.TileRegistry.getTileDefinition(tile.getType().id);
+
+            if (def != null && def.texture != null && def.texture.top != null) {
+                textureTop = true;
+                // We assume the atlas is the main tileAtlasTexture.
+                // This could be made more robust by checking def.texture.atlas if you use multiple atlases.
+                float atlasW = tileAtlasTexture.getWidth();
+                float atlasH = tileAtlasTexture.getHeight();
+
+                if (atlasW > 0 && atlasH > 0) {
+                    org.isogame.gamedata.TileDefinition.TextureCoords tex = def.texture.top;
+                    u0 = tex.x / atlasW;
+                    v0 = tex.y / atlasH;
+                    u1 = (tex.x + tex.w) / atlasW;
+                    v1Atlas = (tex.y + tex.h) / atlasH;
+                } else {
+                    textureTop = false; // Could not get atlas dimensions
+                }
+
+                if (textureTop && !isSelected) {
+                    colorToUse = whiteTint;
+                }
             }
         }
 
         if (textureTop) {
-            float midU = (u0 + u1) / 2f; float midV = (v0 + v1Atlas) / 2f;
+            float midU = (u0 + u1) / 2f;
+            float midV = (v0 + v1Atlas) / 2f;
             addVertexToBuffer(vertexBuffer, topTx, topTy, worldZ, colorToUse, midU, v0, lightVal);
             addVertexToBuffer(vertexBuffer, topLx, topLy, worldZ, colorToUse, u0, midV, lightVal);
             addVertexToBuffer(vertexBuffer, topBx, topBy, worldZ, colorToUse, midU, v1Atlas, lightVal);
@@ -663,37 +658,31 @@ public class Renderer {
             addVertexToBuffer(vertexBuffer, topRx, topRy, worldZ, colorToUse, u1, midV, lightVal);
             vCount += 3;
         } else {
-            addVertexToBuffer(vertexBuffer, topTx, topTy, worldZ, colorToUse, DUMMY_U, DUMMY_V, lightVal);
-            addVertexToBuffer(vertexBuffer, topLx, topLy, worldZ, colorToUse, DUMMY_U, DUMMY_V, lightVal);
-            addVertexToBuffer(vertexBuffer, topBx, topBy, worldZ, colorToUse, DUMMY_U, DUMMY_V, lightVal);
+            // Fallback for WATER, AIR, or tiles with no texture definition
+            addVertexToBuffer(vertexBuffer, topTx, topTy, worldZ, colorToUse, 0, 0, lightVal);
+            addVertexToBuffer(vertexBuffer, topLx, topLy, worldZ, colorToUse, 0, 0, lightVal);
+            addVertexToBuffer(vertexBuffer, topBx, topBy, worldZ, colorToUse, 0, 0, lightVal);
             vCount += 3;
-            addVertexToBuffer(vertexBuffer, topTx, topTy, worldZ, colorToUse, DUMMY_U, DUMMY_V, lightVal);
-            addVertexToBuffer(vertexBuffer, topBx, topBy, worldZ, colorToUse, DUMMY_U, DUMMY_V, lightVal);
-            addVertexToBuffer(vertexBuffer, topRx, topRy, worldZ, colorToUse, DUMMY_U, DUMMY_V, lightVal);
+            addVertexToBuffer(vertexBuffer, topTx, topTy, worldZ, colorToUse, 0, 0, lightVal);
+            addVertexToBuffer(vertexBuffer, topBx, topBy, worldZ, colorToUse, 0, 0, lightVal);
+            addVertexToBuffer(vertexBuffer, topRx, topRy, worldZ, colorToUse, 0, 0, lightVal);
             vCount += 3;
         }
         return vCount;
     }
 
     private int addStratifiedElevatedSidesToList(FloatBuffer vertexBuffer,
-                                                 int totalElevationUnits,
+                                                 Tile tile, // Pass the whole tile object
                                                  float tileCenterX, float gridPlaneCenterY, float worldZ,
                                                  float elevSliceHeight, float[] tint, float initialLightVal,
                                                  int tileR_map, int tileC_map) {
         int vCount = 0;
         float sideLightVal = initialLightVal;
-
-        LightManager lm = null;
-        // Access LightManager via the Map instance stored in this Renderer
-        if (this.map != null) {
-            lm = this.map.getLightManager();
-        }
-
+        LightManager lm = (this.map != null) ? this.map.getLightManager() : null;
 
         if (map != null && lm != null) {
-            Tile topTileForColumn = map.getTile(tileR_map, tileC_map);
-            if (topTileForColumn != null && topTileForColumn.getType() != Tile.TileType.WATER) {
-                if (lm.isSurfaceTileExposedToSky(tileR_map, tileC_map, topTileForColumn.getElevation())) {
+            if (tile != null && tile.getType() != Tile.TileType.WATER) {
+                if (lm.isSurfaceTileExposedToSky(tileR_map, tileC_map, tile.getElevation())) {
                     float directSkyContribution = lm.getCurrentGlobalSkyLightTarget() / (float)MAX_LIGHT_LEVEL;
                     float minLightFromSky = directSkyContribution * 0.65f;
                     sideLightVal = Math.max(sideLightVal, minLightFromSky);
@@ -706,87 +695,68 @@ public class Renderer {
         }
         sideLightVal = Math.max(0.05f, sideLightVal);
 
+        // Data-driven part starts here!
+        org.isogame.gamedata.TileDefinition def = org.isogame.gamedata.TileRegistry.getTileDefinition(tile.getType().id);
+        if (def == null || def.texture == null || def.texture.side == null) {
+            return 0; // No side texture defined for this tile, so draw nothing.
+        }
 
-        // In Renderer.java -> addStratifiedElevatedSidesToList()
+        float u0, v0, u1, v1Atlas;
+        float atlasW = tileAtlasTexture.getWidth();
+        float atlasH = tileAtlasTexture.getHeight();
 
-        for (int elevUnit = 1; elevUnit <= totalElevationUnits; elevUnit++) {
-            float u0, v0, u1, v1Atlas;
-            Tile topTile = (map != null) ? map.getTile(tileR_map, tileC_map) : null;
+        if (atlasW > 0 && atlasH > 0) {
+            org.isogame.gamedata.TileDefinition.TextureCoords tex = def.texture.side;
+            u0 = tex.x / atlasW;
+            v0 = tex.y / atlasH;
+            u1 = (tex.x + tex.w) / atlasW;
+            v1Atlas = (tex.y + tex.h) / atlasH;
+        } else {
+            return 0; // Cannot calculate UVs without atlas dimensions
+        }
 
-            // --- REPLACE THE OLD IF/ELSE IF BLOCK WITH THIS SWITCH STATEMENT ---
-            if (topTile != null) {
-                switch (topTile.getType()) {
-                    case GRASS:
-                        // Grass blocks should have dirt sides
-                        u0 = DIRT_ATLAS_U0; v0 = DIRT_ATLAS_V0; u1 = DIRT_ATLAS_U1; v1Atlas = DIRT_ATLAS_V1;
-                        break;
-                    case DIRT:
-                        u0 = DIRT_ATLAS_U0; v0 = DIRT_ATLAS_V0; u1 = DIRT_ATLAS_U1; v1Atlas = DIRT_ATLAS_V1;
-                        break;
-                    case SAND:
-                        u0 = SAND_ATLAS_U0; v0 = SAND_ATLAS_V0; u1 = SAND_ATLAS_U1; v1Atlas = SAND_ATLAS_V1;
-                        break;
-                    case ROCK:
-                        u0 = ROCK_ATLAS_U0; v0 = ROCK_ATLAS_V0; u1 = ROCK_ATLAS_U1; v1Atlas = ROCK_ATLAS_V1;
-                        break;
-                    case SNOW:
-                        u0 = SNOW_SIDE_ATLAS_U0; v0 = SNOW_SIDE_ATLAS_V0; u1 = SNOW_SIDE_ATLAS_U1; v1Atlas = SNOW_SIDE_ATLAS_V1;
-                        break;
-                    case RED_BRICK:
-                    case STONE_WALL_SMOOTH: // You can group cases that use the same side texture
-                    case STONE_WALL_ROUGH:
-                        u0 = STONE_BRICK_SIDE_U0; v0 = STONE_BRICK_SIDE_V0; u1 = STONE_BRICK_SIDE_U1; v1Atlas = STONE_BRICK_SIDE_V1;
-                        break;
-                    case WOOD_PLANK:
-                        u0 = WOOD_PLANK_U0; v0 = WOOD_PLANK_V0; u1 = WOOD_PLANK_U1; v1Atlas = WOOD_PLANK_V1;
-                        break;
-                    default:
-                        // Fallback for any other tile type
-                        u0 = DEFAULT_SIDE_U0; v0 = DEFAULT_SIDE_V0; u1 = DEFAULT_SIDE_U1; v1Atlas = DEFAULT_SIDE_V1;
-                        break;
-                }
-            } else {
-                // Default if tile is null
-                u0 = DEFAULT_SIDE_U0; v0 = DEFAULT_SIDE_V0; u1 = DEFAULT_SIDE_U1; v1Atlas = DEFAULT_SIDE_V1;
-            }
-            // --- END OF REPLACEMENT ---
-
-            float vSpanAtlas = v1Atlas - v0;
-            // ... the rest of the method continues as before
+        for (int elevUnit = 1; elevUnit <= tile.getElevation(); elevUnit++) {
             float vTopTex = v0;
             float vBotTex = v1Atlas;
 
             float sliceTopActualY    = gridPlaneCenterY - (elevUnit * elevSliceHeight);
             float sliceBottomActualY = gridPlaneCenterY - ((elevUnit - 1) * elevSliceHeight);
 
+            // --- Calculate the 8 vertex positions for the current slice ---
+            // Top vertices of the slice
             float sTopLx = tileCenterX + this.diamondLeftOffsetX,  sTopLy = sliceTopActualY + this.diamondSideOffsetY;
             float sTopRx = tileCenterX + this.diamondRightOffsetX, sTopRy = sliceTopActualY + this.diamondSideOffsetY;
             float sTopBx = tileCenterX,                             sTopBy = sliceTopActualY + this.diamondBottomOffsetY;
-
+            // Bottom vertices of the slice
             float sBotLx = tileCenterX + this.diamondLeftOffsetX,  sBotLy = sliceBottomActualY + this.diamondSideOffsetY;
             float sBotRx = tileCenterX + this.diamondRightOffsetX, sBotRy = sliceBottomActualY + this.diamondSideOffsetY;
             float sBotBx = tileCenterX,                             sBotBy = sliceBottomActualY + this.diamondBottomOffsetY;
 
+            // --- Draw the Left Face of the slice ---
+            // Triangle 1
             addVertexToBuffer(vertexBuffer, sTopLx, sTopLy, worldZ, tint, u0, vTopTex, sideLightVal);
             addVertexToBuffer(vertexBuffer, sBotLx, sBotLy, worldZ, tint, u0, vBotTex, sideLightVal);
-            addVertexToBuffer(vertexBuffer, sTopBx, sTopBy, worldZ, tint, u1, vTopTex, sideLightVal);
-            vCount += 3;
-            addVertexToBuffer(vertexBuffer, sTopBx, sTopBy, worldZ, tint, u1, vTopTex, sideLightVal);
-            addVertexToBuffer(vertexBuffer, sBotLx, sBotLy, worldZ, tint, u0, vBotTex, sideLightVal);
             addVertexToBuffer(vertexBuffer, sBotBx, sBotBy, worldZ, tint, u1, vBotTex, sideLightVal);
-            vCount += 3;
+            // Triangle 2
+            addVertexToBuffer(vertexBuffer, sTopLx, sTopLy, worldZ, tint, u0, vTopTex, sideLightVal);
+            addVertexToBuffer(vertexBuffer, sBotBx, sBotBy, worldZ, tint, u1, vBotTex, sideLightVal);
+            addVertexToBuffer(vertexBuffer, sTopBx, sTopBy, worldZ, tint, u1, vTopTex, sideLightVal);
+            vCount += 6;
 
+            // --- Draw the Right Face of the slice ---
+            // Triangle 1
             addVertexToBuffer(vertexBuffer, sTopBx, sTopBy, worldZ, tint, u0, vTopTex, sideLightVal);
             addVertexToBuffer(vertexBuffer, sBotBx, sBotBy, worldZ, tint, u0, vBotTex, sideLightVal);
-            addVertexToBuffer(vertexBuffer, sTopRx, sTopRy, worldZ, tint, u1, vTopTex, sideLightVal);
-            vCount += 3;
-            addVertexToBuffer(vertexBuffer, sTopRx, sTopRy, worldZ, tint, u1, vTopTex, sideLightVal);
-            addVertexToBuffer(vertexBuffer, sBotBx, sBotBy, worldZ, tint, u0, vBotTex, sideLightVal);
             addVertexToBuffer(vertexBuffer, sBotRx, sBotRy, worldZ, tint, u1, vBotTex, sideLightVal);
-            vCount += 3;
+            // Triangle 2
+            addVertexToBuffer(vertexBuffer, sTopBx, sTopBy, worldZ, tint, u0, vTopTex, sideLightVal);
+            addVertexToBuffer(vertexBuffer, sBotRx, sBotRy, worldZ, tint, u1, vBotTex, sideLightVal);
+            addVertexToBuffer(vertexBuffer, sTopRx, sTopRy, worldZ, tint, u1, vTopTex, sideLightVal);
+            vCount += 6;
         }
         return vCount;
     }
+
 
     private void updateChunkVisualBounds(float[] chunkVisualBounds, float tileCenterX, float tileCenterY,
                                          int elevUnits, float elevSliceH,
