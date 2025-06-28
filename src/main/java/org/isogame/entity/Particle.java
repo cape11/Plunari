@@ -50,6 +50,10 @@ public class Particle extends Entity {
         this.visualCol = mapCol;
     }
 
+    public void setZVelocity(float newDz) {
+        this.dz = newDz;
+    }
+
     // ✅ FIX: getZ now returns the float z
     public float getZ() { return z; }
 
