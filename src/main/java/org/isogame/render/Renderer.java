@@ -1627,49 +1627,57 @@ public class Renderer {
         // Clear the buffer for the next batch
         buffer.clear();
     }
-    // In Renderer.java
-    // In Renderer.java
-    // In Renderer.java
     private int addParticleVerticesToBuffer(Particle particle, FloatBuffer buffer) {
-        if (map == null) return 0;
+        if (map == null) {
+            return 0; // Cannot render without map context
+        }
 
-        // Use the particle's current visual position for screen coordinates
+        // --- Step 1: Convert the particle's map position to isometric world coordinates ---
         float pR_visual = particle.getVisualRow();
         float pC_visual = particle.getVisualCol();
 
+        // This is the standard isometric projection formula you use elsewhere
         float pIsoX = (pC_visual - pR_visual) * (Constants.TILE_WIDTH / 2.0f);
         float pIsoY = (pC_visual + pR_visual) * (Constants.TILE_HEIGHT / 2.0f);
-        pIsoY -= particle.getZ(); // Subtract Z-height for visual positioning
 
-        // *** FIX: Calculate depth based on the particle's INTEGER tile coordinates ***
-        // This prevents Z-fighting as the particle moves across a tile.
+        // Apply the particle's unique Z-height (for its up/down movement)
+        pIsoY -= particle.getZ();
+
+        // --- Step 2: Calculate the particle's depth for correct sorting ---
+        // This ensures particles draw in front of or behind the correct tiles
         int tileR = particle.getTileRow();
         int tileC = particle.getTileCol();
         float baseDepth = (tileR + tileC) * Constants.DEPTH_SORT_FACTOR;
 
-        // Apply a strong negative bias to ensure it's in front of everything on that tile
+        // Apply a strong negative bias to ensure it's rendered in front of other objects on the same tile
         float particleWorldZ = baseDepth - 0.5f;
 
+        // --- Step 3: Define the particle's quad (the square that gets drawn) ---
         float halfSize = particle.size / 2.0f;
-        float xL = pIsoX - halfSize;
-        float xR = pIsoX + halfSize;
-        float yT = pIsoY - halfSize;
-        float yB = pIsoY + halfSize;
+        float xL = pIsoX - halfSize; // Left X
+        float xR = pIsoX + halfSize; // Right X
+        float yT = pIsoY - halfSize; // Top Y
+        float yB = pIsoY + halfSize; // Bottom Y
 
-        float lifeRatio = (float)particle.getLife() / (float)particle.getMaxLife();
-        float alphaFade = Math.min(1.0f, lifeRatio * 2.0f);
-
+        // --- Step 4: Calculate the color and fade-out effect ---
+        float lifeRatio = (float) particle.getLife() / (float) particle.getMaxLife();
+        float alphaFade = Math.min(1.0f, lifeRatio * 2.0f); // Fade out smoothly
         float[] finalColor = { particle.color[0], particle.color[1], particle.color[2], alphaFade };
 
-        addVertexToParticleBuffer(buffer, xL, yT, particleWorldZ, finalColor);
-        addVertexToParticleBuffer(buffer, xL, yB, particleWorldZ, finalColor);
-        addVertexToParticleBuffer(buffer, xR, yB, particleWorldZ, finalColor);
+        // --- Step 5: Add the 6 vertices for the two triangles that make the quad ---
+        // Note: This now calls your existing 'addVertexToParticleBuffer' helper method.
 
-        addVertexToParticleBuffer(buffer, xR, yB, particleWorldZ, finalColor);
-        addVertexToParticleBuffer(buffer, xR, yT, particleWorldZ, finalColor);
-        addVertexToParticleBuffer(buffer, xL, yT, particleWorldZ, finalColor);
+        // Triangle 1
+        addVertexToParticleBuffer(buffer, xL, yT, particleWorldZ, finalColor); // Top-Left
+        addVertexToParticleBuffer(buffer, xL, yB, particleWorldZ, finalColor); // Bottom-Left
+        addVertexToParticleBuffer(buffer, xR, yB, particleWorldZ, finalColor); // Bottom-Right
 
-        return 6;
+        // Triangle 2
+        addVertexToParticleBuffer(buffer, xR, yB, particleWorldZ, finalColor); // Bottom-Right
+        addVertexToParticleBuffer(buffer, xR, yT, particleWorldZ, finalColor); // Top-Right
+        addVertexToParticleBuffer(buffer, xL, yT, particleWorldZ, finalColor); // Top-Left
+
+        return 6; // We successfully added 6 vertices
     }
 
     private int addGenericEntityVerticesToBuffer(Entity entity, FloatBuffer buffer) {

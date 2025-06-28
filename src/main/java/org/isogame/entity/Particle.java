@@ -8,7 +8,7 @@ public class Particle extends Entity {
     private float dx, dy, dz;    // Velocity
     private int life;            // How long the particle exists
     private final int maxLife;
-    private float z;             // ✅ FIX: Dedicated float for Z-position
+    private float z;
 
     public float[] color;
     public float size;
@@ -18,7 +18,7 @@ public class Particle extends Entity {
         this.setPosition(startRow, startCol);
         this.visualRow = startRow;
         this.visualCol = startCol;
-        this.z = startZ; // ✅ FIX: Initialize the new z variable
+        this.z = startZ; //
 
         this.dx = dx;
         this.dy = dy;
