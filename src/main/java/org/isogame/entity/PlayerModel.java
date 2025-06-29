@@ -5,7 +5,7 @@ import org.isogame.constants.Constants;
 import org.isogame.gamedata.AnchorDefinition;
 import org.isogame.gamedata.AnimationDefinition;
 import org.isogame.game.Game;
-import org.isogame.inventory.InventorySlot;
+import org.isogame.item.InventorySlot;
 import org.isogame.item.Item;
 import org.isogame.item.ItemRegistry;
 import org.isogame.item.ToolItem;

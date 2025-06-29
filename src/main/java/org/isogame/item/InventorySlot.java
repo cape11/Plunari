@@ -1,6 +1,8 @@
-package org.isogame.inventory;
+package org.isogame.item;
 
 import org.isogame.item.Item;
+import org.isogame.item.ItemRegistry;
+import org.isogame.savegame.InventorySlotSaveData;
 
 public class InventorySlot {
     private Item item;
@@ -14,6 +16,38 @@ public class InventorySlot {
     public Item getItem() { return item; }
     public int getQuantity() { return quantity; }
     public boolean isEmpty() { return item == null || quantity == 0; }
+
+    /**
+     * NEW METHOD
+     * Populates this slot based on loaded save data.
+     * @param saveData The data to load from.
+     */
+    public void loadState(InventorySlotSaveData saveData) {
+        if (saveData != null && saveData.itemId != null && saveData.quantity > 0) {
+            this.item = ItemRegistry.getItem(saveData.itemId);
+            this.quantity = saveData.quantity;
+        } else {
+            clearSlot();
+        }
+    }
+
+    /**
+     * NEW METHOD
+     * Creates a save data object representing the current state of this slot.
+     * @return A new InventorySlotSaveData object.
+     */
+    public InventorySlotSaveData getSaveData() {
+        InventorySlotSaveData saveData = new InventorySlotSaveData();
+        if (!isEmpty()) {
+            saveData.itemId = this.item.getItemId();
+            saveData.quantity = this.quantity;
+        } else {
+            saveData.itemId = null;
+            saveData.quantity = 0;
+        }
+        return saveData;
+    }
+
 
     /**
      * Attempts to add a quantity of an item to this slot.

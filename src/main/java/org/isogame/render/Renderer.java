@@ -1850,13 +1850,13 @@ public class Renderer {
     }
 
     // Helper method for quantity text rendering
-    private void renderQuantityText(List<org.isogame.inventory.InventorySlot> slots, Font font,
+    private void renderQuantityText(List<org.isogame.item.InventorySlot> slots, Font font,
                                     float hotbarX, float hotbarY, float slotSize,
                                     float slotMargin, int slotsToDisplay) {
         final float textPaddingFromEdge = 4f;
 
         for (int i = 0; i < slotsToDisplay; i++) {
-            org.isogame.inventory.InventorySlot slot = (i < slots.size()) ? slots.get(i) : null;
+            org.isogame.item.InventorySlot slot = (i < slots.size()) ? slots.get(i) : null;
 
             if (slot != null && !slot.isEmpty() && slot.getQuantity() > 1) {
                 String quantityStr = String.valueOf(slot.getQuantity());
@@ -1928,7 +1928,7 @@ public class Renderer {
     }
 
     // Optimized text rendering methods
-    private void renderInventoryText(List<org.isogame.inventory.InventorySlot> slots, Font font,
+    private void renderInventoryText(List<org.isogame.item.InventorySlot> slots, Font font,
                                      float panelX, float panelY, float slotSize,
                                      float slotMargin, int slotsPerRow) {
         float currentSlotX = panelX + slotMargin;
@@ -1937,7 +1937,7 @@ public class Renderer {
         final float textPadding = 4f;
 
         for (int i = 0; i < slots.size(); i++) {
-            org.isogame.inventory.InventorySlot slot = slots.get(i);
+            org.isogame.item.InventorySlot slot = slots.get(i);
             if (slot != null && !slot.isEmpty() && slot.getQuantity() > 1) {
                 String quantityStr = String.valueOf(slot.getQuantity());
                 float textWidth = font.getTextWidth(quantityStr);

@@ -3,8 +3,12 @@ package org.isogame.tile;
 
 import org.isogame.constants.Constants;
 import org.isogame.game.Game;
-import org.isogame.inventory.InventorySlot;
+import org.isogame.item.InventorySlot;
 import org.isogame.item.ItemRegistry;
+import org.isogame.savegame.InventorySlotSaveData;
+import org.isogame.savegame.TileEntitySaveData;
+
+import java.util.Map;
 
 public class FurnaceEntity extends TileEntity {
 
@@ -27,62 +31,61 @@ public class FurnaceEntity extends TileEntity {
     public FurnaceEntity(int row, int col) {
         super(row, col);
     }
+    public FurnaceEntity(TileEntitySaveData saveData) {
+        super(saveData.row, saveData.col);
+        this.isSmelting = (boolean) saveData.customData.getOrDefault("isSmelting", false);
+        this.fuelTime = (double) saveData.customData.getOrDefault("fuelTime", 0.0);
+        this.cookTime = (double) saveData.customData.getOrDefault("cookTime", 0.0);
+
+        // This is now safe and correct
+        this.inputSlot.loadState(InventorySlotSaveData.fromMap((Map<String, Object>) saveData.customData.get("inputSlot")));
+        this.fuelSlot.loadState(InventorySlotSaveData.fromMap((Map<String, Object>) saveData.customData.get("fuelSlot")));
+        this.outputSlot.loadState(InventorySlotSaveData.fromMap((Map<String, Object>) saveData.customData.get("outputSlot")));
+    }
+
 
     @Override
     public void update(double deltaTime, Game game) {
         boolean wasSmelting = isSmelting;
 
-        // If we have fuel, keep burning it
         if (fuelTime > 0) {
             fuelTime -= deltaTime;
         }
 
-        // Check if we can start smelting
-        // For this example, we'll say "wood" is fuel and "loose_rock" is the input
-        if (fuelTime > 0 && !inputSlot.isEmpty() && inputSlot.getItem().getItemId().equals("loose_rock")) {
+        if (fuelTime > 0 && !inputSlot.isEmpty() && "loose_rock".equals(inputSlot.getItem().getItemId())) {
             isSmelting = true;
             cookTime += deltaTime;
 
-            // If smelting is finished
             if (cookTime >= MAX_COOK_TIME) {
                 cookTime = 0;
-                inputSlot.removeQuantity(1); // Consume one ore
-
-                // For this example, smelting a rock gives a stone.
+                inputSlot.removeQuantity(1);
                 outputSlot.addItem(ItemRegistry.getItem("stone"), 1);
             }
         } else {
-            // Stop smelting if out of fuel or input
             isSmelting = false;
             cookTime = 0;
         }
 
-        // If we ran out of fuel completely
         if (fuelTime <= 0) {
-            // Check if there's more fuel in the fuel slot
-            if (isSmelting && !fuelSlot.isEmpty() && fuelSlot.getItem().getItemId().equals("wood")) {
+            if (isSmelting && !fuelSlot.isEmpty() && "wood".equals(fuelSlot.getItem().getItemId())) {
                 fuelSlot.removeQuantity(1);
-                fuelTime += 10.0; // 1 wood log gives 10 seconds of fuel
+                fuelTime += 10.0;
             } else {
-                isSmelting = false; // Truly out of fuel
+                isSmelting = false;
             }
         }
 
-        // Update animation if smelting
         if (isSmelting) {
             animationTimer += deltaTime;
             if (animationTimer >= FRAME_DURATION) {
                 animationTimer = 0;
-                currentFrame = (currentFrame + 1) % 4; // Loop through the 4 animation frames
+                currentFrame = (currentFrame + 1) % 4;
             }
         }
 
-        // Manage light source based on smelting state
         if (isSmelting && !wasSmelting) {
-            // We just turned ON
             game.getLightManager().addLightSource(this.row, this.col, (byte)13);
         } else if (!isSmelting && wasSmelting) {
-            // We just turned OFF
             game.getLightManager().removeLightSource(this.row, this.col);
         }
     }
@@ -91,6 +94,23 @@ public class FurnaceEntity extends TileEntity {
     public void onInteract(Game game) {
         System.out.println("Interacted with Furnace. Opening UI...");
         game.getUiManager().openFurnaceUI(this);
+    }
+
+    @Override
+    public TileEntitySaveData getSaveData() {
+        TileEntitySaveData saveData = new TileEntitySaveData();
+        saveData.type = "FURNACE";
+        saveData.row = this.row;
+        saveData.col = this.col;
+        saveData.customData.put("isSmelting", this.isSmelting);
+        saveData.customData.put("fuelTime", this.fuelTime);
+        saveData.customData.put("cookTime", this.cookTime);
+
+        // This is now safe and correct
+        saveData.customData.put("inputSlot", this.inputSlot.getSaveData().toMap());
+        saveData.customData.put("fuelSlot", this.fuelSlot.getSaveData().toMap());
+        saveData.customData.put("outputSlot", this.outputSlot.getSaveData().toMap());
+        return saveData;
     }
 
     public boolean isSmelting() { return isSmelting; }

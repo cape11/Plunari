@@ -3,6 +3,7 @@ package org.isogame.tile;
 import org.isogame.game.Game;
 import org.isogame.map.LightManager.ChunkCoordinate;
 import org.isogame.constants.Constants;
+import org.isogame.savegame.TileEntitySaveData;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -43,9 +44,11 @@ public class TileEntityManager {
         }
         return null;
     }
+
     /**
      * Gathers all TileEntity objects from all active chunks into a single list.
      * This is used by the Renderer to draw all interactive blocks.
+     *
      * @return A new list containing all active TileEntity objects.
      */
     public List<TileEntity> getAllTileEntities() {
@@ -55,4 +58,22 @@ public class TileEntityManager {
         }
         return allEntities;
     }
-}
+        public void populateSaveData (List < TileEntitySaveData > tileEntityData) {
+            for (Map<String, TileEntity> chunkMap : tileEntities.values()) {
+                for (TileEntity te : chunkMap.values()) {
+                    tileEntityData.add(te.getSaveData());
+                }
+            }
+        }
+
+        // NEW METHOD: Load all tile entities
+        public void loadState (List < TileEntitySaveData > tileEntityData, Game game){
+            this.tileEntities.clear();
+            for (TileEntitySaveData saveData : tileEntityData) {
+                if ("FURNACE".equals(saveData.type)) {
+                    addTileEntity(new FurnaceEntity(saveData));
+                }
+                // Add other tile entity types here later (e.g., chests)
+            }
+        }
+    }

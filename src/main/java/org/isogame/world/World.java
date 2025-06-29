@@ -12,6 +12,7 @@ import org.isogame.savegame.GameSaveState;
 import org.isogame.savegame.MapSaveData;
 import org.isogame.savegame.PlayerSaveData;
 import org.isogame.tile.Tile;
+import org.isogame.tile.TileEntity;
 import org.isogame.tile.TileEntityManager;
 
 import java.util.*;
@@ -52,6 +53,7 @@ public class World {
         this.map = new Map(seed);
         this.player = new PlayerModel(map.getCharacterSpawnRow(), map.getCharacterSpawnCol());
         this.entityManager.addEntity(player);
+
         this.lightManager = this.map.getLightManager();
         this.placementManager = new PlacementManager(game, this.map, this.player);
         this.pseudoTimeOfDay = 0.0005;
@@ -65,7 +67,6 @@ public class World {
     public World(Game game, GameSaveState saveState) {
         this.game = game;
         this.entityManager = new EntityManager();
-        // *** THIS IS THE FIX: The following line was missing ***
         this.tileEntityManager = new TileEntityManager();
 
         this.map = new Map(saveState.mapData.worldSeed);
@@ -80,6 +81,15 @@ public class World {
         byte initialSkyLight = calculateSkyLightForTime(pseudoTimeOfDay);
         this.lightManager.setCurrentGlobalSkyLightTarget(initialSkyLight);
         this.lastGlobalSkyLightTargetSetInLM = initialSkyLight;
+        this.tileEntityManager.loadState(saveState.tileEntityData, game);
+        for (TileEntity te : this.tileEntityManager.getAllTileEntities()) {
+            if (te != null) {
+                Tile tile = this.map.getTile(te.getRow(), te.getCol());
+                if (tile != null) {
+                    tile.setTileEntity(te);
+                }
+            }
+        }
         initializeWorldState();
         restoreTorchLightSources(saveState);
     }
@@ -105,6 +115,9 @@ public class World {
         saveState.mapData = new MapSaveData();
         map.populateSaveData(saveState.mapData);
         entityManager.populateSaveData(saveState);
+        tileEntityManager.populateSaveData(saveState.tileEntityData);
+
+
     }
 
     private void initializeWorldState() {
@@ -113,6 +126,7 @@ public class World {
         this.currentlyActiveLogicalChunks.clear();
         updateActiveChunksAroundPlayer();
         performIntensiveInitialLightProcessing();
+        // Ensure the initial chunks are loaded and ready for rendering
     }
 
     private void updateActiveChunksAroundPlayer() {

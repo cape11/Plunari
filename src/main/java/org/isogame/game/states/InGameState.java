@@ -2,6 +2,7 @@
 package org.isogame.game.states;
 
 import org.isogame.game.Game;
+import org.isogame.game.GameStateManager;
 import org.isogame.render.Renderer;
 import org.isogame.world.World;
 
@@ -24,16 +25,22 @@ public class InGameState implements GameState {
 
     @Override
     public void update(double deltaTime) {
-        // First, update the entire world simulation (player position, entities, etc.)
-        game.updateGameLogic(deltaTime);
-
-        // *** FIX: These updates must happen AFTER the world has been updated ***
-        // Now, handle continuous input based on the new world state
-        if (game.getRenderer().getInputHandler() != null) {
-            game.getRenderer().getInputHandler().handleContinuousInput(deltaTime);
+        // Get the current world from the Game class each frame.
+        World currentWorld = game.getWorld();
+        if (currentWorld == null) {
+            // Failsafe: If there's no world, we shouldn't be in this state.
+            game.getGameStateManager().setState(GameStateManager.State.MAIN_MENU);
+            return;
         }
-        // Finally, update the camera to smoothly follow the player's new position
-        if (game.getRenderer().getCamera() != null) {
+
+        // --- THE FIX IS HERE ---
+        // 1. Handle all player input first, passing deltaTime to the input handler.
+
+        // 2. Now, update the entire world simulation based on the input.
+        currentWorld.update(deltaTime);
+
+        // 3. Finally, update the camera to follow the player's new position.
+        if (game.getRenderer() != null && game.getRenderer().getCamera() != null) {
             game.getRenderer().getCamera().update(deltaTime);
         }
     }

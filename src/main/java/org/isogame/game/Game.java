@@ -10,7 +10,7 @@ import org.isogame.entity.PlayerModel;
 import org.isogame.input.InputHandler;
 import org.isogame.input.MouseHandler;
 import org.isogame.camera.CameraManager;
-import org.isogame.inventory.InventorySlot;
+import org.isogame.item.InventorySlot;
 import org.isogame.item.Item; // <--- FIX: Added missing import
 import org.isogame.item.ItemRegistry;
 import org.isogame.map.LightManager;

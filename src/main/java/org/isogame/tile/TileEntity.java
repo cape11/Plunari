@@ -1,8 +1,9 @@
 package org.isogame.tile;
 
 import org.isogame.game.Game;
-import org.isogame.inventory.InventorySlot;
+import org.isogame.item.InventorySlot;
 import java.util.List;
+import org.isogame.savegame.TileEntitySaveData;
 
 public abstract class TileEntity {
     protected final int row;
@@ -18,6 +19,9 @@ public abstract class TileEntity {
 
     // Methods for interacting with the player
     public abstract void onInteract(Game game);
+    public abstract TileEntitySaveData getSaveData();
+
+
 
     // Getters
     public int getRow() { return row; }

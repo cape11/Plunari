@@ -5,7 +5,7 @@ import org.isogame.asset.AssetManager;
 import org.isogame.crafting.CraftingRecipe;
 import org.isogame.crafting.RecipeRegistry;
 import org.isogame.game.Game;
-import org.isogame.inventory.InventorySlot;
+import org.isogame.item.InventorySlot;
 import org.isogame.item.Item;
 import org.isogame.render.Renderer;
 import org.isogame.entity.PlayerModel;
@@ -30,6 +30,7 @@ public class UIManager {
     private boolean isFurnaceUiVisible = false;
     private FurnaceEntity activeFurnace = null;
 
+    private boolean isInGameMode = false;
 
     private static class IconRenderData {
         final float x, y, z, size;
@@ -37,6 +38,10 @@ public class UIManager {
         IconRenderData(float x, float y, float z, float size, Item item) {
             this.x = x; this.y = y; this.z = z; this.size = size; this.item = item;
         }
+    }
+
+    public void setInGameHUDRendering(boolean isInGameMode) {
+        this.isInGameMode = isInGameMode;
     }
 
     private static class SlotStyle {
@@ -59,6 +64,7 @@ public class UIManager {
     }
 
     public void render() {
+
         if (player == null) return;
 
         renderer.beginUIColoredRendering();
@@ -322,18 +328,8 @@ public class UIManager {
                 currentSlotY += slotSize + slotMargin;
             }
         }
+        renderer.drawColoredQuad(craftPanelX, craftPanelY, craftPanelWidth, craftPanelHeight, 0.04f, new float[]{0.1f, 0.1f, 0.15f, 0.95f});
 
-        float currentRecipeY = craftPanelY + slotMargin + 30f;
-        final float craftButtonWidth = 70f;
-        final float craftButtonHeight = 25f;
-        final float craftButtonX = craftPanelX + craftPanelWidth - craftButtonWidth - slotMargin;
-        for (CraftingRecipe recipe : allRecipes) {
-            if (game.canCraft(recipe)) {
-                float craftButtonY = currentRecipeY + (recipeRowHeight - craftButtonHeight) / 2f - 2;
-                renderer.drawColoredQuad(craftButtonX, craftButtonY, craftButtonWidth, craftButtonHeight, 0.05f, new float[]{0.3f, 0.6f, 0.3f, 0.9f});
-            }
-            currentRecipeY += recipeRowHeight;
-        }
     }
 
     private void renderInventoryAndCraftingText() {
@@ -341,7 +337,7 @@ public class UIManager {
         Font titleFont = renderer.getTitleFont();
         if (currentUiFont == null || !currentUiFont.isInitialized() || titleFont == null || !titleFont.isInitialized()) return;
 
-        // --- FIX: Re-add the layout variable declarations ---
+        // --- Layout variable declarations ---
         final float slotSize = 50f;
         final float slotMargin = 10f;
         final float panelMarginX = 30f;
@@ -352,13 +348,18 @@ public class UIManager {
         final float invPanelX = renderer.getCamera().getScreenWidth() - invPanelWidth - panelMarginX;
         final float invPanelY = topMarginY;
         List<CraftingRecipe> allRecipes = RecipeRegistry.getAllRecipes();
-        final float recipeRowHeight = 50f; // This was the missing variable
+        final float recipeRowHeight = 50f;
         final float craftPanelX = invPanelX;
         final float craftPanelY = invPanelY + invPanelHeight + 20f;
-        // --- END OF FIX ---
 
+        // --- CORRECTED LOGIC ---
+        // 1. Always render the inventory text
         renderInventoryText(player.getInventorySlots(), currentUiFont, invPanelX, invPanelY, slotSize, slotMargin, invSlotsPerRow);
-        renderCraftingText(allRecipes, game, currentUiFont, titleFont, craftPanelX, craftPanelY, invPanelWidth, recipeRowHeight);
+
+        // 2. ONLY render crafting text if the furnace is not open
+            renderCraftingText(allRecipes, game, currentUiFont, titleFont, craftPanelX, craftPanelY, invPanelWidth, recipeRowHeight);
+
+        // 3. REMOVED the duplicate call to renderCraftingText from here
     }
 
 

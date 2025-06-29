@@ -1,8 +1,15 @@
 package org.isogame.savegame;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class GameSaveState {
+    public long worldSeed;
     public double pseudoTimeOfDay;
-    public MapSaveData mapData;
     public PlayerSaveData playerData;
-    // Add other global game states if needed
+    public MapSaveData mapData;
+    public List<EntitySaveData> entityData = new ArrayList<>();
+
+    // NEW FIELD
+    public List<TileEntitySaveData> tileEntityData = new ArrayList<>();
 }
