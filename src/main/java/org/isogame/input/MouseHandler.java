@@ -66,6 +66,8 @@ public class MouseHandler {
             double dy = ypos - lastMouseY;
 
             if (gameInstance.getGameStateManager().getCurrentState() instanceof org.isogame.game.states.InGameState) {
+
+                // --- Logic for when the inventory is CLOSED ---
                 if (map != null && inputHandlerRef != null && !gameInstance.isInventoryVisible()) {
                     int[] hoveredCoords = camera.screenToAccurateMapTile((int)mouseX_physical, (int)mouseY_physical, map);
                     if (hoveredCoords != null) {
@@ -75,6 +77,16 @@ public class MouseHandler {
                         }
                     }
                 }
+                // --- Logic for when the inventory is OPEN ---
+                if (gameInstance.isInventoryVisible()) {
+                    org.isogame.crafting.CraftingRecipe recipe = getCraftingRecipeAt((int)mouseX_physical, (int)mouseY_physical);
+                    gameInstance.setHoveredRecipe(recipe);
+                } else {
+                    // Ensure the tooltip disappears when inventory is closed
+                    gameInstance.setHoveredRecipe(null);
+                }
+                // --- END OF NEW CODE ---
+
                 if (isLeftMousePressed && !isLeftDraggingForPan && !uiHandledLeftMousePress) {
                     if ((Math.abs(dx) + Math.abs(dy)) > 5) { isLeftDraggingForPan = true; camera.startManualPan(); }
                 }
@@ -92,6 +104,7 @@ public class MouseHandler {
             }
             lastMouseX = xpos;
             lastMouseY = ypos;
+
         });
 
         glfwSetMouseButtonCallback(window, (win, buttonId, action, mods) -> {
@@ -108,6 +121,40 @@ public class MouseHandler {
                 camera.adjustZoom(yoffset > 0 ? Constants.CAMERA_ZOOM_SPEED : -Constants.CAMERA_ZOOM_SPEED);
             }
         });
+    }
+
+    private org.isogame.crafting.CraftingRecipe getCraftingRecipeAt(int mouseX, int mouseY) {
+        if (player == null || !gameInstance.isInventoryVisible()) return null;
+
+        // Layout constants from UIManager
+        float slotSize = 50f, slotMargin = 10f;
+        float panelMarginX = 30f, topMarginY = 40f, marginBetweenPanels = 20f;
+        int invSlotsPerRow = 5;
+        float invPanelWidth = (invSlotsPerRow * slotSize) + ((invSlotsPerRow + 1) * slotMargin);
+        float invPanelX = camera.getScreenWidth() - invPanelWidth - panelMarginX;
+        float invPanelHeight = (float)(Math.ceil((double) player.getInventorySlots().size() / invSlotsPerRow) * (slotSize + slotMargin)) + slotMargin;
+        float invPanelY = topMarginY;
+        float craftPanelX = invPanelX;
+        float craftPanelY = invPanelY + invPanelHeight + marginBetweenPanels;
+        float recipeRowHeight = 50f;
+
+        // Check if mouse is within the crafting panel's horizontal bounds
+        if (mouseX < craftPanelX || mouseX > craftPanelX + invPanelWidth) {
+            return null;
+        }
+
+        float currentRecipeY = craftPanelY + slotMargin + 30f;
+        List<org.isogame.crafting.CraftingRecipe> recipes = org.isogame.crafting.RecipeRegistry.getAllRecipes();
+
+        for (org.isogame.crafting.CraftingRecipe recipe : recipes) {
+            if (mouseY >= currentRecipeY && mouseY <= currentRecipeY + recipeRowHeight) {
+                return recipe; // Found the hovered recipe
+            }
+
+            currentRecipeY += recipeRowHeight;
+        }
+
+        return null; // No recipe is being hovered
     }
 
     private void handleMenuMouseClick(int buttonId, int action, int mouseX, int mouseY) {

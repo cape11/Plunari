@@ -43,7 +43,13 @@ public class FurnaceEntity extends TileEntity {
         this.outputSlot.loadState(InventorySlotSaveData.fromMap((Map<String, Object>) saveData.customData.get("outputSlot")));
     }
 
-
+    // Add this method anywhere inside the FurnaceEntity class
+    public float getCookProgress() {
+        if (!isSmelting || MAX_COOK_TIME <= 0) {
+            return 0f;
+        }
+        return (float) (cookTime / MAX_COOK_TIME);
+    }
     @Override
     public void update(double deltaTime, Game game) {
         boolean wasSmelting = isSmelting;

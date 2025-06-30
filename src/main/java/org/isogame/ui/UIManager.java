@@ -77,8 +77,19 @@ public class UIManager {
 
         renderUITextureBatches();
 
-        if (game.isInventoryVisible()) renderInventoryAndCraftingText();
-        if (game.isShowHotbar()) renderHotbarText();
+        // --- This section is what you need to change ---
+        if (game.isInventoryVisible()) {
+            renderInventoryAndCraftingText(); // This method now only does inventory/crafting
+        }
+        if (isFurnaceUiVisible) {
+            renderFurnaceText(); // Call the new method here
+        }
+        if (game.isShowHotbar()) {
+            renderHotbarText();
+        }
+        if (game.getHoveredRecipe() != null) {
+            renderCraftingTooltip(game.getHoveredRecipe(), game.getMouseX(), game.getMouseY());
+        }
     }
 
     private void renderUITextureBatches() {
@@ -293,6 +304,7 @@ public class UIManager {
     }
 
     private void renderInventoryAndCraftingBackgrounds() {
+        // --- Layout Variables (ensure these are consistent) ---
         final float slotSize = 50f;
         final float slotMargin = 10f;
         final float panelMarginX = 30f;
@@ -305,15 +317,17 @@ public class UIManager {
         final float invPanelX = renderer.getCamera().getScreenWidth() - invPanelWidth - panelMarginX;
         final float invPanelY = topMarginY;
         List<CraftingRecipe> allRecipes = RecipeRegistry.getAllRecipes();
+        // This recipe row height may need to be adjusted after adding ingredient text
         final float recipeRowHeight = 50f;
         final float craftPanelWidth = invPanelWidth;
         final float craftPanelHeight = (allRecipes.size() * recipeRowHeight) + (slotMargin * 2) + 30f;
         final float craftPanelX = invPanelX;
         final float craftPanelY = invPanelY + invPanelHeight + marginBetweenPanels;
 
+        // --- Draw Inventory Background ---
         renderer.drawColoredQuad(invPanelX, invPanelY, invPanelWidth, invPanelHeight, 0.04f, new float[]{0.15f, 0.15f, 0.2f, 0.95f});
-        renderer.drawColoredQuad(craftPanelX, craftPanelY, craftPanelWidth, craftPanelHeight, 0.04f, new float[]{0.1f, 0.1f, 0.15f, 0.95f});
 
+        // --- Draw Inventory Slots ---
         float currentSlotX = invPanelX + slotMargin;
         float currentSlotY = invPanelY + slotMargin;
         for (int i = 0; i < player.getInventorySlots().size(); i++) {
@@ -328,8 +342,22 @@ public class UIManager {
                 currentSlotY += slotSize + slotMargin;
             }
         }
+
+        // --- Draw Crafting Panel Background and Craft Button Backgrounds ---
         renderer.drawColoredQuad(craftPanelX, craftPanelY, craftPanelWidth, craftPanelHeight, 0.04f, new float[]{0.1f, 0.1f, 0.15f, 0.95f});
 
+        // --- THIS IS THE FIX: This loop draws the green background for craftable recipes ---
+        float currentRecipeY = craftPanelY + slotMargin + 30f;
+        final float craftButtonWidth = 70f;
+        final float craftButtonHeight = 25f;
+        final float craftButtonX = craftPanelX + craftPanelWidth - craftButtonWidth - slotMargin;
+        for (CraftingRecipe recipe : allRecipes) {
+            if (game.canCraft(recipe)) {
+                float craftButtonY = currentRecipeY + (recipeRowHeight - craftButtonHeight) / 2f - 2;
+                renderer.drawColoredQuad(craftButtonX, craftButtonY, craftButtonWidth, craftButtonHeight, 0.05f, new float[]{0.3f, 0.6f, 0.3f, 0.9f});
+            }
+            currentRecipeY += recipeRowHeight;
+        }
     }
 
     private void renderInventoryAndCraftingText() {
@@ -362,7 +390,57 @@ public class UIManager {
         // 3. REMOVED the duplicate call to renderCraftingText from here
     }
 
+    private void renderCraftingTooltip(CraftingRecipe recipe, float mouseX, float mouseY) {
+        if (recipe == null || player == null) return;
 
+        Font font = renderer.getUiFont();
+        if (font == null) return;
+
+        // --- Calculate Tooltip Size ---
+        final float itemRowHeight = 25f;
+        final float padding = 10f;
+        int ingredientCount = recipe.getRequiredItems().size();
+        float tooltipWidth = 220f;
+        float tooltipHeight = (padding * 2) + (ingredientCount * itemRowHeight);
+
+        // Position the tooltip to the left of the mouse
+        float tooltipX = mouseX - tooltipWidth - 15f;
+        float tooltipY = mouseY;
+
+        // --- Draw Background ---
+        renderer.beginUIColoredRendering();
+        renderer.drawColoredQuad(tooltipX, tooltipY, tooltipWidth, tooltipHeight, 0.01f, new float[]{0.1f, 0.1f, 0.15f, 0.98f});
+        renderer.endUIColoredRendering();
+
+        // --- Draw Icons ---
+        renderer.beginUITexturedRendering();
+        float currentY = tooltipY + padding;
+        float iconSize = 20f;
+        for (java.util.Map.Entry<Item, Integer> entry : recipe.getRequiredItems().entrySet()) {
+            Item item = entry.getKey();
+            if (item.hasIconTexture()) {
+                renderer.bindTexture(assetManager.getTexture(item.getAtlasName()));
+                renderer.drawIcon(tooltipX + padding, currentY, iconSize, item);
+            }
+            currentY += itemRowHeight;
+        }
+        renderer.endUITexturedRendering();
+
+        // --- Draw Text ---
+        currentY = tooltipY + padding;
+        for (java.util.Map.Entry<Item, Integer> entry : recipe.getRequiredItems().entrySet()) {
+            Item requiredItem = entry.getKey();
+            int requiredAmount = entry.getValue();
+            int playerAmount = player.getInventoryItemCount(requiredItem);
+
+            boolean hasEnough = playerAmount >= requiredAmount;
+            float[] textColor = hasEnough ? new float[]{0.7f, 1f, 0.7f} : new float[]{1f, 0.7f, 0.7f};
+
+            String text = requiredItem.getDisplayName() + " (" + playerAmount + "/" + requiredAmount + ")";
+            font.drawText(tooltipX + padding + iconSize + 8f, currentY + 15f, text, textColor[0], textColor[1], textColor[2]);
+            currentY += itemRowHeight;
+        }
+    }
 
     private void renderInventoryText(List<InventorySlot> slots, Font font, float panelX, float panelY, float slotSize, float slotMargin, int slotsPerRow) {
         float currentSlotX = panelX + slotMargin;
@@ -395,6 +473,9 @@ public class UIManager {
     }
 
     private void renderCraftingText(List<CraftingRecipe> recipes, Game game, Font font, Font titleFont, float panelX, float panelY, float panelWidth, float rowHeight) {
+        if (game.getUiManager().isFurnaceUiVisible()) return;
+
+        // Draw Title
         String title = "Crafting";
         float titleWidth = titleFont.getTextWidthScaled(title, 0.5f);
         titleFont.drawTextWithSpacing(panelX + (panelWidth - titleWidth) / 2f, panelY + 5f, title, 0.5f, -15.0f, 1f, 1f, 1f);
@@ -404,8 +485,13 @@ public class UIManager {
 
         for (CraftingRecipe recipe : recipes) {
             boolean canCraft = game.canCraft(recipe);
-            float[] textColor = canCraft ? new float[]{1f, 1f, 1f} : new float[]{0.6f, 0.6f, 0.6f};
-            font.drawText(panelX + 10f + recipeIconSize + 8f, currentRecipeY + 20f, recipe.getOutputItem().getDisplayName(), textColor[0], textColor[1], textColor[2]);
+            float[] textColor = canCraft ? new float[]{1f, 1f, 1f} : new float[]{0.7f, 0.7f, 0.7f};
+
+            // Draw the recipe name
+            String recipeName = recipe.getOutputItem().getDisplayName();
+            font.drawText(panelX + 10f + recipeIconSize + 8f, currentRecipeY + 20f, recipeName, textColor[0], textColor[1], textColor[2]);
+
+            // Draw the "CRAFT" button text
             if (canCraft) {
                 float craftButtonWidth = 70f;
                 String craftText = "CRAFT";
@@ -417,6 +503,40 @@ public class UIManager {
         }
     }
 
+
+    // In UIManager.java, add this new helper method
+    private String getFurnaceSlotAt(float mouseX, float mouseY) {
+        if (activeFurnace == null) return null;
+
+        // --- Panel Layout (must match renderFurnaceBackground) ---
+        float panelWidth = 250;
+        float panelHeight = 180;
+        float panelX = (renderer.getCamera().getScreenWidth() - panelWidth) / 2;
+        float panelY = (renderer.getCamera().getScreenHeight() - panelHeight) / 2;
+        float slotSize = 50f;
+        float slotMargin = 25f;
+
+        // --- Slot Positions ---
+        float inputSlotX = panelX + slotMargin;
+        float inputSlotY = panelY + 45;
+        float fuelSlotX = inputSlotX;
+        float fuelSlotY = inputSlotY + slotSize + 20;
+        float outputSlotX = panelX + panelWidth - slotSize - slotMargin;
+        float outputSlotY = inputSlotY + slotSize / 2f;
+
+        // Check bounds for each slot
+        if (mouseX >= inputSlotX && mouseX <= inputSlotX + slotSize && mouseY >= inputSlotY && mouseY <= inputSlotY + slotSize) {
+            return "INPUT";
+        }
+        if (mouseX >= fuelSlotX && mouseX <= fuelSlotX + slotSize && mouseY >= fuelSlotY && mouseY <= fuelSlotY + slotSize) {
+            return "FUEL";
+        }
+        if (mouseX >= outputSlotX && mouseX <= outputSlotX + slotSize && mouseY >= outputSlotY && mouseY <= outputSlotY + slotSize) {
+            return "OUTPUT";
+        }
+
+        return null; // No slot is being hovered
+    }
 
     public boolean isMouseOverFurnaceUI(float mouseX, float mouseY) {
         if (!isFurnaceUiVisible || activeFurnace == null) {
@@ -432,57 +552,137 @@ public class UIManager {
         return mouseX >= panelX && mouseX <= panelX + panelWidth &&
                 mouseY >= panelY && mouseY <= panelY + panelHeight;
     }
-
-    // *** ADD THIS NEW METHOD to draw the furnace panel background ***
     private void renderFurnaceBackground() {
         if (activeFurnace == null) return;
 
-        float panelWidth = 200;
-        float panelHeight = 150;
+        // --- Panel Layout ---
+        float panelWidth = 250;
+        float panelHeight = 180;
         float panelX = (renderer.getCamera().getScreenWidth() - panelWidth) / 2;
         float panelY = (renderer.getCamera().getScreenHeight() - panelHeight) / 2;
+        float slotSize = 50f;
+        float slotMargin = 25f;
 
+        // --- Get the currently hovered slot ---
+        String hoveredSlot = getFurnaceSlotAt(game.getMouseX(), game.getMouseY());
+
+        // --- Draw Main Panel ---
         renderer.drawColoredQuad(panelX, panelY, panelWidth, panelHeight, 0.04f, new float[]{0.1f, 0.1f, 0.15f, 0.95f});
 
-        // Placeholder positions for the slots
-        float slotSize = 50f;
-        float inputSlotX = panelX + 30;
-        float fuelSlotX = panelX + 30;
-        float outputSlotX = panelX + 120;
-        float topRowY = panelY + 20;
-        float bottomRowY = panelY + 80;
+        // --- Slot Positions ---
+        float inputSlotX = panelX + slotMargin;
+        float inputSlotY = panelY + 45;
+        float fuelSlotX = inputSlotX;
+        float fuelSlotY = inputSlotY + slotSize + 20;
+        float outputSlotX = panelX + panelWidth - slotSize - slotMargin;
+        float outputSlotY = inputSlotY + slotSize / 2f;
 
-        // Draw the slot backgrounds
-        renderer.drawGradientQuad(inputSlotX, topRowY, slotSize, slotSize, 0.03f, new float[]{0.2f,0.2f,0.2f,1}, new float[]{0.1f,0.1f,0.1f,1}); // Input
-        renderer.drawGradientQuad(fuelSlotX, bottomRowY, slotSize, slotSize, 0.03f, new float[]{0.2f,0.2f,0.2f,1}, new float[]{0.1f,0.1f,0.1f,1}); // Fuel
-        renderer.drawGradientQuad(outputSlotX, topRowY, slotSize, slotSize, 0.03f, new float[]{0.2f,0.2f,0.2f,1}, new float[]{0.1f,0.1f,0.1f,1}); // Output
+        // --- Draw Slot Backgrounds with Highlighting ---
+        SlotStyle inputStyle = "INPUT".equals(hoveredSlot) ? getSlotStyle(true, !activeFurnace.getInputSlot().isEmpty()) : getSlotStyle(false, !activeFurnace.getInputSlot().isEmpty());
+        SlotStyle fuelStyle = "FUEL".equals(hoveredSlot) ? getSlotStyle(true, !activeFurnace.getFuelSlot().isEmpty()) : getSlotStyle(false, !activeFurnace.getFuelSlot().isEmpty());
+        SlotStyle outputStyle = "OUTPUT".equals(hoveredSlot) ? getSlotStyle(true, !activeFurnace.getOutputSlot().isEmpty()) : getSlotStyle(false, !activeFurnace.getOutputSlot().isEmpty());
+
+        renderer.drawGradientQuad(inputSlotX, inputSlotY, slotSize, slotSize, 0.03f, inputStyle.topBgColor, inputStyle.bottomBgColor);
+        renderer.drawColoredQuad(inputSlotX - inputStyle.borderWidth, inputSlotY - inputStyle.borderWidth, slotSize + (2 * inputStyle.borderWidth), slotSize + (2 * inputStyle.borderWidth), 0.02f, inputStyle.borderColor);
+
+        renderer.drawGradientQuad(fuelSlotX, fuelSlotY, slotSize, slotSize, 0.03f, fuelStyle.topBgColor, fuelStyle.bottomBgColor);
+        renderer.drawColoredQuad(fuelSlotX - fuelStyle.borderWidth, fuelSlotY - fuelStyle.borderWidth, slotSize + (2 * fuelStyle.borderWidth), slotSize + (2 * fuelStyle.borderWidth), 0.02f, fuelStyle.borderColor);
+
+        renderer.drawGradientQuad(outputSlotX, outputSlotY, slotSize, slotSize, 0.03f, outputStyle.topBgColor, outputStyle.bottomBgColor);
+        renderer.drawColoredQuad(outputSlotX - outputStyle.borderWidth, outputSlotY - outputStyle.borderWidth, slotSize + (2 * outputStyle.borderWidth), slotSize + (2 * outputStyle.borderWidth), 0.02f, outputStyle.borderColor);
+
+
+        // --- Draw Progress Arrow (no changes here) ---
+        float arrowX = inputSlotX + slotSize + 15;
+        float arrowY = outputSlotY + slotSize / 2f - 8f;
+        float arrowWidth = outputSlotX - arrowX - 15;
+        float arrowHeight = 16f;
+        renderer.drawColoredQuad(arrowX, arrowY, arrowWidth, arrowHeight, 0.035f, new float[]{0.1f, 0.1f, 0.1f, 1f});
+        float progress = activeFurnace.getCookProgress();
+        if (progress > 0) {
+            renderer.drawColoredQuad(arrowX, arrowY, arrowWidth * progress, arrowHeight, 0.038f, new float[]{0.9f, 0.6f, 0.2f, 1f});
+        }
+        float[] arrowColor = {0.3f, 0.3f, 0.3f, 1f};
+        renderer.drawColoredQuad(arrowX + arrowWidth - 2, arrowY - 6, 2, arrowHeight + 12, 0.03f, arrowColor);
+        renderer.drawColoredQuad(arrowX + arrowWidth, arrowY - 2, 8, 2, 0.03f, arrowColor);
+        renderer.drawColoredQuad(arrowX + arrowWidth, arrowY + arrowHeight, 8, 2, 0.03f, arrowColor);
     }
 
-    // *** ADD THIS NEW METHOD to gather furnace icons for batch rendering ***
     private void gatherFurnaceIcons(Map<Texture, List<IconRenderData>> iconBatchMap) {
         if (activeFurnace == null) return;
 
-        float panelWidth = 200;
-        float panelHeight = 150;
+        // --- Panel Layout (must match renderFurnaceBackground) ---
+        float panelWidth = 250;
+        float panelHeight = 180;
         float panelX = (renderer.getCamera().getScreenWidth() - panelWidth) / 2;
         float panelY = (renderer.getCamera().getScreenHeight() - panelHeight) / 2;
         float slotSize = 50f;
+        float slotMargin = 25f;
         float itemRenderSize = slotSize * 0.8f;
         float itemOffset = (slotSize - itemRenderSize) / 2f;
 
-        // Slot positions
-        float inputSlotX = panelX + 30;
-        float fuelSlotX = panelX + 30;
-        float outputSlotX = panelX + 120;
-        float topRowY = panelY + 20;
-        float bottomRowY = panelY + 80;
+        // --- Slot Positions ---
+        float inputSlotX = panelX + slotMargin;
+        float inputSlotY = panelY + 45;
+        float fuelSlotX = inputSlotX;
+        float fuelSlotY = inputSlotY + slotSize + 20;
+        float outputSlotX = panelX + panelWidth - slotSize - slotMargin;
+        float outputSlotY = inputSlotY + slotSize / 2f;
 
-        // Gather icon for the input slot
-        if (!activeFurnace.getInputSlot().isEmpty()) {
-            Item item = activeFurnace.getInputSlot().getItem();
-            Texture tex = assetManager.getTexture(item.getAtlasName());
-            iconBatchMap.computeIfAbsent(tex, k -> new ArrayList<>()).add(new IconRenderData(inputSlotX + itemOffset, topRowY + itemOffset, 0.05f, itemRenderSize, item));
-        }
+        // Helper lambda to reduce code duplication
+        java.util.function.BiConsumer<InventorySlot, float[]> gatherIcon = (slot, pos) -> {
+            if (!slot.isEmpty()) {
+                Item item = slot.getItem();
+                Texture tex = assetManager.getTexture(item.getAtlasName());
+                if (tex != null) {
+                    iconBatchMap.computeIfAbsent(tex, k -> new ArrayList<>())
+                            .add(new IconRenderData(pos[0] + itemOffset, pos[1] + itemOffset, 0.05f, itemRenderSize, item));
+                }
+            }
+        };
+
+        // --- Gather icons for all three slots ---
+        gatherIcon.accept(activeFurnace.getInputSlot(), new float[]{inputSlotX, inputSlotY});
+        gatherIcon.accept(activeFurnace.getFuelSlot(), new float[]{fuelSlotX, fuelSlotY});
+        gatherIcon.accept(activeFurnace.getOutputSlot(), new float[]{outputSlotX, outputSlotY});
+    }
+
+    private void renderFurnaceText() {
+        if (activeFurnace == null || renderer.getUiFont() == null || renderer.getTitleFont() == null) return;
+
+        Font uiFont = renderer.getUiFont();
+        Font titleFont = renderer.getTitleFont();
+
+        // --- Panel Layout (must match renderFurnaceBackground) ---
+        float panelWidth = 250;
+        float panelHeight = 180;
+        float panelX = (renderer.getCamera().getScreenWidth() - panelWidth) / 2;
+        float panelY = (renderer.getCamera().getScreenHeight() - panelHeight) / 2;
+        float slotSize = 50f;
+        float slotMargin = 25f;
+
+        // --- Slot Positions ---
+        float inputSlotX = panelX + slotMargin;
+        float inputSlotY = panelY + 45;
+        float fuelSlotX = inputSlotX;
+        float fuelSlotY = inputSlotY + slotSize + 20;
+        float outputSlotX = panelX + panelWidth - slotSize - slotMargin;
+        float outputSlotY = inputSlotY + slotSize / 2f;
+
+        // --- Draw Title ---
+        String title = "Furnace";
+        float titleWidth = uiFont.getTextWidth(title);
+        uiFont.drawText(panelX + (panelWidth - titleWidth) / 2f, panelY + 20f, title, 1f, 1f, 1f);
+
+        // --- Draw Slot Labels ---
+        uiFont.drawText(inputSlotX, inputSlotY - 12, "Input", 0.8f, 0.8f, 0.8f);
+        uiFont.drawText(fuelSlotX, fuelSlotY - 12, "Fuel", 0.8f, 0.8f, 0.8f);
+        uiFont.drawText(outputSlotX, outputSlotY - 12, "Output", 0.8f, 0.8f, 0.8f);
+
+        // --- Draw Slot Quantities ---
+        renderInventoryText(List.of(activeFurnace.getInputSlot()), uiFont, inputSlotX - slotMargin, inputSlotY - slotMargin, slotSize, slotMargin, 1);
+        renderInventoryText(List.of(activeFurnace.getFuelSlot()), uiFont, fuelSlotX - slotMargin, fuelSlotY - slotMargin, slotSize, slotMargin, 1);
+        renderInventoryText(List.of(activeFurnace.getOutputSlot()), uiFont, outputSlotX - slotMargin, outputSlotY - slotMargin, slotSize, slotMargin, 1);
     }
 
     public void openFurnaceUI(FurnaceEntity furnace) {
