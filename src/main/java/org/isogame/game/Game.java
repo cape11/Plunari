@@ -4,6 +4,7 @@ package org.isogame.game;
 import org.isogame.asset.AssetManager;
 import org.isogame.constants.Constants;
 import org.isogame.crafting.CraftingRecipe;
+import org.isogame.crafting.FurnaceRecipeRegistry;
 import org.isogame.crafting.RecipeRegistry;
 import org.isogame.game.EntityManager;
 import org.isogame.entity.PlayerModel;
@@ -17,6 +18,7 @@ import org.isogame.map.LightManager;
 import org.isogame.map.Map;
 import org.isogame.render.Renderer;
 import org.isogame.savegame.*;
+import org.isogame.tile.FurnaceEntity;
 import org.isogame.ui.MenuItemButton;
 import org.isogame.ui.UIManager;
 import org.isogame.world.World;
@@ -74,6 +76,7 @@ public class Game {
     private boolean isDraggingItem = false;
     private InventorySlot draggedItemStack = null;
     private int originalDragSlotIndex = -1;
+    private String originalDragSource = null;
     private CraftingRecipe hoveredRecipe = null;
     private List<MenuItemButton> menuButtons = new ArrayList<>();
     private boolean hotbarDirty = true;
@@ -96,6 +99,7 @@ public class Game {
 
             ItemRegistry.loadItems();
             RecipeRegistry.loadRecipes();
+            FurnaceRecipeRegistry.loadRecipes();
             org.isogame.gamedata.TileRegistry.loadTileDefinitions(); //
             ItemRegistry.initializeItemUVs(assetManager.getTextureMapForRegistry());
 
@@ -112,6 +116,8 @@ public class Game {
             throw new RuntimeException("Core component initialization failed", e);
         }
 
+
+
         glfwSetFramebufferSizeCallback(window, (win, fbW, fbH) -> {
             if (cameraManager != null) cameraManager.updateScreenSize(fbW, fbH);
             if (renderer != null) renderer.onResize(fbW, fbH);
@@ -121,6 +127,45 @@ public class Game {
         refreshAvailableSaveFiles();
         System.out.println("Game Constructor: Finished. Initial state: MAIN_MENU.");
     }
+
+
+    // In Game.java, add this new method
+    public void dropItemOnFurnace(String slotType) {
+        if (!isDraggingItem() || uiManager.getActiveFurnace() == null) return;
+
+        FurnaceEntity furnace = uiManager.getActiveFurnace();
+        InventorySlot targetSlot = null;
+        boolean isValidDrop = false;
+
+        switch (slotType) {
+            case "INPUT":
+                targetSlot = furnace.getInputSlot();
+                // Any item can be an input, for now. The furnace will just ignore invalid ones.
+                isValidDrop = true;
+                break;
+            case "FUEL":
+                targetSlot = furnace.getFuelSlot();
+                // Check if the dragged item is a valid fuel type.
+                if (FurnaceEntity.isFuel(getDraggedItemStack().getItem())) {
+                    isValidDrop = true;
+                }
+                break;
+        }
+
+        if (isValidDrop && targetSlot != null && targetSlot.isEmpty()) {
+            // The drop is valid and the target slot is empty, so move the item.
+            targetSlot.addItem(draggedItemStack.getItem(), draggedItemStack.getQuantity());
+            // Clear the dragged item since the drop was successful.
+            this.isDraggingItem = false;
+            this.draggedItemStack = null;
+            this.originalDragSlotIndex = -1;
+        } else {
+            // The drop was invalid (e.g., wrong item type or slot was full),
+            // so return the item to its original inventory slot.
+            stopDraggingItem(originalDragSlotIndex);
+        }
+    }
+
 
     /**
      * Main update logic method. In the refactored design, this simply delegates
@@ -287,6 +332,8 @@ public class Game {
         String filePath = Paths.get(SAVES_DIRECTORY, worldName.replace(".json", "") + ".json").toString();
 
         GameSaveState saveState = new GameSaveState();
+        this.world.getEntityManager().removeDeadEntities();
+
         world.populateSaveData(saveState);
 
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
@@ -315,6 +362,37 @@ public class Game {
             renderer.updateChunkByGridCoords(coord.chunkX, coord.chunkY);
         }
     }
+
+    // In Game.java
+    public void startDraggingItemFromFurnace(String slotType) {
+        if (isDraggingItem() || uiManager.getActiveFurnace() == null) return;
+
+        FurnaceEntity furnace = uiManager.getActiveFurnace();
+        InventorySlot sourceSlot = null;
+
+        // Determine which slot we are taking from
+        switch (slotType) {
+            case "INPUT":   sourceSlot = furnace.getInputSlot(); break;
+            case "FUEL":    sourceSlot = furnace.getFuelSlot(); break;
+            case "OUTPUT":  sourceSlot = furnace.getOutputSlot(); break;
+        }
+
+        if (sourceSlot != null && !sourceSlot.isEmpty()) {
+            // Start the drag operation
+            this.draggedItemStack = new InventorySlot();
+            this.draggedItemStack.addItem(sourceSlot.getItem(), sourceSlot.getQuantity());
+            this.isDraggingItem = true;
+
+            // Remember where the item came from
+            this.originalDragSource = slotType;
+            this.originalDragSlotIndex = -1; // Not from the main inventory
+
+            // Clear the source slot
+            sourceSlot.clearSlot();
+            setHotbarDirty(true);
+        }
+    }
+
 
     // --- Other Methods ---
 
@@ -447,28 +525,41 @@ public class Game {
     }
 
     public void stopDraggingItem(int dropSlotIndex) {
-        if (!isDraggingItem || getPlayer() == null) {
-            isDraggingItem = false;
-            return;
-        }
+        if (!isDraggingItem) return;
 
-        List<InventorySlot> slots = getPlayer().getInventorySlots();
-        if (dropSlotIndex >= 0 && dropSlotIndex < slots.size()) {
-            InventorySlot targetSlot = slots.get(dropSlotIndex);
+        // Case 1: Dropped on a valid inventory slot
+        if (dropSlotIndex != -1 && getPlayer() != null) {
+            InventorySlot targetSlot = getPlayer().getInventorySlots().get(dropSlotIndex);
             if (targetSlot.isEmpty()) {
                 targetSlot.addItem(draggedItemStack.getItem(), draggedItemStack.getQuantity());
             } else { // Swap items
-                slots.get(originalDragSlotIndex).addItem(targetSlot.getItem(), targetSlot.getQuantity());
+                // Put the target's item back where the drag started
+                if ("INVENTORY".equals(originalDragSource)) {
+                    getPlayer().getInventorySlots().get(originalDragSlotIndex).addItem(targetSlot.getItem(), targetSlot.getQuantity());
+                } // Note: You could add logic here to return items to the furnace too
+
+                // Put the dragged item in the target slot
                 targetSlot.clearSlot();
                 targetSlot.addItem(draggedItemStack.getItem(), draggedItemStack.getQuantity());
             }
-        } else { // Dropped outside inventory, return to original slot
-            slots.get(originalDragSlotIndex).addItem(draggedItemStack.getItem(), draggedItemStack.getQuantity());
+        } else { // Case 2: Dropped outside or on an invalid slot, return item to its origin
+            if ("INVENTORY".equals(originalDragSource)) {
+                getPlayer().getInventorySlots().get(originalDragSlotIndex).addItem(draggedItemStack.getItem(), draggedItemStack.getQuantity());
+            } else if (originalDragSource != null && uiManager.getActiveFurnace() != null) {
+                // Return the item to the correct furnace slot
+                switch (originalDragSource) {
+                    case "INPUT":   uiManager.getActiveFurnace().getInputSlot().addItem(draggedItemStack.getItem(), draggedItemStack.getQuantity()); break;
+                    case "FUEL":    uiManager.getActiveFurnace().getFuelSlot().addItem(draggedItemStack.getItem(), draggedItemStack.getQuantity()); break;
+                    case "OUTPUT":  uiManager.getActiveFurnace().getOutputSlot().addItem(draggedItemStack.getItem(), draggedItemStack.getQuantity()); break;
+                }
+            }
         }
 
+        // Reset all dragging state variables
         this.isDraggingItem = false;
         this.draggedItemStack = null;
         this.originalDragSlotIndex = -1;
+        this.originalDragSource = null;
         setHotbarDirty(true);
     }
 
@@ -482,6 +573,7 @@ public class Game {
         this.draggedItemStack.addItem(sourceSlot.getItem(), sourceSlot.getQuantity());
         this.originalDragSlotIndex = slotIndex;
         this.isDraggingItem = true;
+        this.originalDragSource = "INVENTORY";
 
         sourceSlot.clearSlot();
         setHotbarDirty(true);

@@ -179,44 +179,52 @@ public class MouseHandler {
     private void handleGameMouseClick(int buttonId, int action, int mouseX, int mouseY) {
         if (player == null || gameInstance.getPlacementManager() == null || gameInstance.getUiManager() == null) return;
 
-        int[] hoveredCoords = camera.screenToAccurateMapTile(mouseX, mouseY, map);
-
         if (buttonId == GLFW_MOUSE_BUTTON_LEFT) {
             if (action == GLFW_PRESS) {
                 isLeftMousePressed = true;
                 uiHandledLeftMousePress = false;
 
-                // --- START OF NEW LOGIC TO HANDLE UI CLOSING ---
-                boolean isFurnaceOpen = gameInstance.getUiManager().isFurnaceUiVisible();
-                if (isFurnaceOpen) {
+                // --- NEW CLICK LOGIC ---
+                // 1. First, check if we clicked on a furnace slot to start a drag.
+                if (checkFurnaceClick(mouseX, mouseY)) {
+                    uiHandledLeftMousePress = true;
+                }
+                // --- END NEW LOGIC ---
+
+                // 2. If not, check for other UI interactions (like closing the furnace).
+                if (!uiHandledLeftMousePress && gameInstance.getUiManager().isFurnaceUiVisible()) {
                     boolean onFurnacePanel = gameInstance.getUiManager().isMouseOverFurnaceUI(mouseX, mouseY);
                     boolean onInventoryPanel = (getInventorySlotAt(mouseX, mouseY) != -1);
-
-                    // If the furnace UI is open, and we click anywhere that is NOT the furnace or inventory...
                     if (!onFurnacePanel && !onInventoryPanel) {
                         gameInstance.getUiManager().closeFurnaceUI();
-                        uiHandledLeftMousePress = true; // The UI handled this click by closing itself.
+                        uiHandledLeftMousePress = true;
                     }
                 }
-                // --- END OF NEW LOGIC ---
 
+                // 3. If still no UI handled the click, check the inventory and crafting panel.
                 if (!uiHandledLeftMousePress && gameInstance.isInventoryVisible()) {
-                    // If the click wasn't handled by the closing logic, check for other UI interactions.
                     uiHandledLeftMousePress = checkInventoryClick(mouseX, mouseY) || checkCraftingClick(mouseX, mouseY);
                 }
 
+                // 4. Finally, if nothing else handled it, perform a world action.
                 if (!uiHandledLeftMousePress) {
-                    // If no UI element handled the click, perform a world action.
                     inputHandlerRef.performPlayerActionOnCurrentlySelectedTile();
                 }
 
             } else if (action == GLFW_RELEASE) {
                 isLeftMousePressed = false;
                 if (gameInstance.isDraggingItem()) {
-                    // Determine the drop target, which could be the inventory or the furnace UI.
-                    // For now, we only check the main inventory.
-                    int dropSlot = getInventorySlotAt(mouseX, mouseY);
-                    gameInstance.stopDraggingItem(dropSlot);
+                    // --- NEW DROP LOGIC ---
+                    // 1. Check for a furnace drop first.
+                    String furnaceSlot = gameInstance.getUiManager().getFurnaceSlotAt(mouseX, mouseY);
+                    if (furnaceSlot != null) {
+                        gameInstance.dropItemOnFurnace(furnaceSlot);
+                    } else {
+                        // 2. If not on furnace, check for an inventory drop.
+                        int dropSlot = getInventorySlotAt(mouseX, mouseY);
+                        gameInstance.stopDraggingItem(dropSlot);
+                    }
+                    // --- END NEW LOGIC ---
                 } else if (isLeftDraggingForPan) {
                     camera.stopManualPan();
                     isLeftDraggingForPan = false;
@@ -224,8 +232,8 @@ public class MouseHandler {
             }
         } else if (buttonId == GLFW_MOUSE_BUTTON_RIGHT) {
             if (action == GLFW_PRESS) {
-                if (!gameInstance.isInventoryVisible() && hoveredCoords != null) {
-                    gameInstance.getPlacementManager().startPlacement(hoveredCoords[0], hoveredCoords[1]);
+                if (!gameInstance.isInventoryVisible()) {
+                    gameInstance.getPlacementManager().startPlacement(inputHandlerRef.getSelectedRow(), inputHandlerRef.getSelectedCol());
                 }
             } else if (action == GLFW_RELEASE) {
                 if (gameInstance.getPlacementManager().isPlacing()) {
@@ -233,6 +241,21 @@ public class MouseHandler {
                 }
             }
         }
+    }
+
+    // In MouseHandler.java
+    private boolean checkFurnaceClick(int mouseX, int mouseY) {
+        if (!gameInstance.getUiManager().isFurnaceUiVisible()) {
+            return false;
+        }
+
+        String furnaceSlot = gameInstance.getUiManager().getFurnaceSlotAt(mouseX, mouseY);
+        if (furnaceSlot != null) {
+            // We clicked on a furnace slot, tell the game to start the drag.
+            gameInstance.startDraggingItemFromFurnace(furnaceSlot);
+            return true; // The click was handled.
+        }
+        return false;
     }
 
     private boolean checkInventoryClick(int mouseX, int mouseY) {

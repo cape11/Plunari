@@ -1,0 +1,13 @@
+{
+  "id": "glass",
+  "displayName": "Glass",
+  "description": "Clear and fragile.",
+  "type": "ITEM",
+  "texture": {
+    "atlas": "treeTexture",
+    "x": 165,
+    "y": 1665,
+    "w": 48,
+    "h": 48
+  }
+}

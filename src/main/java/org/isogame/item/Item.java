@@ -128,7 +128,12 @@ public class Item {
         this.knockback = knockback;
         return this;
     }
-
+    // In Item.java
+    // In Item.java
+    public int getMaxStack() {
+        // Return the maxStackSize field from this class
+        return this.maxStackSize; // <-- This is the correct line
+    }
     @Override
     public int hashCode() {
         return Objects.hash(itemId);

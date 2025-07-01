@@ -1,0 +1,11 @@
+{
+  "outputItemId": "glass",
+  "outputQuantity": 1,
+  "cookTime": 8.0,
+  "ingredients": [
+    {
+      "itemId": "sand",
+      "quantity": 1
+    }
+  ]
+}

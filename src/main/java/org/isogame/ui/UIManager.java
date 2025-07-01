@@ -473,7 +473,6 @@ public class UIManager {
     }
 
     private void renderCraftingText(List<CraftingRecipe> recipes, Game game, Font font, Font titleFont, float panelX, float panelY, float panelWidth, float rowHeight) {
-        if (game.getUiManager().isFurnaceUiVisible()) return;
 
         // Draw Title
         String title = "Crafting";
@@ -503,9 +502,13 @@ public class UIManager {
         }
     }
 
+// In UIManager.java
 
+    public FurnaceEntity getActiveFurnace() {
+        return this.activeFurnace;
+    }
     // In UIManager.java, add this new helper method
-    private String getFurnaceSlotAt(float mouseX, float mouseY) {
+    public String getFurnaceSlotAt(float mouseX, float mouseY) {
         if (activeFurnace == null) return null;
 
         // --- Panel Layout (must match renderFurnaceBackground) ---

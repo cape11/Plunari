@@ -1,0 +1,11 @@
+{
+  "outputItemId": "stone",
+  "outputQuantity": 1,
+  "cookTime": 10.0,
+  "ingredients": [
+    {
+      "itemId": "loose_rock",
+      "quantity": 1
+    }
+  ]
+}

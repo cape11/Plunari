@@ -106,6 +106,7 @@ public class World {
         lightManager.processLightQueuesIncrementally();
         queueDirtyChunksForRenderUpdate();
         processChunkRenderUpdateQueue();
+        entityManager.removeDeadEntities();
     }
 
     public void populateSaveData(GameSaveState saveState) {
