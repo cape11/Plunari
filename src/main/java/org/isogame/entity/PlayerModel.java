@@ -30,6 +30,7 @@ public class PlayerModel extends Entity {
     private int selectedHotbarSlotIndex = 0;
     private float movementInputColNormalized = 0f;
     private float movementInputRowNormalized = 0f;
+    private static final float PICKUP_RADIUS = 0.8f;
 
     private AnchorDefinition anchorDef;
 
@@ -73,6 +74,8 @@ public class PlayerModel extends Entity {
 
     @Override
     public void update(double deltaTime, Game game) {
+        handleItemPickup(game);
+
         if (itemUseTime > 0) {
             itemUseTime--;
         }
@@ -269,6 +272,40 @@ public class PlayerModel extends Entity {
                 .filter(slot -> !slot.isEmpty() && slot.getItem().equals(itemToCount))
                 .mapToInt(InventorySlot::getQuantity)
                 .sum();
+    }
+
+    /**
+     * Scans for nearby DroppedItem entities and attempts to pick them up.
+     * This is the "collision check" for item pickups.
+     * @param game The main game instance to access the EntityManager.
+     */
+    private void handleItemPickup(Game game) {
+        // Get all DroppedItem entities currently in the world
+        List<DroppedItem> items = game.getEntityManager().getEntitiesByType(DroppedItem.class);
+
+        for (DroppedItem itemEntity : items) {
+            // Skip items that are already being collected or can't be picked up yet
+            if (itemEntity.isDead() || !itemEntity.canBePickedUp()) {
+                continue;
+            }
+
+            // Calculate distance from player to the item
+            float dR = itemEntity.getMapRow() - this.mapRow;
+            float dC = itemEntity.getMapCol() - this.mapCol;
+            float distance = (float) Math.sqrt(dR * dR + dC * dC);
+
+            // If close enough, attempt to pick it up
+            if (distance < PICKUP_RADIUS) {
+                Item itemToPickup = itemEntity.getItem();
+                int quantityToPickup = itemEntity.getQuantity();
+
+                // Check if there is space in the inventory first
+                if (this.hasSpaceFor(itemToPickup, quantityToPickup)) {
+                    this.addItemToInventory(itemToPickup, quantityToPickup);
+                    itemEntity.isDead = true; // Mark the item entity for removal
+                }
+            }
+        }
     }
 
     public boolean consumeItem(Item itemToConsume, int amount) {

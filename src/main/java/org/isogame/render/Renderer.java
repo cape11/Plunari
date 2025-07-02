@@ -1211,10 +1211,15 @@ public class Renderer {
             // Determine the texture for the current object
             if (entityObj instanceof PlayerModel || entityObj instanceof Cow || entityObj instanceof Slime) {
                 textureForThisObject = this.assetManager.getTexture("playerTexture");
+            } else if (entityObj instanceof DroppedItem) { // 🟨 ADD THIS BLOCK 🟨
+                Item item = ((DroppedItem) entityObj).getItem();
+                if (item != null) {
+                    // This assumes your items have an "atlasName" to find the right texture
+                    textureForThisObject = getTextureByName(item.getAtlasName());
+                }
             } else if (entityObj instanceof FurnaceEntity || entityObj instanceof TreeData || entityObj instanceof LooseRockData || entityObj instanceof TorchData) {
                 textureForThisObject = this.assetManager.getTexture("treeTexture");
             }
-
             if (textureForThisObject == null) {
                 continue; // Skip objects with no texture
             }
@@ -1244,8 +1249,9 @@ public class Renderer {
             // Add the object's vertices to the buffer
             if (entityObj instanceof FurnaceEntity) {
                 verticesForThisObject = addFurnaceVerticesToBuffer((FurnaceEntity) entityObj, spriteVertexBuffer);
-            }
-            else if (entityObj instanceof Entity) {
+            } else if (entityObj instanceof DroppedItem) { // 🟨 ADD THIS LINE 🟨
+                verticesForThisObject = addDroppedItemVerticesToBuffer((DroppedItem) entityObj, spriteVertexBuffer);
+            } else if (entityObj instanceof Entity) {
                 verticesForThisObject = addGenericEntityVerticesToBuffer((Entity) entityObj, spriteVertexBuffer);
             } else if (entityObj instanceof FurnaceEntity) {
                 verticesForThisObject = addFurnaceVerticesToBuffer((FurnaceEntity) entityObj, spriteVertexBuffer);
@@ -1423,8 +1429,51 @@ public class Renderer {
         defaultShader.setUniform("uIsShadow", 0);
     }
 
-// Add this new method anywhere inside Renderer.java
+    // Add this entire new method to Renderer.java
+    private int addDroppedItemVerticesToBuffer(DroppedItem itemEntity, FloatBuffer buffer) {
+        Item item = itemEntity.getItem();
+        // Cannot draw if the item is null or we don't have map context
+        if (item == null || map == null) return 0;
 
+        // --- Position & Depth Calculation ---
+        float r = itemEntity.getVisualRow();
+        float c = itemEntity.getVisualCol();
+        Tile tile = map.getTile(itemEntity.getTileRow(), itemEntity.getTileCol());
+        if (tile == null) return 0; // Don't draw on a non-existent tile
+
+        int elev = tile.getElevation();
+        float lightVal = Math.max(0.1f, tile.getFinalLightLevel() / (float) MAX_LIGHT_LEVEL);
+
+        float isoX = (c - r) * this.tileHalfWidth;
+        // Apply the bobbing effect to the Y position
+        float isoY = (c + r) * this.tileHalfHeight - (elev * TILE_THICKNESS) - itemEntity.getBobOffset();
+        // Items should be rendered slightly in front of the tile they are on
+        float worldZ = (r + c) * DEPTH_SORT_FACTOR + (elev * 0.005f) + Z_OFFSET_SPRITE_ANIMAL;
+
+        // --- Size & UV Calculation ---
+        float renderSize = TILE_WIDTH * 0.4f; // How big the item appears on the ground
+        float xL = isoX - renderSize / 2f;
+        float xR = isoX + renderSize / 2f;
+        float yT = isoY - renderSize;
+        float yB = isoY;
+
+        // Use the item's own icon coordinates
+        float u0 = item.getIconU0();
+        float v0 = item.getIconV0();
+        float u1 = item.getIconU1();
+        float v1 = item.getIconV1();
+
+        // --- Add Vertices to Buffer ---
+        addVertexToSpriteBuffer(buffer, xL, yT, worldZ, WHITE_TINT, u0, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yB, worldZ, WHITE_TINT, u0, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yB, worldZ, WHITE_TINT, u1, v1, lightVal);
+
+        addVertexToSpriteBuffer(buffer, xR, yB, worldZ, WHITE_TINT, u1, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yT, worldZ, WHITE_TINT, u1, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yT, worldZ, WHITE_TINT, u0, v0, lightVal);
+
+        return 6; // We added 6 vertices
+    }
     private int addFurnaceVerticesToBuffer(FurnaceEntity furnace, FloatBuffer buffer) {
         Texture texture = assetManager.getTexture("treeTexture");
         if (texture == null || map == null) return 0;

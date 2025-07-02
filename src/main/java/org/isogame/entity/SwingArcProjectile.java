@@ -3,6 +3,7 @@ package org.isogame.entity;
 
 import org.isogame.constants.Constants;
 import org.isogame.game.Game;
+import org.isogame.item.Item;
 import org.isogame.item.ItemRegistry;
 import org.isogame.item.ToolItem;
 import org.isogame.tile.Tile;
@@ -75,8 +76,18 @@ public class SwingArcProjectile extends Projectile {
                     if (targetTile.getHealth() <= 0) {
                         targetTile.setTreeType(Tile.TreeVisualType.NONE);
                         game.getMap().queueLightUpdateForArea(currentCheckR, currentCheckC, 2, game.getLightManager());
-                        if (owner instanceof PlayerModel) {
-                            ((PlayerModel) owner).addItemToInventory(ItemRegistry.getItem("wood"), 3);
+
+                        // --- THIS IS THE CHANGE ---
+                        // OLD WAY:
+                        // if (owner instanceof PlayerModel) {
+                        //     ((PlayerModel) owner).addItemToInventory(ItemRegistry.getItem("wood"), 3);
+                        // }
+
+                        // ✅ NEW WAY: Spawn a DroppedItem entity
+                        Item woodItem = ItemRegistry.getItem("wood");
+                        if (woodItem != null) {
+                            DroppedItem drop = new DroppedItem(woodItem, 3, currentCheckR + 0.5f, currentCheckC + 0.5f);
+                            game.getEntityManager().addEntity(drop);
                         }
                     }
                 }

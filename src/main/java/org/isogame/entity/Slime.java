@@ -3,6 +3,7 @@ package org.isogame.entity;
 import com.google.gson.Gson;
 import org.isogame.gamedata.AnimationDefinition;
 import org.isogame.game.Game;
+import org.isogame.item.Item;
 import org.isogame.item.ItemRegistry;
 import org.isogame.map.AStarPathfinder;
 import org.isogame.map.Map;
@@ -29,8 +30,9 @@ public class Slime extends Entity {
     private static final double ATTACK_RADIUS = 1.5;
     private static final double ATTACK_COOLDOWN = 1.8;
     private static final int ATTACK_DAMAGE = 2;
+    private boolean dropLootOnDeath = false;
+    private enum AiState {WANDERING, CHASING, ATTACKING}
 
-    private enum AiState { WANDERING, CHASING, ATTACKING }
     private AiState currentState = AiState.WANDERING;
     private double aiTimer = 0.0;
     private double attackCooldownTimer = 0.0;
@@ -66,9 +68,15 @@ public class Slime extends Entity {
 
         String animKey;
         switch (currentAction) {
-            case SWING: animKey = "attack"; break;
-            case DEATH: animKey = "death"; break;
-            default:    animKey = "idle"; break;
+            case SWING:
+                animKey = "attack";
+                break;
+            case DEATH:
+                animKey = "death";
+                break;
+            default:
+                animKey = "idle";
+                break;
         }
 
         AnimationDefinition.AnimationTrack track = animDef.animations.get(animKey);
@@ -100,11 +108,22 @@ public class Slime extends Entity {
 
     @Override
     public void update(double deltaTime, Game game) {
+        if (this.dropLootOnDeath) {
+            System.out.println("DropLootOnDeath flag is true. Spawning item now!");
+            int lootAmount = 1 + random.nextInt(3);
+            Item slimeGel = ItemRegistry.getItem("slime_gel");
+            if (slimeGel != null) {
+                DroppedItem drop = new DroppedItem(slimeGel, lootAmount, this.mapRow, this.mapCol);
+                game.getEntityManager().addEntity(drop);
+            }
+            this.dropLootOnDeath = false; // Set to false so it only runs once
+        }
         PlayerModel player = game.getPlayer();
         if (player == null || isDead) return;
 
         if (currentAction == Action.DEATH) {
-            updateAnimation(deltaTime);
+            // ✅ FIX #1: Pass the 'game' object here.
+            updateAnimation(deltaTime, game);
             return;
         }
 
@@ -144,7 +163,8 @@ public class Slime extends Entity {
 
         visualCol += (this.mapCol - visualCol) * VISUAL_SMOOTH_FACTOR;
         visualRow += (this.mapRow - visualRow) * VISUAL_SMOOTH_FACTOR;
-        updateAnimation(deltaTime);
+        updateAnimation(deltaTime, game);
+        updateAnimation(deltaTime, game);
     }
 
     private void wander(double deltaTime, Map map) {
@@ -210,21 +230,26 @@ public class Slime extends Entity {
 
     @Override
     protected void onDeath() {
+        // This logic runs once when the slime's health drops to 0.
         if (currentAction != Action.DEATH) {
             System.out.println("A slime has been defeated!");
             setAction(Action.DEATH);
             this.currentAnimationName = "death";
             this.currentPath = null;
-
+            this.dropLootOnDeath = true;
+            // The owner field was set when the slime took damage.
             if (this.owner instanceof PlayerModel) {
-                PlayerModel player = (PlayerModel) this.owner;
-                int lootAmount = 1 + random.nextInt(3);
-                player.addItemToInventory(ItemRegistry.getItem("slime_gel"), lootAmount);
+                // Drop loot! The logic to add this to the world will be in update().
             }
         }
     }
 
-    private void updateAnimation(double deltaTime) {
+    @Override
+    public String getDisplayName() {
+        return "Slime";
+    }
+
+    private void updateAnimation(double deltaTime, Game game) {
         if (animDef == null || animDef.animations == null) return;
 
         AnimationDefinition.AnimationTrack track = animDef.animations.get(currentAnimationName);
@@ -242,21 +267,33 @@ public class Slime extends Entity {
             }
 
             if (currentFrameIndex >= track.frames) {
-                if (currentAction == Action.DEATH) {
-                    this.isDead = true;
-                    currentFrameIndex = track.frames - 1;
-                } else if (currentAction == Action.SWING) {
-                    setAction(Action.IDLE);
-                    this.currentAnimationName = "idle";
-                    currentState = AiState.WANDERING;
-                    currentFrameIndex = 0;
-                } else {
-                    currentFrameIndex = 0;
+                if (currentFrameIndex >= track.frames) {
+                    if (currentAction == Action.DEATH) {
+                        this.isDead = true;
+                        currentFrameIndex = track.frames - 1;
+                        System.out.println("DEATH ANIMATION FINISHED. Attempting to drop loot!");
+
+                        int lootAmount = 1 + random.nextInt(3);
+                        Item slimeGel = ItemRegistry.getItem("slime_gel");
+                        if (slimeGel != null) {
+                            DroppedItem drop = new DroppedItem(slimeGel, lootAmount, this.mapRow, this.mapCol);
+
+                            // ✅ FIX #3: Add the item through the EntityManager.
+                            game.getEntityManager().addEntity(drop);
+                        }
+
+
+                    } else if (currentAction == Action.SWING) {
+                        setAction(Action.IDLE);
+                        this.currentAnimationName = "idle";
+                        currentState = AiState.WANDERING;
+                        currentFrameIndex = 0;
+                    } else {
+                        currentFrameIndex = 0;
+                    }
                 }
             }
         }
     }
-
-    @Override
-    public String getDisplayName() { return "Slime"; }
 }
+
