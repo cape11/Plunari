@@ -14,6 +14,7 @@ import org.isogame.savegame.PlayerSaveData;
 import org.isogame.tile.Tile;
 import org.isogame.tile.TileEntity;
 import org.isogame.tile.TileEntityManager;
+import org.isogame.world.structure.StructureManager;
 
 import java.util.*;
 
@@ -28,6 +29,7 @@ public class World {
     private final LightManager lightManager;
     private final PlacementManager placementManager;
     private final TileEntityManager tileEntityManager; // This field is correct
+    private final StructureManager structureManager; // <-- Add this field
 
     private double pseudoTimeOfDay;
     private byte lastGlobalSkyLightTargetSetInLM;
@@ -56,6 +58,7 @@ public class World {
 
         this.lightManager = this.map.getLightManager();
         this.placementManager = new PlacementManager(game, this.map, this.player);
+        this.structureManager = new StructureManager();
         this.pseudoTimeOfDay = 0.0005;
         byte initialSkyLight = calculateSkyLightForTime(pseudoTimeOfDay);
         this.lightManager.setCurrentGlobalSkyLightTarget(initialSkyLight);
@@ -77,6 +80,7 @@ public class World {
         this.entityManager.addEntity(player);
         this.lightManager = this.map.getLightManager();
         this.placementManager = new PlacementManager(game, this.map, this.player);
+        this.structureManager = new StructureManager();
         this.pseudoTimeOfDay = saveState.pseudoTimeOfDay;
         byte initialSkyLight = calculateSkyLightForTime(pseudoTimeOfDay);
         this.lightManager.setCurrentGlobalSkyLightTarget(initialSkyLight);
@@ -326,4 +330,7 @@ public class World {
     public PlacementManager getPlacementManager() { return placementManager; }
     public double getPseudoTimeOfDay() { return pseudoTimeOfDay; }
     public Queue<LightManager.ChunkCoordinate> getChunkRenderUpdateQueue() { return chunkRenderUpdateQueue; }
+    public StructureManager getStructureManager() {
+        return this.structureManager;
+    }
 }

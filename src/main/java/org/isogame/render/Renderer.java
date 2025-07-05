@@ -3,6 +3,9 @@ package org.isogame.render;
 
 import org.isogame.asset.AssetManager;
 import org.isogame.camera.CameraManager;
+
+import org.isogame.world.structure.StructureManager;
+
 import org.isogame.constants.Constants;
 import org.isogame.entity.*;
 import org.isogame.game.EntityManager;
@@ -18,6 +21,7 @@ import org.isogame.tile.TileEntity;
 import org.isogame.ui.MenuItemButton;
 import org.isogame.ui.UIManager;
 import org.isogame.world.World;
+import org.isogame.world.structure.Wall;
 import org.joml.Matrix4f;
 import org.joml.Vector4f;
 import org.lwjgl.glfw.GLFW;
@@ -1179,6 +1183,10 @@ public class Renderer {
             }
         }
 
+        if (world.getStructureManager() != null) {
+            renderStructures(world.getStructureManager(), deltaTime);
+        }
+
         worldEntities.sort(Comparator.comparingDouble(e -> {
             if (e instanceof Entity) return ((Entity) e).getVisualRow() + ((Entity) e).getVisualCol();
             if (e instanceof TreeData) return ((TreeData) e).mapRow + ((TreeData) e).mapCol;
@@ -1541,6 +1549,104 @@ public class Renderer {
         return 6;
     }
 
+
+    // In Renderer.java
+
+    public void renderStructures(StructureManager structureManager, double deltaTime) {
+        if (structureManager == null || structureManager.getAllWalls().isEmpty()) {
+            return;
+        }
+        System.out.println(">>> Renderer: Attempting to render " + structureManager.getAllWalls().size() + " walls.");
+
+
+        // You can create a dedicated VBO/VAO for structures if you want to batch them
+        // separately, similar to how you handle sprites. For simplicity, we can reuse
+        // the sprite VBO for now.
+        glBindVertexArray(spriteVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+        spriteVertexBuffer.clear();
+
+        Texture wallTexture = assetManager.getTexture("textu.png"); // Or a dedicated wall texture atlas
+        if (wallTexture == null) return;
+
+        glActiveTexture(GL_TEXTURE0);
+        wallTexture.bind();
+        defaultShader.setUniform("uTextureSampler", 0);
+        defaultShader.setUniform("uHasTexture", 1);
+
+        int verticesToDraw = 0;
+        for (Wall wall : structureManager.getAllWalls().values()) {
+            // Here you would add vertices for the correct model based on wall.getCurrentShape()
+            // For now, we'll just draw a placeholder quad for every wall.
+            verticesToDraw += addWallVerticesToBuffer(wall, spriteVertexBuffer);
+        }
+
+        if (verticesToDraw > 0) {
+            spriteVertexBuffer.flip();
+            glBufferSubData(GL_ARRAY_BUFFER, 0, spriteVertexBuffer);
+            glDrawArrays(GL_TRIANGLES, 0, verticesToDraw);
+        }
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
+
+
+    // In Renderer.java
+
+    private int addWallVerticesToBuffer(Wall wall, FloatBuffer buffer) {
+        if (map == null) return 0;
+
+        Tile tile = map.getTile(wall.getRow(), wall.getCol());
+        if (tile == null) return 0;
+
+        int elev = tile.getElevation();
+        float lightVal = tile.getFinalLightLevel() / (float) MAX_LIGHT_LEVEL;
+
+        // --- THIS IS THE FIX ---
+
+        // 1. Get your main texture atlas
+        Texture tileAtlas = assetManager.getTexture("textu.png");
+        if (tileAtlas == null) {
+            // If this texture can't be found, we can't draw the wall.
+            return 0;
+        }
+
+        // 2. Set the texture coordinates to match your wood plank texture.
+        //    These values are a guess based on standard 16x16 tiles in an atlas.
+        //    You might need to adjust them to match your 'textu.png' layout.
+        float textureX = 64;  // The X position of the wood plank tile in your atlas
+        float textureY = 16;  // The Y position of the wood plank tile in your atlas
+        float tileWidth = 16;
+        float tileHeight = 16;
+
+        float u0 = textureX / tileAtlas.getWidth();
+        float v0 = textureY / tileAtlas.getHeight();
+        float u1 = (textureX + tileWidth) / tileAtlas.getWidth();
+        float v1 = (textureY + tileHeight) / tileAtlas.getHeight();
+
+        // --- END OF FIX ---
+
+        float isoX = (wall.getCol() - wall.getRow()) * tileHalfWidth;
+        float isoY = (wall.getCol() + wall.getRow()) * tileHalfHeight - (elev * TILE_THICKNESS);
+        float wallWorldZ = (wall.getRow() + wall.getCol()) * DEPTH_SORT_FACTOR - 0.01f;
+
+        float renderWidth = TILE_WIDTH;
+        float renderHeight = TILE_HEIGHT * 2;
+        float xL = isoX - renderWidth / 2f;
+        float xR = isoX + renderWidth / 2f;
+        float yT = isoY - renderHeight + TILE_HEIGHT;
+        float yB = isoY + TILE_HEIGHT;
+
+        addVertexToSpriteBuffer(buffer, xL, yT, wallWorldZ, WHITE_TINT, u0, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yB, wallWorldZ, WHITE_TINT, u0, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yB, wallWorldZ, WHITE_TINT, u1, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yB, wallWorldZ, WHITE_TINT, u1, v1, lightVal);
+        addVertexToSpriteBuffer(buffer, xR, yT, wallWorldZ, WHITE_TINT, u1, v0, lightVal);
+        addVertexToSpriteBuffer(buffer, xL, yT, wallWorldZ, WHITE_TINT, u0, v0, lightVal);
+
+        return 6;
+    }
     // --- NEW HELPER METHOD ---
     /**
      * Adds a skewed quad (a parallelogram) to the shadow vertex buffer.

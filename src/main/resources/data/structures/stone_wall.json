@@ -1,0 +1,17 @@
+{
+  "id": "stone_wall_rough",
+  "displayName": "Rough Stone Wall",
+  "description": "A sturdy wall made of rough-hewn stone.",
+  "type": "STRUCTURE",
+  "models": {
+    "post": "path/to/your/wall_post_model.obj",
+    "straight_ns": "path/to/your/wall_straight_ns_model.obj", // North-South
+    "straight_ew": "path/to/your/wall_straight_ew_model.obj", // East-West
+    "corner_ne": "path/to/your/wall_corner_ne_model.obj",   // North-East corner
+    "corner_nw": "path/to/your/wall_corner_nw_model.obj",
+    "corner_se": "path/to/your/wall_corner_se_model.obj",
+    "corner_sw": "path/to/your/wall_corner_sw_model.obj",
+    "t_junction_nes": "path/to/your/wall_t_nes.obj",
+    "cross": "path/to/your/wall_cross.obj"
+  }
+}

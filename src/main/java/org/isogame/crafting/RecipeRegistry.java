@@ -24,7 +24,8 @@ public class RecipeRegistry {
             "wood_plank_recipe.json",
             "stone_brick_recipe.json",
             "torch_recipe.json",
-            "furnace_recipe.json"
+            "furnace_recipe.json",
+            "stone_wall_rough_recipe.json"
     );
 
 

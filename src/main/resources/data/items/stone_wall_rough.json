@@ -1,0 +1,13 @@
+{
+  "id": "stone_wall_rough",
+  "displayName": "Rough Stone Wall",
+  "description": "A sturdy wall made of rough-hewn stone.",
+  "type": "STRUCTURE",
+  "texture": {
+    "atlas": "textu.png",
+    "x": 16,
+    "y": 0,
+    "w": 16,
+    "h": 16
+  }
+}

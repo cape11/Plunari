@@ -64,33 +64,9 @@ public class PlacementManager {
         updatePreview();
     }
 
-    // Called when the mouse button is released
-    // In PlacementManager.java
 
-    // In PlacementManager.java -> finalizePlacement()
 
-    // In PlacementManager.java -> finalizePlacement()
 
-    public void finalizePlacement() {
-        if (!isPlacing) return;
-
-        for (int[] coords : placementPreview) {
-            Item heldItem = player.getHeldItem();
-            if (heldItem != null && player.getHeldItemCount() > 0) {
-
-                // vvv CHANGE THIS LINE to pass 'this.game' vvv
-                if (map.placeBlock(coords[1], coords[0], heldItem, this.game)) {
-                    // ^^^ END OF CHANGE ^^^
-
-                    player.consumeHeldItem(1);
-                }
-            } else {
-                break;
-            }
-        }
-        game.setHotbarDirty(true);
-        reset();
-    }
 
     // Called if the placement is cancelled (e.g., right-clicking)
     public void cancelPlacement() {
@@ -121,6 +97,34 @@ public class PlacementManager {
         this.currentCoords = null;
         this.placementPreview.clear();
     }
+
+
+
+    public void finalizePlacement() {
+        if (!isPlacing) return;
+
+        for (int[] coords : placementPreview) {
+            Item heldItem = player.getHeldItem();
+            if (heldItem != null && player.getHeldItemCount() > 0) {
+
+                // The 'if' for STRUCTURE MUST come first!
+                if (heldItem.getType() == Item.ItemType.STRUCTURE) {
+                    game.getStructureManager().addWall(coords[1], coords[0], heldItem.getItemId());
+                    player.consumeHeldItem(1);
+                }
+                // The 'else if' for placing regular blocks comes second.
+                else if (map.placeBlock(coords[1], coords[0], heldItem, this.game)) {
+                    player.consumeHeldItem(1);
+                }
+
+            } else {
+                break;
+            }
+        }
+        game.setHotbarDirty(true);
+        reset();
+    }
+
 
     public List<int[]> getPlacementPreview() {
         return placementPreview;

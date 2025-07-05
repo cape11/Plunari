@@ -27,11 +27,12 @@ public class ItemRegistry {
             "wood.json",
             "slime_gel.json",
             "wood_wall.json",
-            "torch.json",         // <-- ADD THIS LINE
+            "torch.json",// <-- ADD THIS LINE
             "wooden_sword.json",
             "wood_plank.json",
             "stone_brick.json",
-            "furnace.json"
+            "furnace.json",
+            "stone_wall_rough.json"
     );
 
     /**

@@ -26,6 +26,7 @@ import org.isogame.world.World;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import org.isogame.world.structure.StructureManager;
 
 import java.io.File;
 import java.io.FileReader;
@@ -612,6 +613,9 @@ public class Game {
     public EntityManager getEntityManager() { return (world != null) ? world.getEntityManager() : null; }
     public LightManager getLightManager() { return (world != null) ? world.getLightManager() : null; }
     public PlacementManager getPlacementManager() { return (world != null) ? world.getPlacementManager() : null; }
+    public StructureManager getStructureManager() {
+        return (world != null) ? world.getStructureManager() : null;
+    }
     public double getPseudoTimeOfDay() { return (world != null) ? world.getPseudoTimeOfDay() : 0.25; }
 
     // Game-level state getters/setters

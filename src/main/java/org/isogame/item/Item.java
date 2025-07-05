@@ -36,7 +36,7 @@ public class Item {
 
 
     public enum ItemType {
-        RESOURCE, TOOL, EQUIPMENT, CONSUMABLE, MISC
+        RESOURCE, TOOL, EQUIPMENT, CONSUMABLE, MISC, STRUCTURE
     }
 
     public boolean onUse(Game game, PlayerModel player, Tile targetTile, int tileR, int tileC) {
@@ -76,6 +76,7 @@ public class Item {
         this.displayName = displayName;
         this.description = description;
         this.type = type;
+
         this.maxStackSize = maxStackSize;
         this.placeholderColor = placeholderColor;
         this.hasIconTexture = hasIconTexture;
@@ -133,6 +134,10 @@ public class Item {
     public int getMaxStack() {
         // Return the maxStackSize field from this class
         return this.maxStackSize; // <-- This is the correct line
+    }
+
+    public ItemType getType() {
+        return this.type;
     }
     @Override
     public int hashCode() {

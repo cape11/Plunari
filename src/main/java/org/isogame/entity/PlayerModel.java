@@ -48,6 +48,10 @@ public class PlayerModel extends Entity {
         // Load data from JSON instead of hardcoding
         loadAnimationDefinition("/data/animations/player_animations.json");
         loadAnchorDefinition("/data/animations/player_anchors.json");
+        Item wallItem = ItemRegistry.getItem("stone_wall_rough");
+        if (wallItem != null) {
+            this.addItemToInventory(wallItem, 64);
+        }
     }
 
     private void loadAnchorDefinition(String jsonPath) {
