@@ -247,9 +247,11 @@ public class PlayerModel extends Entity {
 
     public AnchorDefinition.AnchorPoint getAnchorForCurrentFrame() {
         if (anchorDef == null || anchorDef.anchors == null) return null;
+        // The key is a combination of the animation row and the current frame index
         String key = getAnimationRow() + "_" + getVisualFrameIndex();
         return anchorDef.anchors.get(key);
     }
+
 
     // --- Inventory and Item Management ---
     public boolean addItemToInventory(Item itemToAdd, int amount) {

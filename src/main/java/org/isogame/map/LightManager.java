@@ -8,6 +8,8 @@ import java.util.HashSet;
 // List import is not strictly needed by LightManager itself with this approach,
 // but Game.java might pass List<ChunkCoordinate>
 import static org.isogame.constants.Constants.*;
+import java.awt.Color;
+import org.joml.Vector3f;
 
 public class LightManager {
 
@@ -18,6 +20,11 @@ public class LightManager {
     private final Queue<LightNode> skyLightRemovalQueue;
     private final Queue<LightNode> blockLightPropagationQueue;
     private final Queue<LightNode> blockLightRemovalQueue;
+
+    private static final Color DAY_COLOR = new Color(255, 255, 255);      // Pure white for midday
+    private static final Color SUNSET_COLOR = new Color(255, 120, 0);     // Warm orange for sunrise/sunset
+    private static final Color NIGHT_COLOR = new Color(25, 25, 60);   // Blue Deep for night
+
 
     public static final int BATCH_LIGHT_UPDATE_BUDGET = 10000; // Max total light updates across all queues per frame
     private static final int MAX_LIGHT_UPDATES_PER_QUEUE_PER_FRAME = 4000; // Max updates for a single queue type
@@ -42,6 +49,54 @@ public class LightManager {
         public LightNode(int r, int c, byte lightLevel) { this.r = r; this.c = c; this.lightLevel = lightLevel; }
         @Override public boolean equals(Object o) { if (this == o) return true; if (o == null || getClass() != o.getClass()) return false; LightNode ln = (LightNode) o; return r == ln.r && c == ln.c && lightLevel == ln.lightLevel; }
         @Override public int hashCode() { int result = r; result = 31 * result + c; result = 31 * result + (int) lightLevel; return result; }
+    }
+
+    /**
+     * Calculates the blended ambient light color based on the current global sky light level.
+     * This provides the visual tint for the day-night cycle that gets sent to the shader.
+     *
+     * @return A Color object representing the current ambient light color.
+     */
+    public Color getAmbientLightColor() {
+        // This assumes SKY_LIGHT_DAY and SKY_LIGHT_NIGHT_MINIMUM are your max/min light constants.
+        // Let's say SKY_LIGHT_DAY = 15 and SKY_LIGHT_NIGHT_MINIMUM = 4.
+
+        // Calculate the current progress of daylight (0.0 = full night, 1.0 = full day)
+        float daylightProgress = (float)(this.currentGlobalSkyLightTarget - SKY_LIGHT_NIGHT_MINIMUM) / (SKY_LIGHT_DAY - SKY_LIGHT_NIGHT_MINIMUM);
+
+        // Ensure progress is clamped between 0 and 1
+        daylightProgress = Math.max(0.0f, Math.min(1.0f, daylightProgress));
+
+        // For a simple two-color blend (Night -> Day):
+        // return lerp(NIGHT_COLOR, DAY_COLOR, daylightProgress);
+
+        // For a three-color blend (Night -> Sunset -> Day), which is fancier:
+        if (daylightProgress < 0.5f) {
+            // We are in the first half of the transition (Night to Sunset)
+            return lerp(NIGHT_COLOR, SUNSET_COLOR, daylightProgress * 2.0f);
+        } else {
+            // We are in the second half (Sunset to Day)
+            return lerp(SUNSET_COLOR, DAY_COLOR, (daylightProgress - 0.5f) * 2.0f);
+        }
+    }
+
+    /**
+     * Linearly interpolates between two colors.
+     * (This is a helper function. Ideally, it belongs in a static utility class like "MathUtils.java")
+     *
+     * @param color1 The starting color (when fraction is 0).
+     * @param color2 The ending color (when fraction is 1).
+     * @param fraction The blending factor, from 0.0 to 1.0.
+     * @return The interpolated Color.
+     */
+    private static Color lerp(Color color1, Color color2, float fraction) {
+        fraction = Math.max(0.0f, Math.min(1.0f, fraction));
+
+        float r = (color1.getRed()   * (1 - fraction)) + (color2.getRed()   * fraction);
+        float g = (color1.getGreen() * (1 - fraction)) + (color2.getGreen() * fraction);
+        float b = (color1.getBlue()  * (1 - fraction)) + (color2.getBlue()  * fraction);
+
+        return new Color((int) r, (int) g, (int) b);
     }
 
     public LightManager(Map map) {

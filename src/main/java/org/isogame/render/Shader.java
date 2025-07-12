@@ -3,6 +3,7 @@ package org.isogame.render;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.system.MemoryStack;
+import java.awt.Color; // Make sure this import exists at the top of your Shader.java file
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -135,6 +136,29 @@ public class Shader {
         }
     }
 
+    /**
+     * Sets a vec3 uniform in the shader program using a Java Color object.
+     * It automatically converts the 0-255 RGB values to the 0.0-1.0 float values OpenGL needs.
+     *
+     * @param name The name of the uniform variable in the shader.
+     * @param color The Color object to pass to the shader.
+     */
+    public void setUniform(String name, Color color) {
+        // Check if the uniform location was stored during creation
+        if (uniforms.containsKey(name)) {
+            // Convert color from the 0-255 integer range to the 0.0-1.0 float range
+            float r = color.getRed() / 255.0f;
+            float g = color.getGreen() / 255.0f;
+            float b = color.getBlue() / 255.0f;
+
+            // Get the location from the map and pass the three float values
+            glUniform3f(uniforms.get(name), r, g, b);
+        } else {
+            // This is a safety check to prevent crashes and help with debugging.
+            // It's good practice but not strictly required to fix the error.
+            System.err.println("Shader Warning: Could not find uniform named '" + name + "'");
+        }
+    }
     public static String loadResource(String resourcePath) throws IOException {
         StringBuilder result = new StringBuilder();
         try (InputStream in = Shader.class.getResourceAsStream(resourcePath);

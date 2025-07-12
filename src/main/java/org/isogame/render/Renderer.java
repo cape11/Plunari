@@ -96,8 +96,6 @@ public class Renderer {
 
 
     // --- NEW: Shadow Rendering Resources ---
-    private int shadowVaoId, shadowVboId;
-    private FloatBuffer shadowVertexBuffer;
     private int particleVaoId, particleVboId;
     private FloatBuffer particleVertexBuffer;
     private static final int MAX_PARTICLE_QUADS = 1024;
@@ -198,7 +196,6 @@ public class Renderer {
         initShaders();
         initRenderObjects();
         initUiColoredResources();
-        initShadowResources();
         initParticleResources();
 
     }
@@ -306,34 +303,7 @@ public class Renderer {
         }
     }
     // --- NEW METHOD ---
-    private void initShadowResources() {
-        shadowVaoId = glGenVertexArrays();
-        glBindVertexArray(shadowVaoId);
-        shadowVboId = glGenBuffers();
-        glBindBuffer(GL_ARRAY_BUFFER, shadowVboId);
 
-        int shadowBufferCapacityFloats = MAX_SHADOW_QUADS * 6 * FLOATS_PER_VERTEX_SHADOW;
-        if (shadowVertexBuffer != null) {
-            MemoryUtil.memFree(shadowVertexBuffer);
-        }
-        shadowVertexBuffer = MemoryUtil.memAllocFloat(shadowBufferCapacityFloats);
-        if (shadowVertexBuffer == null) {
-            System.err.println("Renderer CRITICAL: Failed to allocate shadowVertexBuffer!");
-            return;
-        }
-        glBufferData(GL_ARRAY_BUFFER, (long)shadowVertexBuffer.capacity() * Float.BYTES, GL_DYNAMIC_DRAW);
-
-        // This vertex format is the same as the UI colored quads (pos + color)
-        int stride = FLOATS_PER_VERTEX_SHADOW * Float.BYTES;
-        glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, 0L); // aPos
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1, 4, GL_FLOAT, false, stride, 3 * Float.BYTES); // aColor
-        glEnableVertexAttribArray(1);
-
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
-        System.out.println("[Renderer DEBUG] Shadow Resources Initialized. VAO: " + shadowVaoId + ", VBO: " + shadowVboId);
-    }
 
 
     private void initShaders() {
@@ -350,7 +320,8 @@ public class Renderer {
             defaultShader.createUniform("uIsSimpleUiElement");
             defaultShader.createUniform("u_time");
             defaultShader.createUniform("u_isSelectedIcon");
-            defaultShader.createUniform("uIsShadow"); // NEW
+            defaultShader.createUniform("uIsShadow");
+            defaultShader.createUniform("u_ambientLightColor"); // NEW
         } catch (Exception e) {
             System.err.println("Renderer CRITICAL: Error initializing shaders: " + e.getMessage());
             throw new RuntimeException("Failed to init shaders", e);
@@ -699,10 +670,9 @@ public class Renderer {
         }
         sideLightVal = Math.max(0.05f, sideLightVal);
 
-        // Data-driven part starts here!
         org.isogame.gamedata.TileDefinition def = org.isogame.gamedata.TileRegistry.getTileDefinition(tile.getType().id);
         if (def == null || def.texture == null || def.texture.side == null) {
-            return 0; // No side texture defined for this tile, so draw nothing.
+            return 0;
         }
 
         float u0, v0, u1, v1Atlas;
@@ -716,43 +686,41 @@ public class Renderer {
             u1 = (tex.x + tex.w) / atlasW;
             v1Atlas = (tex.y + tex.h) / atlasH;
         } else {
-            return 0; // Cannot calculate UVs without atlas dimensions
+            return 0;
         }
 
+        // New logic starts here
+        float vSpan = v1Atlas - v0; // The total vertical span of the texture
+        float vRepeats = (elevSliceHeight / (float) TILE_HEIGHT) * SIDE_TEXTURE_DENSITY_FACTOR;
+
         for (int elevUnit = 1; elevUnit <= tile.getElevation(); elevUnit++) {
+            // Calculate proportional V coordinates for this slice
             float vTopTex = v0;
-            float vBotTex = v1Atlas;
+            float vBotTex = v0 + (vSpan * vRepeats); // Use the calculated repeat factor
 
             float sliceTopActualY    = gridPlaneCenterY - (elevUnit * elevSliceHeight);
             float sliceBottomActualY = gridPlaneCenterY - ((elevUnit - 1) * elevSliceHeight);
 
-            // --- Calculate the 8 vertex positions for the current slice ---
-            // Top vertices of the slice
             float sTopLx = tileCenterX + this.diamondLeftOffsetX,  sTopLy = sliceTopActualY + this.diamondSideOffsetY;
             float sTopRx = tileCenterX + this.diamondRightOffsetX, sTopRy = sliceTopActualY + this.diamondSideOffsetY;
             float sTopBx = tileCenterX,                             sTopBy = sliceTopActualY + this.diamondBottomOffsetY;
-            // Bottom vertices of the slice
             float sBotLx = tileCenterX + this.diamondLeftOffsetX,  sBotLy = sliceBottomActualY + this.diamondSideOffsetY;
             float sBotRx = tileCenterX + this.diamondRightOffsetX, sBotRy = sliceBottomActualY + this.diamondSideOffsetY;
             float sBotBx = tileCenterX,                             sBotBy = sliceBottomActualY + this.diamondBottomOffsetY;
 
-            // --- Draw the Left Face of the slice ---
-            // Triangle 1
+            // Draw the Left Face of the slice
             addVertexToBuffer(vertexBuffer, sTopLx, sTopLy, worldZ, tint, u0, vTopTex, sideLightVal);
             addVertexToBuffer(vertexBuffer, sBotLx, sBotLy, worldZ, tint, u0, vBotTex, sideLightVal);
             addVertexToBuffer(vertexBuffer, sBotBx, sBotBy, worldZ, tint, u1, vBotTex, sideLightVal);
-            // Triangle 2
             addVertexToBuffer(vertexBuffer, sTopLx, sTopLy, worldZ, tint, u0, vTopTex, sideLightVal);
             addVertexToBuffer(vertexBuffer, sBotBx, sBotBy, worldZ, tint, u1, vBotTex, sideLightVal);
             addVertexToBuffer(vertexBuffer, sTopBx, sTopBy, worldZ, tint, u1, vTopTex, sideLightVal);
             vCount += 6;
 
-            // --- Draw the Right Face of the slice ---
-            // Triangle 1
+            // Draw the Right Face of the slice
             addVertexToBuffer(vertexBuffer, sTopBx, sTopBy, worldZ, tint, u0, vTopTex, sideLightVal);
             addVertexToBuffer(vertexBuffer, sBotBx, sBotBy, worldZ, tint, u0, vBotTex, sideLightVal);
             addVertexToBuffer(vertexBuffer, sBotRx, sBotRy, worldZ, tint, u1, vBotTex, sideLightVal);
-            // Triangle 2
             addVertexToBuffer(vertexBuffer, sTopBx, sTopBy, worldZ, tint, u0, vTopTex, sideLightVal);
             addVertexToBuffer(vertexBuffer, sBotRx, sBotRy, worldZ, tint, u1, vBotTex, sideLightVal);
             addVertexToBuffer(vertexBuffer, sTopRx, sTopRy, worldZ, tint, u1, vTopTex, sideLightVal);
@@ -1034,77 +1002,47 @@ public class Renderer {
         return 6;
     }
 
+
     private int addTreeVerticesToBuffer_WorldSpace(TreeData tree, FloatBuffer buffer, double deltaTime) {
-        if (treeTexture == null || tree.treeVisualType == Tile.TreeVisualType.NONE || camera == null || map == null || treeTexture.getWidth() == 0) return 0;
+        if (map == null) return 0;
+        Tile tile = map.getTile(Math.round(tree.mapRow), Math.round(tree.mapCol));
+        if (tile == null) return 0;
 
-        float tR = tree.mapRow;
-        float tC = tree.mapCol;
-        int elev = tree.elevation;
-
-        Tile tile = map.getTile(Math.round(tR), Math.round(tC));
-        if (tile == null) return 0; // Don't render tree if its tile doesn't exist
+        TreeRenderData data = calculateTreeRenderData(tree);
+        if (!data.isValid) return 0;
 
         float lightVal = tile.getFinalLightLevel() / (float)MAX_LIGHT_LEVEL;
         lightVal = Math.max(0.1f, lightVal);
 
-        float tBaseIsoX = (tC - tR) * this.tileHalfWidth;
-        float tBaseIsoY = (tC + tR) * this.tileHalfHeight - (elev * TILE_THICKNESS);
-
-        // --- NEW: Tree Shake Logic ---
+        float finalIsoX = data.baseIsoX;
         if (tile.treeShakeTimer > 0) {
-            float shakeAmount = 2.5f; // Pixels of shake
-            tBaseIsoX += (tileDetailRandom.nextFloat() - 0.5f) * shakeAmount;
-
-            // Decrement the timer AFTER using it for this frame's shake.
+            float shakeAmount = 2.5f;
+            finalIsoX += (tileDetailRandom.nextFloat() - 0.5f) * shakeAmount;
             tile.treeShakeTimer -= deltaTime;
         }
-        // --- END NEW ---
 
-        float tileLogicalZ = (tR + tC) * DEPTH_SORT_FACTOR + (elev * 0.005f);
+        float tileLogicalZ = (tree.mapRow + tree.mapCol) * DEPTH_SORT_FACTOR + (tree.elevation * 0.005f);
         float treeWorldZ = tileLogicalZ + Z_OFFSET_SPRITE_TREE;
 
-        float frameW=0, frameH=0, atlasU0val=0, atlasV0val=0;
-        float renderWidth, renderHeight;
-        float anchorYOffsetFromBase;
+        float halfTreeRenderWidth = data.renderWidth / 2.0f;
+        float yTop = data.treeRenderAnchorY - data.renderHeight;
+        float yBottom = data.treeRenderAnchorY;
 
-        switch(tree.treeVisualType){
-            case APPLE_TREE_FRUITING:
-                frameW = 90; frameH = 130; atlasU0val = 0; atlasV0val = 0;
-                renderWidth = TILE_WIDTH * 1.0f;
-                renderHeight = renderWidth * (frameH / frameW);
-                anchorYOffsetFromBase = TILE_HEIGHT * 0.15f;
-                break;
-            case PINE_TREE_SMALL:
-                frameW = 90; frameH = 130; atlasU0val = 90; atlasV0val = 0;
-                renderWidth = TILE_WIDTH * 1.0f;
-                renderHeight = renderWidth * (frameH / frameW);
-                anchorYOffsetFromBase = TILE_HEIGHT * 0.1f;
-                break;
-            default: return 0;
-        }
+        float xBL = finalIsoX - halfTreeRenderWidth;
+        float yBL_sprite = yBottom;
+        float xTL = finalIsoX - halfTreeRenderWidth;
+        float yTL_sprite = yTop;
+        float xTR = finalIsoX + halfTreeRenderWidth;
+        float yTR_sprite = yTop;
+        float xBR = finalIsoX + halfTreeRenderWidth;
+        float yBR_sprite = yBottom;
 
-        float treeRenderAnchorY = tBaseIsoY + anchorYOffsetFromBase;
-
-        float texU0 = atlasU0val / treeTexture.getWidth();
-        float texV0 = atlasV0val / treeTexture.getHeight();
-        float texU1 = (atlasU0val + frameW) / treeTexture.getWidth();
-        float texV1 = (atlasV0val + frameH) / treeTexture.getHeight();
-
-        float halfTreeRenderWidth = renderWidth / 2.0f;
-        float yTop = treeRenderAnchorY - renderHeight;
-        float yBottom = treeRenderAnchorY;
-
-        float xBL = tBaseIsoX - halfTreeRenderWidth; float yBL_sprite = yBottom;
-        float xTL = tBaseIsoX - halfTreeRenderWidth; float yTL_sprite = yTop;
-        float xTR = tBaseIsoX + halfTreeRenderWidth; float yTR_sprite = yTop;
-        float xBR = tBaseIsoX + halfTreeRenderWidth; float yBR_sprite = yBottom;
-
-        addVertexToSpriteBuffer(buffer, xTL, yTL_sprite, treeWorldZ, WHITE_TINT, texU0, texV0, lightVal);
-        addVertexToSpriteBuffer(buffer, xBL, yBL_sprite, treeWorldZ, WHITE_TINT, texU0, texV1, lightVal);
-        addVertexToSpriteBuffer(buffer, xTR, yTR_sprite, treeWorldZ, WHITE_TINT, texU1, texV0, lightVal);
-        addVertexToSpriteBuffer(buffer, xTR, yTR_sprite, treeWorldZ, WHITE_TINT, texU1, texV0, lightVal);
-        addVertexToSpriteBuffer(buffer, xBL, yBL_sprite, treeWorldZ, WHITE_TINT, texU0, texV1, lightVal);
-        addVertexToSpriteBuffer(buffer, xBR, yBR_sprite, treeWorldZ, WHITE_TINT, texU1, texV1, lightVal);
+        addVertexToSpriteBuffer(buffer, xTL, yTL_sprite, treeWorldZ, WHITE_TINT, data.texU0, data.texV0, lightVal);
+        addVertexToSpriteBuffer(buffer, xBL, yBL_sprite, treeWorldZ, WHITE_TINT, data.texU0, data.texV1, lightVal);
+        addVertexToSpriteBuffer(buffer, xTR, yTR_sprite, treeWorldZ, WHITE_TINT, data.texU1, data.texV0, lightVal);
+        addVertexToSpriteBuffer(buffer, xTR, yTR_sprite, treeWorldZ, WHITE_TINT, data.texU1, data.texV0, lightVal);
+        addVertexToSpriteBuffer(buffer, xBL, yBL_sprite, treeWorldZ, WHITE_TINT, data.texU0, data.texV1, lightVal);
+        addVertexToSpriteBuffer(buffer, xBR, yBR_sprite, treeWorldZ, WHITE_TINT, data.texU1, data.texV1, lightVal);
         return 6;
     }
 
@@ -1123,6 +1061,11 @@ public class Renderer {
         defaultShader.setUniform("uIsFont", 0);
         defaultShader.setUniform("uIsSimpleUiElement", 0);
         defaultShader.setUniform("uIsShadow", 0);
+
+        if (this.map != null && this.map.getLightManager() != null) {
+            // This assumes you have the `setUniform(String, Color)` helper in your Shader.java
+            defaultShader.setUniform("u_ambientLightColor", this.map.getLightManager().getAmbientLightColor());
+        }
 
         // Render the tile map chunks
         if (map != null && assetManager.getTexture("tileAtlasTexture") != null) {
@@ -1150,6 +1093,15 @@ public class Renderer {
         if (map != null && !particleEntities.isEmpty()) {
             renderParticles();
         }
+    }
+
+    // In C:/Users/capez/IdeaProjects/JavaGameLWJGL/src/main/java/org/isogame/render/Renderer.java
+
+    public static class TreeRenderData {
+        public float baseIsoX, treeRenderAnchorY;
+        public float renderWidth, renderHeight;
+        public float texU0, texV0, texU1, texV1;
+        public boolean isValid = false;
     }
 
     private void collectWorldEntities(World world, double deltaTime) {
@@ -1311,130 +1263,159 @@ public class Renderer {
     }
 
 
-    // --- NEW HELPER METHOD TO DRAW AND RESIZE ---
-    private void flushAndResizeShadowBatch() {
-        if (shadowVertexBuffer.position() == 0) {
-            return; // Nothing to draw
-        }
-
-        shadowVertexBuffer.flip();
-
-        // Calculate vertex count directly from the buffer's state
-        int verticesToDraw = shadowVertexBuffer.limit() / FLOATS_PER_VERTEX_SHADOW;
-        if (verticesToDraw == 0) {
-            shadowVertexBuffer.clear();
-            return;
-        }
-
-        glBindBuffer(GL_ARRAY_BUFFER, shadowVboId);
-
-        // Check if the VBO on the GPU is big enough for our data
-        if (shadowVertexBuffer.capacity() > glGetBufferParameteri(GL_ARRAY_BUFFER, GL_BUFFER_SIZE)) {
-            // If not, reallocate the GPU buffer to be the new, larger size
-            glBufferData(GL_ARRAY_BUFFER, shadowVertexBuffer.capacity(), GL_DYNAMIC_DRAW);
-        }
-
-        // Upload the vertex data
-        glBufferSubData(GL_ARRAY_BUFFER, 0, shadowVertexBuffer);
-
-        // Draw the batch
-        glDrawArrays(GL_TRIANGLES, 0, verticesToDraw);
-
-        // Clear the client-side buffer for the next batch
-        shadowVertexBuffer.clear();
-    }
-
-
-    // --- REWRITTEN AND CORRECTED SHADOW RENDERING LOGIC ---
     private void renderShadows(double timeOfDay) {
-        if (shadowVaoId == 0 || worldEntities.isEmpty() || map == null) return;
-        if (timeOfDay < 0.0 || timeOfDay > 0.5) return;
+        if (spriteVaoId == 0 || worldEntities.isEmpty() || map == null) return;
+        if (timeOfDay < 0.01 || timeOfDay > 0.49) return;
 
-        // --- Sun & Shadow Calculation (this part is correct) ---
+        glDisable(GL_DEPTH_TEST);
+        glDepthMask(false);
+
+        final float MAX_SHADOW_FACTOR = 3.5f;
+        final float FADE_START_FACTOR = 2.0f;
+
         float sunAngle = (float) (timeOfDay / 0.5) * (float) Math.PI;
-        float shadowAngle = sunAngle + (float) Math.PI;
-        float shadowVectorX = (float) Math.cos(shadowAngle);
-        float shadowVectorY = (float) Math.sin(shadowAngle) * 0.5f;
+        float shadowVectorX = -(float) Math.cos(sunAngle);
+        float shadowVectorY = (float) Math.sin(sunAngle) * 0.5f;
         float sunElevation = (float) Math.sin(sunAngle);
         if (sunElevation <= 0.01f) sunElevation = 0.01f;
-        float shadowLengthFactor = Math.min(1.0f / sunElevation, 5.0f);
 
-        // --- Prepare for Drawing ---
+        float rawShadowFactor = 1.0f / sunElevation;
+        float shadowAlpha = SHADOW_COLOR[3];
+        if (rawShadowFactor > FADE_START_FACTOR) {
+            float fadeRange = MAX_SHADOW_FACTOR - FADE_START_FACTOR;
+            float fadeProgress = (rawShadowFactor - FADE_START_FACTOR) / fadeRange;
+            shadowAlpha = SHADOW_COLOR[3] * (1.0f - Math.max(0.0f, Math.min(1.0f, fadeProgress)));
+        }
+        float finalShadowFactor = Math.min(rawShadowFactor, MAX_SHADOW_FACTOR);
+        float[] finalShadowColor = {SHADOW_COLOR[0], SHADOW_COLOR[1], SHADOW_COLOR[2], shadowAlpha};
+
         defaultShader.setUniform("uIsShadow", 1);
-        defaultShader.setUniform("uHasTexture", 0);
-        glBindVertexArray(shadowVaoId);
-        shadowVertexBuffer.clear();
+        defaultShader.setUniform("uHasTexture", 1);
+        defaultShader.setUniform("uTextureSampler", 0);
+        glBindVertexArray(spriteVaoId);
+        glBindBuffer(GL_ARRAY_BUFFER, spriteVboId);
+        spriteVertexBuffer.clear();
+        Texture currentBatchTexture = null;
+        int verticesInCurrentBatch = 0;
 
-        // --- Generate Shadow Geometry for Each Entity ---
         for (Object entityObj : worldEntities) {
-            // Check if there's enough space in the buffer for the next shadow quad.
-            if (shadowVertexBuffer.remaining() < 6 * FLOATS_PER_VERTEX_SHADOW) {
-                // If not, flush the current batch. Our helper will handle resizing if needed.
-                flushAndResizeShadowBatch();
-
-                // Now we check again. If it's *still* too small, we need a bigger buffer.
-                if (shadowVertexBuffer.remaining() < 6 * FLOATS_PER_VERTEX_SHADOW) {
-                    System.out.println("Resizing shadow buffer from " + shadowVertexBuffer.capacity() + " to " + shadowVertexBuffer.capacity() * 2);
-                    FloatBuffer newBuffer = MemoryUtil.memAllocFloat(shadowVertexBuffer.capacity() * 2);
-                    MemoryUtil.memFree(shadowVertexBuffer); // Free the old, small buffer
-                    shadowVertexBuffer = newBuffer; // Assign the new, bigger buffer
-                }
-            }
-
-            // --- All your existing logic for calculating shadow geometry goes here ---
-            // (calculating casterHeight, baseIsoX, x1, y1, etc.)
-            float casterHeight = 0;
-            float casterWidth = 0;
-            float baseIsoX = 0;
-            float baseIsoY = 0;
-            float baseWorldZ = 0;
+            Texture textureForThisShadow = null;
+            float casterHeight = 0, casterWidth = 0;
+            float baseIsoX = 0, baseIsoY = 0;
+            float u0 = 0, v0 = 0, u1 = 1, v1 = 1;
 
             if (entityObj instanceof Entity) {
-                Entity e = (Entity)entityObj;
+                Entity e = (Entity) entityObj;
                 Tile tile = map.getTile(e.getTileRow(), e.getTileCol());
                 if (tile == null) continue;
                 baseIsoX = (e.getVisualCol() - e.getVisualRow()) * tileHalfWidth;
                 baseIsoY = (e.getVisualCol() + e.getVisualRow()) * tileHalfHeight - (tile.getElevation() * TILE_THICKNESS);
-                baseWorldZ = (e.getVisualRow() + e.getVisualCol()) * DEPTH_SORT_FACTOR + (tile.getElevation() * 0.005f);
-                if (e instanceof PlayerModel) {
-                    casterHeight = PLAYER_WORLD_RENDER_HEIGHT * 0.9f;
-                    casterWidth = PLAYER_WORLD_RENDER_WIDTH * 0.5f;
-                } else {
-                    casterHeight = e.getFrameHeight() * 0.7f;
-                    casterWidth = e.getFrameWidth() * 0.4f;
+                if (e instanceof PlayerModel || e instanceof Cow || e instanceof Slime) {
+                    textureForThisShadow = this.assetManager.getTexture("playerTexture");
+                    casterWidth = (e instanceof PlayerModel) ? PLAYER_WORLD_RENDER_WIDTH : e.getFrameWidth() * 0.75f;
+                    casterHeight = (e instanceof PlayerModel) ? PLAYER_WORLD_RENDER_HEIGHT : e.getFrameHeight() * 0.75f;
+                    int animCol = e.getVisualFrameIndex();
+                    int animRow = e.getAnimationRow();
+                    u0 = (float) (animCol * e.getFrameWidth()) / playerTexture.getWidth();
+                    v0 = (float) (animRow * e.getFrameHeight()) / playerTexture.getHeight();
+                    u1 = u0 + (float) e.getFrameWidth() / playerTexture.getWidth();
+                    v1 = v0 + (float) e.getFrameHeight() / textureForThisShadow.getHeight();
                 }
             } else if (entityObj instanceof TreeData) {
-                TreeData tree = (TreeData)entityObj;
-                Tile tile = map.getTile(Math.round(tree.mapRow), Math.round(tree.mapCol));
-                if (tile == null) continue;
-                baseIsoX = (tree.mapCol - tree.mapRow) * tileHalfWidth;
-                baseIsoY = (tree.mapCol + tree.mapRow) * tileHalfHeight - (tree.elevation * TILE_THICKNESS);
-                baseWorldZ = (tree.mapRow + tree.mapCol) * DEPTH_SORT_FACTOR + (tree.elevation * 0.005f);
-                float frameW = 90; float frameH = 130;
-                float renderWidth = TILE_WIDTH * 1.0f;
-                casterHeight = renderWidth * (frameH / frameW);
-                casterWidth = renderWidth * 0.6f;
+                TreeData tree = (TreeData) entityObj;
+                TreeRenderData data = calculateTreeRenderData(tree);
+                if (!data.isValid) continue;
+
+                // ### START OF THE FIX ###
+                Tile treeTile = map.getTile(Math.round(tree.mapRow), Math.round(tree.mapCol));
+                // Check the tile diagonally in front of the tree (from the camera's perspective)
+                Tile blockingTile = map.getTile(Math.round(tree.mapRow - 1), Math.round(tree.mapCol - 1));
+
+                if (treeTile != null && blockingTile != null) {
+                    // If the tile in front is higher than the tree's tile, it's occluded, so we skip it.
+                    if (blockingTile.getElevation() > treeTile.getElevation() + 1) {
+                        continue; // Skip rendering the shadow for this occluded tree
+                    }
+                }
+                // ### END OF THE FIX ###
+
+                textureForThisShadow = this.treeTexture;
+                casterWidth = data.renderWidth;
+                casterHeight = data.renderHeight;
+                baseIsoX = data.baseIsoX;
+                baseIsoY = data.treeRenderAnchorY; // Use the perfect anchor point
+                u0 = data.texU0;
+                v0 = data.texV0;
+                u1 = data.texU1;
+                v1 = data.texV1;
             }
 
-            if (casterHeight > 0) {
-                float finalShadowLength = casterHeight * shadowLengthFactor;
-                float halfCasterWidth = casterWidth / 2.0f;
-                float shadowOffsetX = shadowVectorX * finalShadowLength;
-                float shadowOffsetY = shadowVectorY * finalShadowLength;
-                float x1 = baseIsoX - halfCasterWidth; float y1 = baseIsoY;
-                float x2 = baseIsoX + halfCasterWidth; float y2 = baseIsoY;
-                float x3 = x2 + shadowOffsetX; float y3 = y2 + shadowOffsetY;
-                float x4 = x1 + shadowOffsetX; float y4 = y1 + shadowOffsetY;
-                addShadowQuadToBuffer(shadowVertexBuffer, x1, y1, x2, y2, x3, y3, x4, y4, baseWorldZ + Z_OFFSET_SHADOW);
+            if (textureForThisShadow == null || casterHeight <= 0) continue;
+            if (currentBatchTexture != null && textureForThisShadow.getId() != currentBatchTexture.getId()) {
+                renderSpriteBatch(spriteVertexBuffer, verticesInCurrentBatch, currentBatchTexture);
+                verticesInCurrentBatch = 0;
             }
+            currentBatchTexture = textureForThisShadow;
+            if (spriteVertexBuffer.position() + (6 * FLOATS_PER_VERTEX_SPRITE_TEXTURED) > spriteVertexBuffer.capacity()) {
+                renderSpriteBatch(spriteVertexBuffer, verticesInCurrentBatch, currentBatchTexture);
+                verticesInCurrentBatch = 0;
+            }
+
+            float u_start = u0;
+            float u_end = u1;
+            if (shadowVectorX < 0) {
+                u_start = u1;
+                u_end = u0;
+            }
+
+            float finalShadowLength = casterHeight * finalShadowFactor;
+            float shadowOffsetX = shadowVectorX * finalShadowLength;
+            float shadowOffsetY = shadowVectorY * finalShadowLength;
+
+            float x1 = baseIsoX - casterWidth / 2.0f;
+            float y1 = baseIsoY;
+            float x2 = baseIsoX + casterWidth / 2.0f;
+            float y2 = baseIsoY;
+
+            float x3 = x2 + shadowOffsetX;
+            float y3 = (y2 - casterHeight) + shadowOffsetY;
+            float x4 = x1 + shadowOffsetX;
+            float y4 = (y1 - casterHeight) + shadowOffsetY;
+
+            addTexturedShadowQuadToBuffer(spriteVertexBuffer, x1, y1, x2, y2, x3, y3, x4, y4, Z_OFFSET_SHADOW, u_start, v1, u_end, v0, finalShadowColor);
+            verticesInCurrentBatch += 6;
         }
 
-        // After the loop, render any remaining shadows
-        flushAndResizeShadowBatch();
+        if (verticesInCurrentBatch > 0) {
+            renderSpriteBatch(spriteVertexBuffer, verticesInCurrentBatch, currentBatchTexture);
+        }
 
-        // --- Cleanup ---
         glBindVertexArray(0);
         defaultShader.setUniform("uIsShadow", 0);
+        glDepthMask(true);
+        glEnable(GL_DEPTH_TEST);
+    }
+    private void addTexturedShadowQuadToBuffer(FloatBuffer buffer,
+                                               float x1, float y1, float x2, float y2, // Base of the shadow quad
+                                               float x3, float y3, float x4, float y4, // Projected end of the shadow
+                                               float z,
+                                               float u_start, float v_base,      // Texture coords for the base
+                                               float u_end, float v_projected,   // Texture coords for the projection
+                                               float[] shadowColor) {
+        float lightVal = 1.0f; // Shadows are not affected by world light
+
+        // The base of the shadow (x1,y1 and x2,y2) gets the v_base coordinate.
+        // The projected part of the shadow (x4,y4 and x3,y3) gets the v_projected coordinate.
+
+        // Triangle 1
+        addVertexToSpriteBuffer(buffer, x1, y1, z, shadowColor, u_start, v_base, lightVal);
+        addVertexToSpriteBuffer(buffer, x2, y2, z, shadowColor, u_end,   v_base, lightVal);
+        addVertexToSpriteBuffer(buffer, x4, y4, z, shadowColor, u_start, v_projected, lightVal);
+
+        // Triangle 2
+        addVertexToSpriteBuffer(buffer, x2, y2, z, shadowColor, u_end,   v_base, lightVal);
+        addVertexToSpriteBuffer(buffer, x3, y3, z, shadowColor, u_end,   v_projected, lightVal);
+        addVertexToSpriteBuffer(buffer, x4, y4, z, shadowColor, u_start, v_projected, lightVal);
     }
 
     // Add this entire new method to Renderer.java
@@ -1652,17 +1633,7 @@ public class Renderer {
      * Adds a skewed quad (a parallelogram) to the shadow vertex buffer.
      * The quad is defined by its four world-space corner points.
      */
-    private void addShadowQuadToBuffer(FloatBuffer buffer, float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, float z) {
-        // Triangle 1: (v1, v2, v4)
-        buffer.put(x1).put(y1).put(z).put(SHADOW_COLOR);
-        buffer.put(x2).put(y2).put(z).put(SHADOW_COLOR);
-        buffer.put(x4).put(y4).put(z).put(SHADOW_COLOR);
 
-        // Triangle 2: (v2, v3, v4)
-        buffer.put(x2).put(y2).put(z).put(SHADOW_COLOR);
-        buffer.put(x3).put(y3).put(z).put(SHADOW_COLOR);
-        buffer.put(x4).put(y4).put(z).put(SHADOW_COLOR);
-    }
 
 
 
@@ -2113,6 +2084,68 @@ public class Renderer {
             }
         }
     }
+
+    // In C:/Users/capez/IdeaProjects/JavaGameLWJGL/src/main/java/org/isogame/render/Renderer.java
+
+    // In Renderer.java
+    private TreeRenderData calculateTreeRenderData(TreeData tree) {
+        TreeRenderData data = new TreeRenderData();
+        if (treeTexture == null || tree.treeVisualType == Tile.TreeVisualType.NONE) {
+            return data;
+        }
+
+        float tR = tree.mapRow;
+        float tC = tree.mapCol;
+
+        data.baseIsoX = (tC - tR) * this.tileHalfWidth;
+        float tBaseIsoY = (tC + tR) * this.tileHalfHeight - (tree.elevation * TILE_THICKNESS);
+
+        float frameW = 0, frameH = 0, atlasU0val = 0, atlasV0val = 0;
+        float anchorPixelOffset;
+
+        switch(tree.treeVisualType){
+            case APPLE_TREE_FRUITING:
+                // Using your confirmed, correct data
+                frameW = 90.0f;
+                frameH = 115.0f; // Correct Height
+                atlasU0val = 0.0f;
+                atlasV0val = 0;
+                anchorPixelOffset = 115.0f; // Correct Anchor Y
+                break;
+
+            case PINE_TREE_SMALL:
+                // Using your confirmed, correct data
+                frameW = 90.0f;
+                frameH = 115.0f; // Correct Height
+                atlasU0val = 100.0f;
+                atlasV0val = 0;
+                anchorPixelOffset = 114.0f; // Correct Anchor Y
+                break;
+
+            default: return data;
+        }
+
+        // --- This section is now correct ---
+        data.renderWidth = TILE_WIDTH * 1.0f;
+        // Adjust render height based on the new aspect ratio
+        data.renderHeight = data.renderWidth * (frameH / frameW);
+
+        // Calculate the anchor's position in world units
+        float anchorYOffsetInWorld = data.renderHeight * (anchorPixelOffset / frameH);
+
+        // The final render position is the tile's base, adjusted by the sprite's height and anchor
+        data.treeRenderAnchorY = tBaseIsoY - (data.renderHeight - anchorYOffsetInWorld);
+
+        data.texU0 = atlasU0val / treeTexture.getWidth();
+        data.texV0 = atlasV0val / treeTexture.getHeight();
+        data.texU1 = (atlasU0val + frameW) / treeTexture.getWidth();
+        data.texV1 = (atlasV0val + frameH) / treeTexture.getHeight();
+        data.isValid = true;
+
+        return data;
+    }
+
+
 
     private void renderCraftingText(List<org.isogame.crafting.CraftingRecipe> recipes,
                                     Game game, Font font, Font titleFont,
